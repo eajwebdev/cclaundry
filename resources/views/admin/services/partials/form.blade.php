@@ -65,6 +65,46 @@
         </div>
     </div>
 
+    {{-- Controls whether customers can pick this service on the public site. --}}
+    <div x-data="{ pinned: {{ old('show_on_landing', $service->show_on_landing) ? 'true' : 'false' }} }"
+         class="rounded-md border border-border p-3 dark:border-gray-800">
+        <label class="flex cursor-pointer items-start gap-2.5">
+            <input type="checkbox" name="show_on_landing" value="1" x-model="pinned" class="mt-0.5 rounded border-border text-primary">
+            <span>
+                <span class="block text-sm font-semibold">Show on landing page</span>
+                <span class="mt-0.5 block text-xs text-muted">
+                    Pinned services are what customers can choose when booking a pickup online, at the price set above.
+                </span>
+            </span>
+        </label>
+
+        <div x-show="pinned" x-cloak x-transition class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_11rem_7rem]">
+            <div>
+                <label class="mb-1.5 block text-sm font-medium">Customer-facing description</label>
+                <input name="landing_blurb" maxlength="255" value="{{ old('landing_blurb', $service->landing_blurb) }}"
+                       placeholder="Our everyday load. Sorted, washed, tumble dried and folded."
+                       class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+            </div>
+
+            <div>
+                <label class="mb-1.5 block text-sm font-medium">Icon</label>
+                <select name="landing_icon" class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+                    <option value="">Auto (from name)</option>
+                    @foreach(\App\Models\LaundryService::LANDING_ICONS as $iconKey => $iconLabel)
+                        <option value="{{ $iconKey }}" @selected(old('landing_icon', $service->landing_icon) === $iconKey)>{{ $iconLabel }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label class="mb-1.5 block text-sm font-medium">Order</label>
+                <input type="number" min="0" max="9999" name="landing_sort_order"
+                       value="{{ old('landing_sort_order', $service->landing_sort_order ?? 0) }}"
+                       class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+            </div>
+        </div>
+    </div>
+
     <div>
         <div class="mb-2">
             <div class="flex items-center justify-between gap-3">

@@ -18,7 +18,7 @@
     // Which step holds the first thing the server complained about, so a bounced
     // submission reopens where the problem is instead of back at step one.
     $stepFields = [
-        1 => ['service_type', 'estimated_kilos', 'is_rush'],
+        1 => ['offering', 'estimated_kilos', 'is_rush'],
         2 => ['branch_id', 'pickup_address', 'pickup_landmark', 'pickup_date', 'pickup_slot'],
         3 => ['delivery_preference', 'delivery_address', 'delivery_date', 'delivery_slot'],
         4 => ['contact_name', 'contact_phone', 'contact_email', 'notes'],
@@ -32,13 +32,17 @@
         }
     }
 
-    $serviceMeta = collect($serviceTypes)->map(fn ($service, $key) => [
-        'key' => $key,
-        'label' => $service['label'],
-        'from' => $service['from'],
-        'unit' => $service['unit'],
-        'perLoad' => in_array($key, ['wash_dry_fold', 'wash_only', 'dry_only'], true),
+    // Mirrors App\Support\Booking::estimate so the live figure in the summary
+    // and the stored estimate cannot disagree.
+    $offeringMeta = $offerings->map(fn ($offering) => [
+        'key' => $offering['key'],
+        'label' => $offering['name'],
+        'price' => $offering['price'],
+        'pricingType' => $offering['pricing_type'],
+        'unit' => $offering['unit'],
     ])->values();
+
+    $defaultOffering = $value('offering', $offerings->first()['key'] ?? '');
 @endphp
 
 <section id="book" class="scroll-mt-24 border-y border-border bg-white py-20 sm:py-24 dark:border-white/10 dark:bg-[#241a13]">
@@ -58,17 +62,35 @@
             </p>
         </div>
 
+        @if($offerings->isEmpty())
+            <div class="mx-auto mt-12 max-w-2xl rounded-3xl border border-dashed border-border bg-cream px-8 py-14 text-center dark:border-white/12 dark:bg-[#1c1510]">
+                <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <span data-lucide="timer" class="h-6 w-6"></span>
+                </span>
+                <p class="mt-5 font-medium">Online booking is not available right now</p>
+                <p class="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-muted">
+                    No services are published for online booking yet. Please call the branch and we will arrange your pickup.
+                </p>
+                @if($settings?->contact_number)
+                    <a href="tel:{{ preg_replace('/\s+/', '', $settings->contact_number) }}"
+                       class="mt-6 inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-deep">
+                        <span data-lucide="phone" class="h-4 w-4"></span>
+                        {{ $settings->contact_number }}
+                    </a>
+                @endif
+            </div>
+        @else
         <form
             method="POST"
             action="{{ route('booking.store') }}"
             x-data="bookingForm({
                 step: {{ $initialStep }},
-                services: {{ Js::from($serviceMeta) }},
+                offerings: {{ Js::from($offeringMeta) }},
                 rushSurcharge: {{ (int) $rushSurcharge }},
                 branches: {{ Js::from($branches->map(fn ($b) => ['id' => $b->id, 'name' => $b->name])) }},
                 slots: {{ Js::from($slots) }},
                 initial: {
-                    service_type: @js($value('service_type', 'wash_dry_fold')),
+                    offering: @js((string) $defaultOffering),
                     estimated_kilos: @js($value('estimated_kilos', '')),
                     is_rush: {{ $value('is_rush') ? 'true' : 'false' }},
                     branch_id: @js((string) $defaultBranchId),
@@ -81,7 +103,7 @@
                     delivery_address: @js($value('delivery_address', '')),
                 }
             })"
-            @preselect-service.window="pick($event.detail)"
+            @preselect-offering.window="pick($event.detail)"
             @preselect-branch.window="form.branch_id = String($event.detail); step = 2"
             class="mt-12 grid gap-6 lg:grid-cols-[1.55fr_1fr] lg:items-start"
         >
@@ -123,25 +145,36 @@
                         <h3 class="font-serif text-xl font-medium text-primary-deep dark:text-cane">What are we washing?</h3>
                         <p class="mt-1.5 text-sm text-muted">Pick the closest match. We will confirm the details when we weigh your bag.</p>
 
+                        {{-- Bundles and single services, pinned by staff. --}}
                         <div class="mt-6 grid gap-3 sm:grid-cols-2">
-                            @foreach ($serviceTypes as $key => $service)
+                            @foreach ($offerings as $offering)
                                 <label class="relative flex cursor-pointer gap-3 rounded-2xl border p-4 transition"
-                                       :class="form.service_type === @js($key)
+                                       :class="form.offering === @js($offering['key'])
                                             ? 'border-primary bg-primary/6 ring-1 ring-primary/25'
                                             : 'border-border bg-white hover:border-primary/35 dark:bg-[#241a13]'">
-                                    <input type="radio" name="service_type" value="{{ $key }}" x-model="form.service_type" class="sr-only">
+                                    <input type="radio" name="offering" value="{{ $offering['key'] }}" x-model="form.offering" class="sr-only">
                                     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition"
-                                          :class="form.service_type === @js($key) ? 'bg-primary text-white' : 'bg-primary/10 text-primary'">
-                                        <span data-lucide="{{ $service['icon'] }}" class="h-4.5 w-4.5"></span>
+                                          :class="form.offering === @js($offering['key']) ? 'bg-primary text-white' : 'bg-primary/10 text-primary'">
+                                        <span data-lucide="{{ $offering['icon'] }}" class="h-4.5 w-4.5"></span>
                                     </span>
                                     <span class="min-w-0">
-                                        <span class="block text-sm font-medium">{{ $service['label'] }}</span>
-                                        <span class="mt-0.5 block text-xs text-muted">From &#8369;{{ number_format($service['from']) }} {{ $service['unit'] }}</span>
+                                        <span class="flex flex-wrap items-center gap-1.5">
+                                            <span class="text-sm font-medium">{{ $offering['name'] }}</span>
+                                            @if($offering['type'] === 'preset')
+                                                <span class="rounded-full bg-primary/12 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-primary uppercase">Bundle</span>
+                                            @endif
+                                        </span>
+                                        <span class="mt-0.5 block text-xs text-muted">&#8369;{{ number_format($offering['price'], 2) }} {{ $offering['unit'] }}</span>
+                                        @if($offering['includes'])
+                                            <span class="mt-1 block text-xs leading-relaxed text-muted">{{ implode(' + ', $offering['includes']) }}</span>
+                                        @elseif($offering['blurb'])
+                                            <span class="mt-1 block text-xs leading-relaxed text-muted">{{ $offering['blurb'] }}</span>
+                                        @endif
                                     </span>
                                 </label>
                             @endforeach
                         </div>
-                        @error('service_type') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+                        @error('offering') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
 
                         <div class="mt-6 grid gap-5 sm:grid-cols-2">
                             <div>
@@ -411,7 +444,7 @@
                                 <p class="text-sm text-muted">Estimated total</p>
                                 <p class="mt-0.5 text-[11px] text-muted">Final price set after weighing</p>
                             </div>
-                            <p class="font-serif text-2xl font-semibold text-primary" x-text="'₱' + estimate.toLocaleString()"></p>
+                            <p class="font-serif text-2xl font-semibold text-primary" x-text="'₱' + estimate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></p>
                         </div>
                     </div>
 
@@ -432,6 +465,7 @@
                 </div>
             </aside>
         </form>
+        @endif
     </div>
 </section>
 
@@ -440,7 +474,7 @@
     document.addEventListener('alpine:init', () => {
         Alpine.data('bookingForm', (config) => ({
             step: config.step,
-            services: config.services,
+            offerings: config.offerings,
             branches: config.branches,
             slots: config.slots,
             rushSurcharge: config.rushSurcharge,
@@ -457,7 +491,7 @@
             },
 
             get service() {
-                return this.services.find((s) => s.key === this.form.service_type) || this.services[0];
+                return this.offerings.find((o) => o.key === this.form.offering) || this.offerings[0];
             },
 
             get serviceLabel() {
@@ -485,14 +519,24 @@
                 const service = this.service;
                 if (! service) return 0;
 
-                let total = service.from;
+                const kilos = parseFloat(this.form.estimated_kilos);
+                let total;
 
-                if (service.perLoad) {
-                    const kilos = parseFloat(this.form.estimated_kilos) || 7;
-                    total = service.from * Math.max(1, Math.ceil(kilos / 7));
+                // A bundle is a whole-package price; weight does not multiply it.
+                if (service.pricingType === 'preset') {
+                    total = service.price;
+                } else if (service.pricingType === 'kilo') {
+                    total = service.price * Math.max(1, kilos || 1);
+                } else if (service.pricingType === 'load') {
+                    const perLoad = {{ (int) \App\Support\Booking::KILOS_PER_LOAD }};
+                    total = service.price * Math.max(1, Math.ceil((kilos || perLoad) / perLoad));
+                } else {
+                    // Piece and custom pricing cannot be inferred from a weight
+                    // guess, so we quote one unit and the branch confirms.
+                    total = service.price;
                 }
 
-                return this.form.is_rush ? total + this.rushSurcharge : total;
+                return Math.round((this.form.is_rush ? total + this.rushSurcharge : total) * 100) / 100;
             },
 
             formatDate(value) {
@@ -501,9 +545,9 @@
                 return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
             },
 
-            pick(serviceType) {
-                if (this.services.some((s) => s.key === serviceType)) {
-                    this.form.service_type = serviceType;
+            pick(offeringKey) {
+                if (this.offerings.some((o) => o.key === offeringKey)) {
+                    this.form.offering = offeringKey;
                 }
                 this.step = 1;
             },

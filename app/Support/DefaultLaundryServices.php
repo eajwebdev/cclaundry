@@ -13,16 +13,16 @@ class DefaultLaundryServices
     {
         return [
             // Small Machine
-            ['name' => 'Wash 7kg',       'pricing_type' => 'load',   'price' => 60,  'category' => 'Small Machine', 'report_category' => 'small'],
-            ['name' => 'Dry 7kg',        'pricing_type' => 'load',   'price' => 80,  'category' => 'Small Machine', 'report_category' => 'small'],
-            ['name' => 'Fold 7kg',       'pricing_type' => 'load',   'price' => 25,  'category' => 'Small Machine', 'report_category' => 'small'],
+            ['name' => 'Wash 7kg',       'pricing_type' => 'load',   'price' => 60,  'category' => 'Small Machine', 'report_category' => 'small', 'landing' => ['pinned' => true, 'icon' => 'droplets', 'order' => 1, 'blurb' => 'A standard 7kg load, sorted by colour and washed at the right temperature.']],
+            ['name' => 'Dry 7kg',        'pricing_type' => 'load',   'price' => 80,  'category' => 'Small Machine', 'report_category' => 'small', 'landing' => ['pinned' => true, 'icon' => 'wind', 'order' => 2, 'blurb' => 'Tumble dried and folded-ready the same day, even when it rains.']],
+            ['name' => 'Fold 7kg',       'pricing_type' => 'load',   'price' => 25,  'category' => 'Small Machine', 'report_category' => 'small', 'landing' => ['pinned' => true, 'icon' => 'package', 'order' => 3, 'blurb' => 'Neatly folded and bagged, kept separate per household.']],
             ['name' => 'Detergent 80ml', 'pricing_type' => 'custom', 'price' => 15,  'category' => 'Small Machine', 'report_category' => 'small'],
             ['name' => 'Fabcon 70ml',    'pricing_type' => 'custom', 'price' => 15,  'category' => 'Small Machine', 'report_category' => 'small'],
 
             // Big Machine
-            ['name' => 'Wash 10kg',       'pricing_type' => 'load',   'price' => 100, 'category' => 'Big Machine', 'report_category' => 'big'],
-            ['name' => 'Dry 10kg',        'pricing_type' => 'load',   'price' => 120, 'category' => 'Big Machine', 'report_category' => 'big'],
-            ['name' => 'Fold 10kg',       'pricing_type' => 'load',   'price' => 35,  'category' => 'Big Machine', 'report_category' => 'big'],
+            ['name' => 'Wash 10kg',       'pricing_type' => 'load',   'price' => 100, 'category' => 'Big Machine', 'report_category' => 'big', 'landing' => ['pinned' => true, 'icon' => 'droplets', 'order' => 4, 'blurb' => 'Our large load, for bigger households and weekly catch-ups.']],
+            ['name' => 'Dry 10kg',        'pricing_type' => 'load',   'price' => 120, 'category' => 'Big Machine', 'report_category' => 'big', 'landing' => ['pinned' => true, 'icon' => 'wind', 'order' => 5, 'blurb' => 'Large-capacity drying for bulkier loads and beddings.']],
+            ['name' => 'Fold 10kg',       'pricing_type' => 'load',   'price' => 35,  'category' => 'Big Machine', 'report_category' => 'big', 'landing' => ['pinned' => true, 'icon' => 'package', 'order' => 6, 'blurb' => 'Folding for the large load, finished by hand.']],
             ['name' => 'Detergent 100ml', 'pricing_type' => 'custom', 'price' => 20,  'category' => 'Big Machine', 'report_category' => 'big'],
             ['name' => 'Fabcon 100ml',    'pricing_type' => 'custom', 'price' => 20,  'category' => 'Big Machine', 'report_category' => 'big'],
 
@@ -69,6 +69,12 @@ class DefaultLaundryServices
                 'name' => 'Full Service 7kg',
                 'category' => 'Small Machine',
                 'sort_order' => 1,
+                'landing' => [
+                    'pinned' => true,
+                    'icon' => 'package',
+                    'order' => 1,
+                    'blurb' => 'The whole job in one go, for a standard 7kg load. Detergent and fabric conditioner included.',
+                ],
                 'items' => [
                     'Wash 7kg' => 1,
                     'Dry 7kg' => 1,
@@ -81,6 +87,12 @@ class DefaultLaundryServices
                 'name' => 'Full Service 10kg',
                 'category' => 'Big Machine',
                 'sort_order' => 2,
+                'landing' => [
+                    'pinned' => true,
+                    'icon' => 'package',
+                    'order' => 2,
+                    'blurb' => 'Our large bundle for bigger households, with detergent and fabric conditioner included.',
+                ],
                 'items' => [
                     'Wash 10kg' => 1,
                     'Dry 10kg' => 1,
@@ -104,17 +116,38 @@ class DefaultLaundryServices
             ->delete();
 
         foreach (self::all() as $service) {
-            LaundryService::withTrashed()->updateOrCreate(
-                ['branch_id' => $branch->id, 'name' => $service['name']],
-                [
-                    'pricing_type'        => $service['pricing_type'],
-                    'service_category_id' => $categoryMap[$service['category']] ?? null,
-                    'report_category'     => $service['report_category'],
-                    'price'               => $service['price'],
-                    'is_active'           => true,
-                    'deleted_at'          => null,
-                ]
-            );
+            $existing = LaundryService::withTrashed()
+                ->where('branch_id', $branch->id)
+                ->where('name', $service['name'])
+                ->first();
+
+            $attributes = [
+                'pricing_type'        => $service['pricing_type'],
+                'service_category_id' => $categoryMap[$service['category']] ?? null,
+                'report_category'     => $service['report_category'],
+                'price'               => $service['price'],
+                'is_active'           => true,
+                'deleted_at'          => null,
+            ];
+
+            if ($existing) {
+                // Landing-page presentation is deliberately left alone here, so
+                // re-running the seeder never undoes what staff have pinned.
+                $existing->forceFill($attributes)->save();
+
+                continue;
+            }
+
+            $landing = $service['landing'] ?? [];
+
+            LaundryService::create($attributes + [
+                'branch_id'          => $branch->id,
+                'name'               => $service['name'],
+                'show_on_landing'    => (bool) ($landing['pinned'] ?? false),
+                'landing_blurb'      => $landing['blurb'] ?? null,
+                'landing_icon'       => $landing['icon'] ?? null,
+                'landing_sort_order' => (int) ($landing['order'] ?? 0),
+            ]);
         }
 
         self::seedPresetsForBranch($branch, $categoryMap);
@@ -149,14 +182,32 @@ class DefaultLaundryServices
             ->delete();
 
         foreach (self::presets() as $definition) {
-            $preset = ServicePreset::updateOrCreate(
-                ['branch_id' => $branch->id, 'name' => $definition['name']],
-                [
-                    'service_category_id' => $categoryMap[$definition['category']] ?? null,
-                    'sort_order' => $definition['sort_order'],
-                    'is_active' => true,
-                ]
-            );
+            $preset = ServicePreset::query()
+                ->where('branch_id', $branch->id)
+                ->where('name', $definition['name'])
+                ->first();
+
+            $attributes = [
+                'service_category_id' => $categoryMap[$definition['category']] ?? null,
+                'sort_order' => $definition['sort_order'],
+                'is_active' => true,
+            ];
+
+            if ($preset) {
+                // Landing presentation is left alone on re-seed.
+                $preset->forceFill($attributes)->save();
+            } else {
+                $landing = $definition['landing'] ?? [];
+
+                $preset = ServicePreset::create($attributes + [
+                    'branch_id' => $branch->id,
+                    'name' => $definition['name'],
+                    'show_on_landing' => (bool) ($landing['pinned'] ?? false),
+                    'landing_blurb' => $landing['blurb'] ?? null,
+                    'landing_icon' => $landing['icon'] ?? null,
+                    'landing_sort_order' => (int) ($landing['order'] ?? 0),
+                ]);
+            }
 
             $serviceIds = [];
 

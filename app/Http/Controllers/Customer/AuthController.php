@@ -24,7 +24,7 @@ class AuthController extends Controller
             'settings' => SystemSetting::current(),
             'branches' => Booking::branches(),
             'pendingBooking' => $pending,
-            'serviceTypes' => Booking::serviceTypes(),
+            'offerings' => Booking::offerings(),
             'slots' => Booking::slots(),
         ]);
     }

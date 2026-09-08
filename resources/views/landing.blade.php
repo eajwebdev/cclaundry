@@ -57,12 +57,21 @@
                 </a>
             </div>
 
-            <dl class="mt-12 grid max-w-lg grid-cols-3 gap-6 border-t border-border pt-8 dark:border-white/10">
-                @foreach ([
+            @php
+                // The SMS promise only appears when SMS is actually enabled.
+                $heroStats = [
                     ['24h', 'Standard turnaround'],
                     ['Free', 'Pickup & delivery'],
-                    ['SMS', 'Updates at every step'],
-                ] as [$value, $label])
+                ];
+
+                if ($settings?->sms_enabled) {
+                    $heroStats[] = ['SMS', 'Updates at every step'];
+                } else {
+                    $heroStats[] = [$branches->count(), \Illuminate\Support\Str::plural('Branch', $branches->count()).' near you'];
+                }
+            @endphp
+            <dl class="mt-12 grid max-w-lg grid-cols-3 gap-6 border-t border-border pt-8 dark:border-white/10">
+                @foreach ($heroStats as [$value, $label])
                     <div>
                         <dt class="font-serif text-2xl font-semibold text-primary">{{ $value }}</dt>
                         <dd class="mt-1 text-[13px] leading-snug text-muted">{{ $label }}</dd>
@@ -116,34 +125,68 @@
                 Every kind of load, one pickup
             </h2>
             <p class="mt-4 text-[15px] leading-relaxed text-muted">
-                Pick what you need when you book. If you are not sure, choose wash, dry &amp; fold &mdash; we will
+                Pick what you need when you book. If you are not sure, choose the closest match &mdash; we will
                 sort the rest when we weigh your bag at the branch.
             </p>
         </div>
 
-        <div class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            @foreach ($serviceTypes as $key => $service)
-                <article class="group relative overflow-hidden rounded-3xl border border-border bg-white p-6 transition duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/8 dark:border-white/10 dark:bg-[#241a13]">
-                    <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-white">
-                        <span data-lucide="{{ $service['icon'] }}" class="h-5 w-5"></span>
-                    </span>
+        {{-- Pinned bundles and services, so the prices here are the live ones. --}}
+        @if($offerings->isEmpty())
+            <div class="mt-12 rounded-3xl border border-dashed border-border bg-white px-8 py-14 text-center dark:border-white/12 dark:bg-[#241a13]">
+                <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <span data-lucide="tag" class="h-6 w-6"></span>
+                </span>
+                <p class="mt-5 font-medium">Our service list is being updated</p>
+                <p class="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-muted">
+                    Please call the branch to book in the meantime &mdash; we will have online booking back shortly.
+                </p>
+            </div>
+        @else
+            <div class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach ($offerings as $offering)
+                    <article class="group relative flex flex-col overflow-hidden rounded-3xl border bg-white p-6 transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/8 dark:bg-[#241a13]
+                        {{ $offering['type'] === 'preset' ? 'border-primary/35 ring-1 ring-primary/15' : 'border-border hover:border-primary/30 dark:border-white/10' }}">
 
-                    <h3 class="mt-5 font-serif text-xl font-medium text-primary-deep dark:text-cane">{{ $service['label'] }}</h3>
-                    <p class="mt-2 text-sm leading-relaxed text-muted">{{ $service['blurb'] }}</p>
-
-                    <div class="mt-5 flex items-end justify-between border-t border-border pt-4 dark:border-white/10">
-                        <div>
-                            <p class="text-[11px] tracking-wide text-muted uppercase">Starts at</p>
-                            <p class="font-serif text-2xl font-semibold text-primary">&#8369;{{ number_format($service['from']) }}</p>
+                        <div class="flex items-start justify-between gap-3">
+                            <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-white">
+                                <span data-lucide="{{ $offering['icon'] }}" class="h-5 w-5"></span>
+                            </span>
+                            @if($offering['type'] === 'preset')
+                                <span class="rounded-full bg-primary/12 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-primary uppercase">Bundle</span>
+                            @endif
                         </div>
-                        <p class="pb-1 text-[11px] text-muted">{{ $service['unit'] }}</p>
-                    </div>
 
-                    <a href="#book" @click="$dispatch('preselect-service', '{{ $key }}')"
-                       class="absolute inset-0" aria-label="Book {{ $service['label'] }}"></a>
-                </article>
-            @endforeach
-        </div>
+                        <h3 class="mt-5 font-serif text-xl font-medium text-primary-deep dark:text-cane">{{ $offering['name'] }}</h3>
+                        @if($offering['blurb'])
+                            <p class="mt-2 text-sm leading-relaxed text-muted">{{ $offering['blurb'] }}</p>
+                        @endif
+
+                        {{-- What a bundle actually contains, straight from its preset items. --}}
+                        @if($offering['includes'])
+                            <ul class="mt-3 space-y-1.5">
+                                @foreach($offering['includes'] as $included)
+                                    <li class="flex items-center gap-2 text-[13px] text-muted">
+                                        <span data-lucide="check" class="h-3.5 w-3.5 shrink-0 text-accent-deep"></span>
+                                        {{ $included }}
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+
+                        <div class="mt-5 flex items-end justify-between border-t border-border pt-4 dark:border-white/10">
+                            <div>
+                                <p class="text-[11px] tracking-wide text-muted uppercase">{{ $offering['type'] === 'preset' ? 'All in' : 'Starts at' }}</p>
+                                <p class="font-serif text-2xl font-semibold text-primary">&#8369;{{ number_format($offering['price'], 2) }}</p>
+                            </div>
+                            <p class="pb-1 text-[11px] text-muted">{{ $offering['unit'] }}</p>
+                        </div>
+
+                        <a href="#book" @click="$dispatch('preselect-offering', '{{ $offering['key'] }}')"
+                           class="absolute inset-0" aria-label="Book {{ $offering['name'] }}"></a>
+                    </article>
+                @endforeach
+            </div>
+        @endif
     </div>
 </section>
 
@@ -277,7 +320,9 @@
                 @foreach ([
                     ['shieldCheck', 'Nothing gets mixed up', 'Every booking is bagged, tagged and washed on its own. Your load never shares a drum with someone else&rsquo;s.'],
                     ['scale', 'Weighed in front of you', 'We confirm the weight and the total before a single machine starts.'],
-                    ['sms', 'You are never left guessing', 'An SMS when we collect, when it is ready and when the rider is on the way.'],
+                    $settings?->sms_enabled
+                        ? ['sms', 'You are never left guessing', 'An SMS when we collect, when it is ready and when the rider is on the way.']
+                        : ['phone', 'You are never left guessing', 'We call ahead when we collect, when it is ready and when the rider is on the way.'],
                     ['heart', 'Fabric-first care', 'Colour sorting, correct temperatures and hand-finishing for anything delicate.'],
                 ] as [$icon, $title, $body])
                     <div class="rounded-2xl border border-border bg-white p-6 transition hover:border-primary/25 dark:border-white/10 dark:bg-[#241a13]">
@@ -341,39 +386,44 @@
 </section>
 @endif
 
-{{-- ══════════════════════════════ TESTIMONIALS ══════════════════════════════ --}}
+{{-- ══════════════════════════════ BY THE NUMBERS ══════════════════════════════ --}}
+@if(count($stats))
 <section class="py-20 sm:py-24">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="mx-auto max-w-2xl text-center">
-            <p class="text-[11px] font-semibold tracking-[0.22em] text-primary uppercase">From our customers</p>
+            <p class="text-[11px] font-semibold tracking-[0.22em] text-primary uppercase">By the numbers</p>
             <h2 class="mt-3 font-serif text-3xl leading-tight font-medium text-primary-deep sm:text-4xl dark:text-cane">
-                The part we are proudest of
+                Where we are today
             </h2>
+            <p class="mt-4 text-[15px] leading-relaxed text-muted">
+                Counted live from our own system, not rounded up for a website.
+            </p>
         </div>
 
-        <div class="mt-12 grid gap-5 lg:grid-cols-3">
-            @foreach ([
-                ['I booked at 9pm and the rider was outside by 8:30 the next morning. Everything came back folded better than I fold it.', 'Marielle S.', 'Books weekly'],
-                ['They text you at every step, so you are not wondering where your clothes are. That alone is worth it.', 'Jomar D.', 'Household of five'],
-                ['Our uniforms come back crisp every single week and the price has never surprised us.', 'Rina T.', 'Small business owner'],
-            ] as [$quote, $name, $role])
-                <figure class="flex h-full flex-col rounded-3xl border border-border bg-white p-7 dark:border-white/10 dark:bg-[#241a13]">
-                    <span data-lucide="quote" class="h-7 w-7 text-primary/25"></span>
-                    <blockquote class="mt-4 flex-1 text-[15px] leading-relaxed text-dark/85 dark:text-[#F3EBE1]/85">{{ $quote }}</blockquote>
-                    <figcaption class="mt-6 flex items-center gap-3 border-t border-border pt-5 dark:border-white/10">
-                        <span class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/12 font-serif text-sm font-semibold text-primary">
-                            {{ mb_substr($name, 0, 1) }}
-                        </span>
-                        <span>
-                            <span class="block text-sm font-medium">{{ $name }}</span>
-                            <span class="block text-xs text-muted">{{ $role }}</span>
-                        </span>
-                    </figcaption>
-                </figure>
+        @php
+            // Written out in full: Tailwind scans source text, so a class built
+            // by string interpolation is never generated.
+            $statColumns = match (min(count($stats), 4)) {
+                1 => 'lg:grid-cols-1',
+                2 => 'lg:grid-cols-2',
+                3 => 'lg:grid-cols-3',
+                default => 'lg:grid-cols-4',
+            };
+        @endphp
+        <dl class="mx-auto mt-12 grid max-w-4xl gap-5 sm:grid-cols-2 {{ $statColumns }}">
+            @foreach ($stats as $stat)
+                <div class="rounded-3xl border border-border bg-white p-7 text-center dark:border-white/10 dark:bg-[#241a13]">
+                    <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                        <span data-lucide="{{ $stat['icon'] }}" class="h-5 w-5"></span>
+                    </span>
+                    <dt class="mt-5 font-serif text-4xl font-semibold text-primary">{{ $stat['value'] }}</dt>
+                    <dd class="mt-1.5 text-sm leading-snug text-muted">{{ $stat['label'] }}</dd>
+                </div>
             @endforeach
-        </div>
+        </dl>
     </div>
 </section>
+@endif
 
 {{-- ══════════════════════════════ TRACK ══════════════════════════════ --}}
 <section id="track" class="scroll-mt-24 py-4">

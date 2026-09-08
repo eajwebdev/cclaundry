@@ -16,6 +16,14 @@ return new class extends Migration
                 $table->string('phone')->nullable();
                 $table->string('email')->nullable();
                 $table->text('address')->nullable();
+
+                // Customer portal login. Null for walk-in records created at the
+                // counter, until the person claims the record by signing up.
+                $table->string('password')->nullable();
+                $table->rememberToken();
+                $table->timestamp('registered_at')->nullable();
+                $table->timestamp('last_login_at')->nullable();
+
                 $table->enum('billing_type', ['regular', 'po', 'monthly_billing'])->default('regular');
                 $table->decimal('credit_limit', 12, 2)->default(0);
                 $table->boolean('is_active')->default(true);
@@ -34,6 +42,15 @@ return new class extends Migration
                 $table->enum('pricing_type', ['kilo', 'load', 'piece', 'custom']);
                 $table->decimal('price', 12, 2)->default(0);
                 $table->boolean('is_active')->default(true);
+
+                // Services pinned here are what customers can book on the public
+                // landing page, at the price above. The blurb and icon exist
+                // because an internal name ("Wash 7kg") rarely reads as copy.
+                $table->boolean('show_on_landing')->default(false)->index();
+                $table->string('landing_blurb')->nullable();
+                $table->string('landing_icon', 40)->nullable();
+                $table->unsignedInteger('landing_sort_order')->default(0);
+
                 $table->timestamps();
                 $table->softDeletes();
             });
@@ -222,10 +239,64 @@ return new class extends Migration
                 $table->index(['subject_type', 'subject_id']);
             });
         }
+
+        // Pickup & delivery bookings made by customers on the public site.
+        // Staff confirm these and turn them into job orders at the counter.
+        if (! Schema::hasTable('pickup_requests')) {
+            Schema::create('pickup_requests', function (Blueprint $table) {
+                $table->id();
+                $table->string('reference_no')->unique();
+                $table->foreignId('customer_id')->constrained('customers')->cascadeOnDelete();
+                $table->foreignId('branch_id')->constrained('branches')->cascadeOnDelete();
+
+                // The service booked, plus a snapshot of it: a later rename or
+                // price change must not rewrite an existing booking.
+                $table->foreignId('laundry_service_id')->nullable()->constrained('laundry_services')->nullOnDelete();
+                $table->string('service_name')->nullable();
+                $table->decimal('service_price', 12, 2)->nullable();
+                $table->string('service_pricing_type', 20)->nullable();
+                $table->decimal('estimated_kilos', 8, 2)->nullable();
+
+                $table->string('contact_name');
+                $table->string('contact_phone');
+                $table->string('contact_email')->nullable();
+
+                $table->text('pickup_address');
+                $table->string('pickup_landmark')->nullable();
+                $table->date('pickup_date');
+                $table->string('pickup_slot')->default('morning');
+
+                // 'deliver' returns the laundry to the customer, 'branch_pickup'
+                // means they will collect it at the branch themselves.
+                $table->string('delivery_preference')->default('deliver');
+                $table->text('delivery_address')->nullable();
+                $table->date('delivery_date')->nullable();
+                $table->string('delivery_slot')->nullable();
+
+                $table->boolean('is_rush')->default(false);
+                $table->text('notes')->nullable();
+                $table->decimal('estimated_total', 12, 2)->nullable();
+
+                $table->string('status')->default('pending');
+                $table->foreignId('job_order_id')->nullable()->constrained('job_orders')->nullOnDelete();
+                $table->foreignId('handled_by')->nullable()->constrained('users')->nullOnDelete();
+                $table->timestamp('confirmed_at')->nullable();
+                $table->timestamp('cancelled_at')->nullable();
+                $table->string('cancellation_reason')->nullable();
+
+                $table->timestamps();
+                $table->softDeletes();
+
+                $table->index(['branch_id', 'status']);
+                $table->index(['customer_id', 'status']);
+                $table->index('pickup_date');
+            });
+        }
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('pickup_requests');
         Schema::dropIfExists('activity_logs');
         Schema::dropIfExists('sms_logs');
         Schema::dropIfExists('payrolls');

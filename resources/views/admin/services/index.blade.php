@@ -86,7 +86,15 @@
                     @forelse($servicePresets as $preset)
                         @php($presetTotal = $preset->items->sum(fn ($item) => (float) $item->quantity * (float) ($item->service?->price ?? 0)))
                         <tr>
-                            <td class="px-4 py-3 font-medium">{{ $preset->name }}</td>
+                            <td class="px-4 py-3 font-medium">
+                                {{ $preset->name }}
+                                @if($preset->show_on_landing)
+                                    <span class="ml-1.5 inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary align-middle"
+                                          title="Customers can book this bundle on the landing page">
+                                        <span data-lucide="globe" class="h-2.5 w-2.5"></span> Landing
+                                    </span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3">{{ $preset->serviceCategory?->name ?? 'No category' }}</td>
                             <td class="px-4 py-3 text-muted">
                                 {{ $preset->items->map(fn ($item) => rtrim(rtrim(number_format((float) $item->quantity, 2), '0'), '.').'x '.$item->service?->name)->join(', ') }}
@@ -135,7 +143,15 @@
                 <tbody class="divide-y divide-border dark:divide-gray-800">
                     @forelse($services as $service)
                         <tr>
-                            <td class="px-4 py-3 font-medium">{{ $service->name }}</td>
+                            <td class="px-4 py-3 font-medium">
+                                {{ $service->name }}
+                                @if($service->show_on_landing)
+                                    <span class="ml-1.5 inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary align-middle"
+                                          title="Customers can book this on the landing page">
+                                        <span data-lucide="globe" class="h-2.5 w-2.5"></span> Landing
+                                    </span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3">{{ $service->branch?->name ?? 'N/A' }}</td>
                             <td class="px-4 py-3">{{ $service->serviceCategory?->name ?? '—' }}</td>
                             <td class="px-4 py-3">{{ ucfirst($service->pricing_type) }}</td>

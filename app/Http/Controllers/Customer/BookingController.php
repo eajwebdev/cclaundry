@@ -120,11 +120,22 @@ class BookingController extends Controller
         return DB::transaction(function () use ($customer, $data) {
             $wantsDelivery = ($data['delivery_preference'] ?? 'deliver') === 'deliver';
 
+            // Snapshot what was booked: a later rename, reprice or preset edit
+            // must not rewrite what this customer actually agreed to.
+            $offering = Booking::resolveOffering($data['offering'] ?? null);
+            $service = $offering['service'] ?? null;
+            $preset = $offering['preset'] ?? null;
+            $booked = $preset ?: $service;
+
             $pickupRequest = PickupRequest::create([
                 'reference_no' => PickupRequest::nextReference(),
                 'customer_id' => $customer->id,
                 'branch_id' => $data['branch_id'],
-                'service_type' => $data['service_type'],
+                'laundry_service_id' => $service?->id,
+                'service_preset_id' => $preset?->id,
+                'service_name' => $preset?->name ?: $service?->name,
+                'service_price' => $preset ? $preset->totalPrice() : $service?->price,
+                'service_pricing_type' => $preset ? 'preset' : $service?->pricing_type,
                 'estimated_kilos' => $data['estimated_kilos'] ?? null,
                 'contact_name' => $data['contact_name'],
                 'contact_phone' => $data['contact_phone'],
@@ -142,7 +153,7 @@ class BookingController extends Controller
                 'is_rush' => (bool) ($data['is_rush'] ?? false),
                 'notes' => $data['notes'] ?? null,
                 'estimated_total' => Booking::estimate(
-                    $data['service_type'],
+                    $booked,
                     isset($data['estimated_kilos']) ? (float) $data['estimated_kilos'] : null,
                     (bool) ($data['is_rush'] ?? false)
                 ),
@@ -165,7 +176,7 @@ class BookingController extends Controller
     {
         $rules = [
             'branch_id' => ['required', 'integer', Rule::exists('branches', 'id')->where('is_active', true)],
-            'service_type' => ['required', Rule::in(Booking::serviceTypeKeys())],
+            'offering' => ['required', 'string', Rule::in(Booking::offeringKeys($request->integer('branch_id')))],
             'estimated_kilos' => ['nullable', 'numeric', 'min:1', 'max:200'],
             'contact_name' => ['required', 'string', 'max:120'],
             'contact_phone' => ['required', 'string', 'max:40'],
@@ -186,6 +197,8 @@ class BookingController extends Controller
             'pickup_date.after_or_equal' => 'The earliest pickup we can promise is tomorrow.',
             'delivery_date.after_or_equal' => 'Delivery cannot be scheduled before the pickup.',
             'branch_id.exists' => 'Please choose one of our active branches.',
+            'offering.in' => 'That service is not available at the branch you picked. Please choose another.',
+            'offering.required' => 'Please choose a service.',
         ];
 
         $validated = $request->validate($rules, $messages);

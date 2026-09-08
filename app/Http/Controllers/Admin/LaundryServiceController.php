@@ -71,6 +71,7 @@ class LaundryServiceController extends Controller
         $validated = $request->validate($this->rules());
         $validated = $this->normalizeBranch($validated);
         $validated['is_active'] = $request->boolean('is_active', true);
+        $validated['show_on_landing'] = $request->boolean('show_on_landing');
 
         $service = DB::transaction(function () use ($validated) {
             $service = LaundryService::create(collect($validated)->except('inventory_usages')->all());
@@ -94,6 +95,7 @@ class LaundryServiceController extends Controller
         $validated = $request->validate($this->rules());
         $validated = $this->normalizeBranch($validated);
         $validated['is_active'] = $request->boolean('is_active');
+        $validated['show_on_landing'] = $request->boolean('show_on_landing');
 
         DB::transaction(function () use ($service, $validated) {
             $service->update(collect($validated)->except('inventory_usages')->all());
@@ -132,6 +134,10 @@ class LaundryServiceController extends Controller
                 'name' => $validated['name'],
                 'sort_order' => $validated['sort_order'] ?? 0,
                 'is_active' => $request->boolean('is_active', true),
+                'show_on_landing' => $request->boolean('show_on_landing'),
+                'landing_blurb' => $validated['landing_blurb'] ?? null,
+                'landing_icon' => $validated['landing_icon'] ?? null,
+                'landing_sort_order' => (int) ($validated['landing_sort_order'] ?? 0),
             ]);
 
             $this->syncPresetItems($preset, $validated['items'] ?? []);
@@ -166,6 +172,10 @@ class LaundryServiceController extends Controller
                 'name' => $validated['name'],
                 'sort_order' => $validated['sort_order'] ?? 0,
                 'is_active' => $request->boolean('is_active'),
+                'show_on_landing' => $request->boolean('show_on_landing'),
+                'landing_blurb' => $validated['landing_blurb'] ?? null,
+                'landing_icon' => $validated['landing_icon'] ?? null,
+                'landing_sort_order' => (int) ($validated['landing_sort_order'] ?? 0),
             ]);
 
             $this->syncPresetItems($preset, $validated['items'] ?? []);
@@ -193,6 +203,10 @@ class LaundryServiceController extends Controller
             'pricing_type'        => ['required', Rule::in(['kilo', 'load', 'piece', 'custom'])],
             'price'               => ['required', 'numeric', 'min:0'],
             'is_active'           => ['nullable', 'boolean'],
+            'show_on_landing'     => ['nullable', 'boolean'],
+            'landing_blurb'       => ['nullable', 'string', 'max:255'],
+            'landing_icon'        => ['nullable', 'string', Rule::in(array_keys(LaundryService::LANDING_ICONS))],
+            'landing_sort_order'  => ['nullable', 'integer', 'min:0', 'max:9999'],
             'inventory_usages'    => ['nullable', 'array'],
             'inventory_usages.*'  => ['nullable', 'numeric', 'min:0', 'max:999999.9999'],
         ];
@@ -203,6 +217,10 @@ class LaundryServiceController extends Controller
         return [
             'branch_id' => ['required', 'exists:branches,id'],
             'service_category_id' => ['nullable', 'exists:laundry_service_categories,id'],
+            'show_on_landing' => ['nullable', 'boolean'],
+            'landing_blurb' => ['nullable', 'string', 'max:255'],
+            'landing_icon' => ['nullable', 'string', Rule::in(array_keys(LaundryService::LANDING_ICONS))],
+            'landing_sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
             'name' => ['required', 'string', 'max:255'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
             'is_active' => ['nullable', 'boolean'],

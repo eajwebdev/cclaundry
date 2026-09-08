@@ -50,7 +50,7 @@
                         @php
                             $slotLabels = $slots ?? [];
                             $summary = [
-                                'Service' => data_get($serviceTypes, data_get($pending, 'service_type').'.label', '--'),
+                                'Service' => data_get($offerings->firstWhere('key', data_get($pending, 'offering')), 'name', '--'),
                                 'Pickup' => trim(
                                     (data_get($pending, 'pickup_date') ? \Illuminate\Support\Carbon::parse(data_get($pending, 'pickup_date'))->format('M j, Y') : '--')
                                     .' · '.($slotLabels[data_get($pending, 'pickup_slot')] ?? '')
