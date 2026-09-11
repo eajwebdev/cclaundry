@@ -19,6 +19,7 @@
         "chart.js": "^4.5.1",
         "flatpickr": "^4.6.13",
         "lucide-static": "^1.14.0",
+        "maplibre-gl": "^6.9.0",
         "sweetalert2": "^11.26.24"
     }
 }

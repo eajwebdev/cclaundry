@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\PickupRequest;
+use App\Models\User;
 use App\Support\Activity;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -30,7 +31,7 @@ class PickupRequestController extends Controller
         ];
 
         $requests = (clone $base)
-            ->with(['customer', 'branch', 'jobOrder', 'handler'])
+            ->with(['customer', 'branch', 'jobOrder', 'handler', 'rider:id,name'])
             ->when(in_array($request->status, PickupRequest::STATUSES, true),
                 fn ($query) => $query->where('status', $request->status))
             ->when($request->filled('search'), function ($query) use ($request) {
@@ -54,6 +55,13 @@ class PickupRequestController extends Controller
             'branches' => $user->canManageAllBranches()
                 ? Branch::where('is_active', true)->orderBy('name')->get()
                 : collect(),
+            // Riders the dispatcher on this screen is allowed to send out.
+            'riders' => User::query()
+                ->riders()
+                ->where('status', 'active')
+                ->when(! $user->canManageAllBranches(), fn ($query) => $query->where('branch_id', $user->branch_id))
+                ->orderBy('name')
+                ->get(['id', 'name', 'branch_id']),
         ]);
     }
 

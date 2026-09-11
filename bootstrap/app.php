@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureAttendanceEmployeeAuthenticated;
 use App\Http\Middleware\EnsureSystemNotUnderMaintenance;
 use App\Http\Middleware\EnsureSystemSettingsCompleted;
 use App\Http\Middleware\EnsureMenuAccess;
+use App\Http\Middleware\EnsureRider;
 use App\Http\Middleware\EnsureSuperAdmin;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -24,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'settings.completed' => EnsureSystemSettingsCompleted::class,
             'menu.access' => EnsureMenuAccess::class,
             'super.admin' => EnsureSuperAdmin::class,
+            'rider' => EnsureRider::class,
         ]);
 
         // PayMongo posts to the webhook without a CSRF token.

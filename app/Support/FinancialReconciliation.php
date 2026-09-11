@@ -94,7 +94,6 @@ class FinancialReconciliation
             ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
             ->where('balance', '>', 0)
             ->where('status', '!=', 'cancelled')
-            ->regularReceivable()
             ->sum('balance'), 2);
 
         $accountsPayable = round((float) AccountsPayable::query()

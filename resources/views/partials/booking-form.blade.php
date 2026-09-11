@@ -228,6 +228,14 @@
                                 @error('pickup_address') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
                             </div>
 
+                            <x-map-picker
+                                name="pickup"
+                                label="Pin the exact spot"
+                                address-field="pickup_address"
+                                :latitude="old('pickup_latitude', $bookingCustomer?->latitude)"
+                                :longitude="old('pickup_longitude', $bookingCustomer?->longitude)"
+                            />
+
                             <div>
                                 <label for="pickup_landmark" class="block text-sm font-medium">Landmark <span class="font-normal text-muted">(optional)</span></label>
                                 <input id="pickup_landmark" type="text" name="pickup_landmark" value="{{ $value('pickup_landmark') }}"
@@ -296,12 +304,22 @@
                                 <span>Deliver to the same address we collect from</span>
                             </label>
 
-                            <div x-show="! sameAddress" x-cloak x-transition>
-                                <label for="delivery_address" class="block text-sm font-medium">Delivery address</label>
-                                <textarea id="delivery_address" name="delivery_address" rows="2" x-model="form.delivery_address"
-                                          placeholder="House/unit number, street, barangay, city"
-                                          class="mt-2 w-full rounded-xl border border-border bg-white px-4 py-3 text-sm outline-none transition placeholder:text-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-white/12 dark:bg-[#241a13]"></textarea>
-                                @error('delivery_address') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
+                            <div x-show="! sameAddress" x-cloak x-transition class="space-y-5">
+                                <div>
+                                    <label for="delivery_address" class="block text-sm font-medium">Delivery address</label>
+                                    <textarea id="delivery_address" name="delivery_address" rows="2" x-model="form.delivery_address"
+                                              placeholder="House/unit number, street, barangay, city"
+                                              class="mt-2 w-full rounded-xl border border-border bg-white px-4 py-3 text-sm outline-none transition placeholder:text-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-white/12 dark:bg-[#241a13]"></textarea>
+                                    @error('delivery_address') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
+                                </div>
+
+                                <x-map-picker
+                                    name="delivery"
+                                    label="Pin the drop-off spot"
+                                    address-field="delivery_address"
+                                    :latitude="old('delivery_latitude')"
+                                    :longitude="old('delivery_longitude')"
+                                />
                             </div>
 
                             <div class="grid gap-5 sm:grid-cols-2">

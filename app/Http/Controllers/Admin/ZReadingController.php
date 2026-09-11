@@ -266,7 +266,6 @@ class ZReadingController extends Controller
         $jobOrders = JobOrder::query()
             ->with([
                 'customer:id,name,address,billing_type',
-                'poTransaction:id,job_order_id',
                 'items:id,job_order_id,laundry_service_id,description,service_category,quantity,unit_price,total',
                 'items.service:id,name,report_category,service_category_id',
                 'items.service.serviceCategory:id,name',
@@ -302,7 +301,6 @@ class ZReadingController extends Controller
             ->map(fn ($group) => round((float) $group->sum('amount'), 2))
             ->all();
         $regularUnpaidTotal = fn ($items) => round((float) $items
-            ->reject(fn (JobOrder $order) => $order->poTransaction || $order->customer?->billing_type === 'po')
             ->sum('balance'), 2);
 
         $expenses = BranchExpense::query()

@@ -39,14 +39,6 @@
         </div>
 
         <div>
-            <label class="mb-1.5 block text-sm font-medium">Billing Type</label>
-            <select name="billing_type" class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
-                <option value="regular" @selected(old('billing_type', $customer->billing_type) === 'regular')>Regular</option>
-                <option value="po" @selected(old('billing_type', $customer->billing_type) === 'po')>PO</option>
-            </select>
-        </div>
-
-        <div>
             <label class="mb-1.5 block text-sm font-medium">Unpaid Limit</label>
             <input type="number" step="0.01" min="0" name="unpaid_limit" value="{{ old('unpaid_limit', $customer->unpaid_limit ?? 0) }}" class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
         </div>

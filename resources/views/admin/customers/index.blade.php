@@ -12,7 +12,7 @@
                 Customer records
             </div>
             <h1 class="text-xl font-semibold tracking-normal">Customers</h1>
-            <p class="text-sm text-muted">Manage regular and PO customers.</p>
+            <p class="text-sm text-muted">Manage customer records and unpaid limits.</p>
         </div>
 
         <button type="button" @click="createOpen = true" class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90">
@@ -39,13 +39,6 @@
                 <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id }}">
             @endif
 
-            <select name="billing_type" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
-                <option value="">All billing</option>
-                @foreach(['regular', 'po'] as $billingType)
-                    <option value="{{ $billingType }}" @selected(request('billing_type') === $billingType)>{{ \App\Support\StatusBadge::label($billingType) }}</option>
-                @endforeach
-            </select>
-
             <select name="status" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
                 <option value="">All status</option>
                 <option value="active" @selected(request('status') === 'active')>Active</option>
@@ -65,7 +58,6 @@
                     <tr>
                         <th class="px-4 py-3">Customer</th>
                         <th class="px-4 py-3">Branch</th>
-                        <th class="px-4 py-3">Billing</th>
                         <th class="px-4 py-3">Unpaid Limit</th>
                         <th class="px-4 py-3">Laundry Visits</th>
                         <th class="px-4 py-3">Status</th>
@@ -80,7 +72,6 @@
                                 <p class="text-xs text-muted">{{ $customer->phone ?: 'No phone' }} - {{ $customer->email ?: 'No email' }}</p>
                             </td>
                             <td class="px-4 py-3">{{ $customer->branch?->name ?? 'N/A' }}</td>
-                            <td class="px-4 py-3"><span class="{{ \App\Support\StatusBadge::classes($customer->billing_type) }}">{{ \App\Support\StatusBadge::label($customer->billing_type) }}</span></td>
                             <td class="px-4 py-3">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $customer->unpaid_limit, 2) }}</td>
                             <td class="px-4 py-3">
                                 <span class="font-semibold">{{ number_format($customer->job_orders_count) }}</span>
@@ -115,7 +106,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-4 py-10 text-center text-muted">No customers found.</td>
+                            <td colspan="6" class="px-4 py-10 text-center text-muted">No customers found.</td>
                         </tr>
                     @endforelse
                 </tbody>

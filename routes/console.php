@@ -4,6 +4,7 @@ use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\Console\Command\Command;
 
@@ -91,3 +92,32 @@ Artisan::command('production:check', function (Migrator $migrator) {
 
     return Command::SUCCESS;
 })->purpose('Validate the application environment before a production launch');
+
+/*
+| Breadcrumb pings accumulate fast: a rider on a 10s interval writes ~360 rows
+| an hour. Only the recent trail is ever read, so anything past the retention
+| window is pruned. Wire this into the server's scheduler (or cron) alongside
+| the other daily tasks.
+*/
+Artisan::command('riders:prune-pings', function () {
+    $days = (int) config('maps.tracking.retain_pings_days');
+    $cutoff = now()->subDays($days);
+
+    // Chunked so a long-neglected table does not lock for the whole delete.
+    $total = 0;
+    do {
+        $deleted = DB::table('rider_location_pings')
+            ->where('recorded_at', '<', $cutoff)
+            ->limit(5000)
+            ->delete();
+
+        $total += $deleted;
+    } while ($deleted > 0);
+
+    $this->info("Pruned {$total} rider location ping(s) older than {$days} day(s).");
+
+    return Command::SUCCESS;
+})->purpose('Delete rider location breadcrumbs past the retention window');
+
+// Runs nightly wherever the app's scheduler is already running.
+Schedule::command('riders:prune-pings')->dailyAt('03:30');

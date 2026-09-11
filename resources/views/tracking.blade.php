@@ -62,6 +62,10 @@
                     </ol>
                 @endif
 
+                @if($pickupRequest->isTrackable())
+                    @include('partials.live-tracking-map')
+                @endif
+
                 <dl class="mt-8 divide-y divide-border border-t border-border pt-2 dark:divide-white/8 dark:border-white/10">
                     @foreach ([
                         'Service' => $pickupRequest->serviceTypeLabel(),

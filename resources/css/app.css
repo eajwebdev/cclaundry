@@ -253,9 +253,13 @@ textarea {
     transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
 }
 
-.machine-status-card:hover {
-    transform: translateY(-4px) rotateX(1deg);
-    box-shadow: 0 16px 30px rgba(43, 32, 24, 0.14);
+/* Touch screens have no real hover, so a tap would leave the card stuck in the
+   lifted state. Only give the lift to devices with an actual pointer. */
+@media (hover: hover) and (pointer: fine) {
+    .machine-status-card:hover {
+        transform: translateY(-4px) rotateX(1deg);
+        box-shadow: 0 16px 30px rgba(43, 32, 24, 0.14);
+    }
 }
 
 .machine-status-image {
@@ -369,4 +373,77 @@ textarea {
 .dark .flatpickr-day.prevMonthDay,
 .dark .flatpickr-day.nextMonthDay {
     color: #8a7a6b;
+}
+
+/* ── Maps ────────────────────────────────────────────────────────────────── */
+
+/* Shared marker for pins, riders and destinations so they read as one family. */
+.map-dot-marker {
+    width: 1.125rem;
+    height: 1.125rem;
+    border-radius: 9999px;
+    background: var(--dot-color, #8a5a2b);
+    border: 3px solid #fff;
+    box-shadow: 0 2px 6px rgba(43, 32, 24, 0.35);
+    cursor: grab;
+    display: grid;
+    place-items: center;
+}
+
+.map-dot-marker:active {
+    cursor: grabbing;
+}
+
+.map-dot-marker__icon {
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-size: 0.625rem;
+    line-height: 1;
+}
+
+/* A rider in motion pulses so the eye finds them among static pins. */
+.map-dot-marker--pulse::after {
+    content: '';
+    position: absolute;
+    inset: -0.35rem;
+    border-radius: 9999px;
+    border: 2px solid var(--dot-color, #8a5a2b);
+    animation: map-marker-pulse 1.8s ease-out infinite;
+}
+
+.map-dot-marker--pulse {
+    position: relative;
+}
+
+@keyframes map-marker-pulse {
+    0% { transform: scale(0.65); opacity: 0.9; }
+    100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* MapLibre ships light-only chrome; tone it down in dark mode. */
+.dark .maplibregl-ctrl-group {
+    background: #241a13;
+}
+
+.dark .maplibregl-ctrl-group button + button {
+    border-top-color: rgba(255, 255, 255, 0.12);
+}
+
+.dark .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+    filter: invert(1);
+}
+
+.dark .maplibregl-ctrl-attrib {
+    background: rgba(36, 26, 19, 0.8);
+}
+
+.dark .maplibregl-ctrl-attrib a {
+    color: #d8c3ad;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .map-dot-marker--pulse::after {
+        animation: none;
+    }
 }

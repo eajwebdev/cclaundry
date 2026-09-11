@@ -123,7 +123,7 @@
                     @php($isReady = $isReadyForPickup || $isReadyForDelivery)
                     @php($isReleased = (bool) $order->released_at)
                     @php($isInProcess = in_array($order->status, ['pending', 'washing', 'drying', 'folding'], true))
-                    @php($canRecordPayment = (float) $order->balance > 0 && $order->status !== 'cancelled' && ! $order->poTransaction && $order->customer?->billing_type !== 'po')
+                    @php($canRecordPayment = (float) $order->balance > 0 && $order->status !== 'cancelled')
                     <tr>
                         <td class="border-l-4 px-4 py-3 font-medium {{ $isReadyForPickup ? 'border-l-teal-500 bg-teal-50/50 dark:bg-teal-500/5' : ($isReadyForDelivery ? 'border-l-orange-500 bg-orange-50/50 dark:bg-orange-500/5' : ($isReleased ? 'border-l-green-500 bg-green-50/50 dark:bg-green-500/5' : ($isInProcess ? 'border-l-blue-500 bg-blue-50/50 dark:bg-blue-500/5' : ($order->status === 'cancelled' ? 'border-l-red-500' : 'border-l-transparent')))) }}">
                             <p>{{ $order->job_order_number }}</p>
@@ -211,7 +211,7 @@
                                 <form method="POST" action="{{ route('admin.job-orders.destroy', $order) }}" class="inline">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" x-on:click.prevent="Swal.fire({ title: 'Delete job order?', text: 'This will delete the connected payments, ledger entries, PO transaction, items, and cycle records. A deletion log will be saved.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'Delete' }).then((result) => { if (result.isConfirmed) $el.closest('form').submit(); })" title="Delete" aria-label="Delete job order" class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-500/10">
+                                    <button type="submit" x-on:click.prevent="Swal.fire({ title: 'Delete job order?', text: 'This will delete the connected payments, ledger entries, items, and cycle records. A deletion log will be saved.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'Delete' }).then((result) => { if (result.isConfirmed) $el.closest('form').submit(); })" title="Delete" aria-label="Delete job order" class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-500/10">
                                         <span data-lucide="trash" class="h-4 w-4"></span>
                                     </button>
                                 </form>
@@ -276,7 +276,7 @@
             </div>
         </div>
 
-        @if((float) $order->balance > 0 && $order->status !== 'cancelled' && ! $order->poTransaction && $order->customer?->billing_type !== 'po')
+        @if((float) $order->balance > 0 && $order->status !== 'cancelled')
             <div x-cloak x-show="payOpen === {{ $order->id }}" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
                 <div @click.outside="payOpen = null" class="w-full max-w-md rounded-lg bg-white p-5 shadow-2xl dark:bg-gray-900">
                     <div class="mb-4 flex items-center justify-between">
@@ -301,7 +301,6 @@
                             <select name="payment_type" class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
                                 <option value="cash">Cash</option>
                                 <option value="gcash">GCash</option>
-                                <option value="po">PO</option>
                             </select>
                         </div>
 

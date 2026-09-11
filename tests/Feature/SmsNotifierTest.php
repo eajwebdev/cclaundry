@@ -58,33 +58,6 @@ class SmsNotifierTest extends TestCase
         ]);
     }
 
-    public function test_po_customer_never_receives_or_queues_sms(): void
-    {
-        Http::fake();
-        [$order, , $customer] = $this->readyOrder();
-        $customer->update(['billing_type' => 'po']);
-        $order->setRelation('customer', $customer->fresh());
-
-        SystemSetting::query()->create([
-            'business_name' => 'SPIN KLEAN LAUNDRY',
-            'contact_number' => '09171234567',
-            'business_address' => 'Manila',
-            'currency' => 'PHP',
-            'job_order_prefix' => 'JO',
-            'invoice_prefix' => 'INV',
-            'sms_enabled' => true,
-            'sms_provider' => 'unisms',
-            'sms_api_key' => 'unisms-secret',
-            'is_completed' => true,
-        ]);
-
-        SmsNotifier::jobOrderReceived($order);
-        SmsNotifier::jobOrderStatus($order);
-
-        Http::assertNothingSent();
-        $this->assertDatabaseCount('sms_logs', 0);
-    }
-
     public function test_unisms_failure_is_recorded_without_throwing(): void
     {
         Http::fake([

@@ -22,9 +22,12 @@ class PickupRequest extends Model
         'service_name', 'service_price', 'service_pricing_type', 'estimated_kilos',
         'contact_name', 'contact_phone', 'contact_email',
         'pickup_address', 'pickup_landmark', 'pickup_date', 'pickup_slot',
+        'pickup_latitude', 'pickup_longitude',
         'delivery_preference', 'delivery_address', 'delivery_date', 'delivery_slot',
+        'delivery_latitude', 'delivery_longitude',
         'is_rush', 'notes', 'estimated_total',
         'status', 'job_order_id', 'handled_by',
+        'rider_id', 'assigned_at', 'picked_up_at', 'delivered_at',
         'confirmed_at', 'cancelled_at', 'cancellation_reason',
     ];
 
@@ -35,8 +38,15 @@ class PickupRequest extends Model
         'is_rush' => 'boolean',
         'pickup_date' => 'date',
         'delivery_date' => 'date',
+        'pickup_latitude' => 'decimal:7',
+        'pickup_longitude' => 'decimal:7',
+        'delivery_latitude' => 'decimal:7',
+        'delivery_longitude' => 'decimal:7',
         'confirmed_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'assigned_at' => 'datetime',
+        'picked_up_at' => 'datetime',
+        'delivered_at' => 'datetime',
     ];
 
     public function customer() { return $this->belongsTo(Customer::class); }
@@ -45,6 +55,57 @@ class PickupRequest extends Model
     public function preset() { return $this->belongsTo(ServicePreset::class, 'service_preset_id'); }
     public function jobOrder() { return $this->belongsTo(JobOrder::class); }
     public function handler() { return $this->belongsTo(User::class, 'handled_by'); }
+    public function rider() { return $this->belongsTo(User::class, 'rider_id'); }
+    public function locationPings() { return $this->hasMany(RiderLocationPing::class); }
+
+    /** Whether a rider can be sent to this booking at all. */
+    public function isAssignable(): bool
+    {
+        return in_array($this->status, ['pending', 'confirmed'], true);
+    }
+
+    /**
+     * The leg the rider is currently driving: out to the customer to collect,
+     * or back to them with the finished laundry.
+     */
+    public function activeLeg(): ?string
+    {
+        return match ($this->status) {
+            'pending', 'confirmed' => 'pickup',
+            'picked_up' => $this->wantsDelivery() ? 'delivery' : null,
+            default => null,
+        };
+    }
+
+    /** Where the rider is headed right now, as [lat, lng], if it is known. */
+    public function destinationCoordinates(): ?array
+    {
+        $leg = $this->activeLeg();
+
+        if ($leg === 'pickup' && $this->pickup_latitude !== null) {
+            return [(float) $this->pickup_latitude, (float) $this->pickup_longitude];
+        }
+
+        if ($leg === 'delivery') {
+            if ($this->delivery_latitude !== null) {
+                return [(float) $this->delivery_latitude, (float) $this->delivery_longitude];
+            }
+
+            // Delivery defaults to the pickup address when none was given.
+            if ($this->pickup_latitude !== null) {
+                return [(float) $this->pickup_latitude, (float) $this->pickup_longitude];
+            }
+        }
+
+        return null;
+    }
+
+    /** Is this booking at a stage where a live rider map is worth showing? */
+    public function isTrackable(): bool
+    {
+        return $this->rider_id !== null
+            && in_array($this->status, ['confirmed', 'picked_up'], true);
+    }
 
     public function serviceTypeLabel(): string
     {

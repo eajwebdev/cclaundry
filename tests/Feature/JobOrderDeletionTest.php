@@ -11,7 +11,6 @@ use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\JobOrder;
 use App\Models\Payment;
-use App\Models\PoTransaction;
 use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -107,19 +106,6 @@ class JobOrderDeletionTest extends TestCase
             'started_at' => now(),
         ]);
 
-        PoTransaction::query()->create([
-            'branch_id' => $branch->id,
-            'customer_id' => $customer->id,
-            'job_order_id' => $order->id,
-            'company_name' => 'ACME',
-            'po_number' => 'PO-DELETE-001',
-            'transaction_date' => today(),
-            'amount' => 100,
-            'paid_amount' => 0,
-            'balance' => 100,
-            'status' => 'pending',
-        ]);
-
         $inventory = Inventory::query()->create([
             'branch_id' => $branch->id,
             'name' => 'Detergent',
@@ -156,7 +142,6 @@ class JobOrderDeletionTest extends TestCase
         $this->assertDatabaseMissing('cycle_records', ['job_order_id' => $order->id]);
         $this->assertDatabaseMissing('payments', ['id' => $payment->id]);
         $this->assertDatabaseMissing('customer_ledgers', ['job_order_id' => $order->id]);
-        $this->assertDatabaseMissing('po_transactions', ['job_order_id' => $order->id]);
         $this->assertDatabaseMissing('inventory_movements', ['remarks' => "Auto deducted for {$order->job_order_number}"]);
 
         $this->assertSame('10.00', $inventory->fresh()->quantity);
@@ -171,7 +156,6 @@ class JobOrderDeletionTest extends TestCase
         $log = ActivityLog::query()->where('action', 'job_order_deleted')->firstOrFail();
         $this->assertSame($order->job_order_number, $log->properties['job_order_number']);
         $this->assertSame(1, $log->properties['payments_count']);
-        $this->assertTrue($log->properties['had_po_transaction']);
     }
 
     private function jobOrderFixture(): array

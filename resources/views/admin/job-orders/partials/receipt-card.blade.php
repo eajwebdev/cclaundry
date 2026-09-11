@@ -38,7 +38,6 @@
         @endif
         <div class="flex justify-between"><span>Release At</span><span>{{ $order->releaseBranch?->name ?? $order->currentBranch?->name ?? $order->branch?->name }}</span></div>
         <div class="flex justify-between"><span>Customer</span><span>{{ $order->customer?->name }}</span></div>
-        <div class="flex justify-between"><span>Billing</span><span>{{ \App\Support\StatusBadge::label($order->customer?->billing_type ?? 'regular') }}</span></div>
         <div class="flex justify-between"><span>Transaction</span><span>{{ $order->transaction_type === 'delivery' ? 'Delivery / Pick-up' : 'Walk-in / Drop Off' }}</span></div>
         <div class="flex justify-between"><span>Priority</span><span>{{ $order->is_rush ? 'Rush' : 'Standard' }}</span></div>
         <div class="flex justify-between"><span>Status</span><span>{{ \App\Support\StatusBadge::label($order->status) }}</span></div>

@@ -172,14 +172,14 @@ class UserController extends Controller
         $viewer ??= auth()->user();
 
         if ($viewer?->isSuperAdmin()) {
-            return ['super_admin', 'admin', 'branch_manager', 'cashier', 'staff'];
+            return ['super_admin', 'admin', 'branch_manager', 'cashier', 'staff', 'rider'];
         }
 
         if ($viewer?->role === 'admin') {
-            return ['admin', 'branch_manager', 'cashier', 'staff'];
+            return ['admin', 'branch_manager', 'cashier', 'staff', 'rider'];
         }
 
-        return ['cashier', 'staff'];
+        return ['cashier', 'staff', 'rider'];
     }
 
     private function normalizedAccess(string $role, array $access): array
@@ -207,13 +207,13 @@ class UserController extends Controller
                 'dashboard',
                 'job_orders',
                 'cycles',
+                'riders',
                 'customers',
                 'services',
                 'service_categories',
                 'inventory',
                 'payments',
                 'receivables',
-                'po_transactions',
                 'expenses',
                 'accounts_payable',
                 'petty_cash',
@@ -231,10 +231,10 @@ class UserController extends Controller
                 'dashboard',
                 'job_orders',
                 'cycles',
+                'riders',
                 'customers',
                 'payments',
                 'receivables',
-                'po_transactions',
                 'reports',
             ], 'cashier'),
             'staff' => $assignable([
@@ -243,6 +243,9 @@ class UserController extends Controller
                 'daily_tasks',
                 'attendance',
             ], 'staff'),
+            // A rider never opens the admin area: the console at /rider is
+            // their whole interface, gated by role rather than by menu access.
+            'rider' => [],
         ];
 
         return array_intersect_key($presets, array_flip($this->availableRoles($viewer)));

@@ -24,7 +24,7 @@ class CycleController extends Controller
         'wash' => 'Washing',
         'dry' => 'Drying',
         'fold' => 'Folding',
-        'iron' => 'Ironing',
+        'iron' => 'Steaming',
     ];
 
     private const COMPLETION_STATUSES = [
@@ -59,7 +59,7 @@ class CycleController extends Controller
             'pending' => 'Pending',
             'washing' => 'Washing',
             'drying' => 'Drying',
-            'folding' => 'Folding / Ironing',
+            'folding' => 'Folding / Steaming',
             'ready_for_pickup' => 'Ready for Pickup',
             'ready_for_delivery' => 'Ready for Delivery',
             'completed' => 'Completed',

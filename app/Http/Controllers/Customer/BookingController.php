@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\PickupRequest;
+use App\Support\Geocoder;
 use App\Models\SystemSetting;
 use App\Support\Booking;
 use Illuminate\Http\Request;
@@ -141,12 +142,22 @@ class BookingController extends Controller
                 'contact_phone' => $data['contact_phone'],
                 'contact_email' => $data['contact_email'] ?? $customer->email,
                 'pickup_address' => $data['pickup_address'],
+                'pickup_latitude' => $data['pickup_latitude'] ?? null,
+                'pickup_longitude' => $data['pickup_longitude'] ?? null,
                 'pickup_landmark' => $data['pickup_landmark'] ?? null,
                 'pickup_date' => $data['pickup_date'],
                 'pickup_slot' => $data['pickup_slot'],
                 'delivery_preference' => $data['delivery_preference'],
                 'delivery_address' => $wantsDelivery
                     ? (($data['delivery_address'] ?? null) ?: $data['pickup_address'])
+                    : null,
+                // Delivery falls back to the pickup pin, matching how the
+                // delivery address already falls back to the pickup address.
+                'delivery_latitude' => $wantsDelivery
+                    ? (($data['delivery_latitude'] ?? null) ?: ($data['pickup_latitude'] ?? null))
+                    : null,
+                'delivery_longitude' => $wantsDelivery
+                    ? (($data['delivery_longitude'] ?? null) ?: ($data['pickup_longitude'] ?? null))
                     : null,
                 'delivery_date' => $wantsDelivery ? ($data['delivery_date'] ?? null) : null,
                 'delivery_slot' => $wantsDelivery ? ($data['delivery_slot'] ?? null) : null,
@@ -166,6 +177,10 @@ class BookingController extends Controller
                 'phone' => $customer->phone ?: $data['contact_phone'],
                 'address' => $customer->address ?: $data['pickup_address'],
                 'email' => $customer->email ?: ($data['contact_email'] ?? null),
+                // So a repeat booking opens on their own house rather than the
+                // city centre.
+                'latitude' => $customer->latitude ?: ($data['pickup_latitude'] ?? null),
+                'longitude' => $customer->longitude ?: ($data['pickup_longitude'] ?? null),
             ]))->save();
 
             return $pickupRequest;
@@ -182,11 +197,18 @@ class BookingController extends Controller
             'contact_phone' => ['required', 'string', 'max:40'],
             'contact_email' => ['nullable', 'email', 'max:150'],
             'pickup_address' => ['required', 'string', 'max:500'],
+            // The pin is optional on purpose. Kabankalan addresses are given by
+            // landmark far more often than by street number, and a booking must
+            // never be blocked because the map would not load on someone's phone.
+            'pickup_latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'pickup_longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'pickup_landmark' => ['nullable', 'string', 'max:150'],
             'pickup_date' => ['required', 'date', 'after_or_equal:'.Booking::earliestPickupDate(), 'before_or_equal:'.Booking::latestPickupDate()],
             'pickup_slot' => ['required', Rule::in(array_keys(Booking::slots()))],
             'delivery_preference' => ['required', Rule::in(array_keys(Booking::deliveryPreferences()))],
             'delivery_address' => ['nullable', 'string', 'max:500'],
+            'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'delivery_date' => ['nullable', 'date', 'after_or_equal:pickup_date', 'before_or_equal:'.Booking::latestPickupDate()],
             'delivery_slot' => ['nullable', Rule::in(array_keys(Booking::slots()))],
             'is_rush' => ['nullable', 'boolean'],
@@ -205,6 +227,18 @@ class BookingController extends Controller
 
         $validated['contact_phone'] = Customer::normalizePhone($validated['contact_phone']);
         $validated['is_rush'] = $request->boolean('is_rush');
+
+        // One coordinate without the other is not a location. Drop the pair
+        // rather than storing half a pin a rider would be sent to follow.
+        foreach (['pickup', 'delivery'] as $leg) {
+            if (! Geocoder::isValidCoordinate(
+                $validated[$leg.'_latitude'] ?? null,
+                $validated[$leg.'_longitude'] ?? null
+            )) {
+                $validated[$leg.'_latitude'] = null;
+                $validated[$leg.'_longitude'] = null;
+            }
+        }
 
         return $validated;
     }

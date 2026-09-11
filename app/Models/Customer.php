@@ -12,13 +12,16 @@ class Customer extends Model implements AuthenticatableContract
     use Authenticatable, SoftDeletes;
 
     protected $fillable = [
-        'branch_id', 'name', 'phone', 'email', 'address', 'billing_type', 'unpaid_limit', 'is_active',
+        'branch_id', 'name', 'phone', 'email', 'address', 'latitude', 'longitude',
+        'billing_type', 'unpaid_limit', 'is_active',
         'password', 'registered_at', 'last_login_at',
     ];
 
     protected $hidden = ['password', 'remember_token'];
 
     protected $casts = [
+        'latitude' => 'decimal:7',
+        'longitude' => 'decimal:7',
         'unpaid_limit' => 'decimal:2',
         'is_active' => 'boolean',
         'password' => 'hashed',
@@ -29,12 +32,11 @@ class Customer extends Model implements AuthenticatableContract
     public function branch() { return $this->belongsTo(Branch::class); }
     public function jobOrders() { return $this->hasMany(JobOrder::class); }
     public function payments() { return $this->hasMany(Payment::class); }
-    public function poTransactions() { return $this->hasMany(PoTransaction::class); }
     public function pickupRequests() { return $this->hasMany(PickupRequest::class); }
 
     public function canReceiveSms(): bool
     {
-        return $this->billing_type !== 'po' && filled($this->phone);
+        return filled($this->phone);
     }
 
     /**

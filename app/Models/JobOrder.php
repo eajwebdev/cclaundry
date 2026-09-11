@@ -21,15 +21,7 @@ class JobOrder extends Model
     public function creator() { return $this->belongsTo(User::class, 'created_by'); }
     public function items() { return $this->hasMany(JobOrderItem::class); }
     public function payments() { return $this->hasMany(Payment::class); }
-    public function poTransaction() { return $this->hasOne(PoTransaction::class); }
     public function cycles() { return $this->hasMany(CycleRecord::class); }
-
-    public function scopeRegularReceivable($query)
-    {
-        return $query
-            ->whereDoesntHave('poTransaction')
-            ->whereDoesntHave('customer', fn ($query) => $query->where('billing_type', 'po'));
-    }
 
     public function allCyclesDone()
     {

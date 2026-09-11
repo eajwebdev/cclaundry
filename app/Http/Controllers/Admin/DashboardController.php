@@ -548,7 +548,7 @@ class DashboardController extends Controller
 
     private function receivablesAssistant(?int $branchId, string $currency): array
     {
-        $query = JobOrder::query()->when($branchId, fn ($query) => $query->where('branch_id', $branchId))->where('balance', '>', 0)->where('status', '!=', 'cancelled')->regularReceivable();
+        $query = JobOrder::query()->when($branchId, fn ($query) => $query->where('branch_id', $branchId))->where('balance', '>', 0)->where('status', '!=', 'cancelled');
         $balance = (float) (clone $query)->sum('balance');
         $count = (clone $query)->count();
 
@@ -564,7 +564,7 @@ class DashboardController extends Controller
 
     private function unpaidOrdersAssistant(?int $branchId, string $currency): array
     {
-        $query = JobOrder::query()->when($branchId, fn ($query) => $query->where('branch_id', $branchId))->where('balance', '>', 0)->where('status', '!=', 'cancelled')->regularReceivable()->latest();
+        $query = JobOrder::query()->when($branchId, fn ($query) => $query->where('branch_id', $branchId))->where('balance', '>', 0)->where('status', '!=', 'cancelled')->latest();
 
         return [
             'title' => 'Unpaid Job Orders',

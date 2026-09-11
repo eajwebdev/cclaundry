@@ -17,8 +17,8 @@ use App\Http\Controllers\Admin\LaundryServiceController;
 use App\Http\Controllers\Admin\PaymentController;
 use App\Http\Controllers\Admin\PickupRequestController;
 use App\Http\Controllers\Admin\PettyCashController;
-use App\Http\Controllers\Admin\PoTransactionController;
 use App\Http\Controllers\Admin\ReceivableController;
+use App\Http\Controllers\Admin\RiderDispatchController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SmsController;
 use App\Http\Controllers\Admin\SmsLogController;
@@ -28,7 +28,10 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\ZReadingController;
 use App\Http\Controllers\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Customer\BookingController;
+use App\Http\Controllers\GeocodingController;
 use App\Http\Controllers\LandingController;
+use App\Http\Controllers\Rider\RiderController;
+use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\PublicUploadController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Models\SystemSetting;
@@ -45,6 +48,22 @@ use Illuminate\Support\Str;
 */
 Route::get('/', [LandingController::class, 'index'])->name('landing');
 Route::post('/track', [LandingController::class, 'track'])->name('track');
+
+/*
+| Map support for the public booking form. The geocoder is proxied rather than
+| called from the browser so Nominatim's rate limit and User-Agent policy are
+| honoured application-wide (see App\Support\Geocoder). Throttled because these
+| are reachable without an account.
+*/
+Route::middleware('throttle:30,1')->group(function () {
+    Route::get('/map/geocode', [GeocodingController::class, 'search'])->name('map.geocode');
+    Route::get('/map/reverse', [GeocodingController::class, 'reverse'])->name('map.reverse');
+});
+
+// Live rider position for one booking, polled by the customer's tracking page.
+Route::get('/track/{reference}/location', [TrackingController::class, 'location'])
+    ->middleware('throttle:120,1')
+    ->name('track.location');
 
 // The booking form itself is open to everyone. If the visitor has no account
 // yet the controller parks the booking and routes them through sign-up.
@@ -118,6 +137,32 @@ Route::middleware('attendance.employee')->group(function () {
     Route::post('/time-clock/time-out', [AttendanceController::class, 'publicTimeOut'])->name('attendance.public-time-out');
     Route::post('/time-clock/job-orders/scan', [AttendanceController::class, 'publicScanJobOrder'])->name('attendance.job-orders.scan');
     Route::post('/time-clock/daily-tasks/{task}/complete', [AttendanceController::class, 'publicCompleteDailyTask'])->name('attendance.daily-tasks.complete');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Rider console
+|--------------------------------------------------------------------------
+| A rider's entire interface. Deliberately outside the admin stack: no menu,
+| no branch dashboard, nothing but their own runs on a phone.
+*/
+Route::middleware(['auth', 'rider'])->prefix('rider')->name('rider.')->group(function () {
+    Route::get('/', [RiderController::class, 'index'])->name('index');
+    Route::get('/jobs/{pickupRequest}', [RiderController::class, 'show'])->name('jobs.show');
+    Route::patch('/jobs/{pickupRequest}/status', [RiderController::class, 'updateStatus'])->name('jobs.status');
+
+    // Routing is the chattiest rider endpoint (reroutes on deviation), so it
+    // gets its own allowance rather than eating into the position budget.
+    Route::get('/jobs/{pickupRequest}/route', [RiderController::class, 'route'])
+        ->middleware('throttle:40,1')
+        ->name('jobs.route');
+
+    // Position reporting. Generous throttle: a rider on a 10s interval sends 6
+    // a minute, and a second device or a retry burst must not lock them out.
+    Route::middleware('throttle:60,1')->group(function () {
+        Route::post('/ping', [RiderController::class, 'ping'])->name('ping');
+        Route::post('/stop-sharing', [RiderController::class, 'stopSharing'])->name('stop-sharing');
+    });
 });
 
 Route::middleware(['auth', 'settings.completed', 'system.maintenance', 'billing.access'])->group(function () {
@@ -195,9 +240,10 @@ Route::middleware(['auth', 'settings.completed', 'system.maintenance', 'billing.
             Route::get('/receivables', [ReceivableController::class, 'index'])->name('receivables.index');
             Route::post('/receivables/job-orders/{jobOrder}/payments', [ReceivableController::class, 'storePayment'])->name('receivables.payments.store');
         });
-        Route::middleware('menu.access:po_transactions')->group(function () {
-            Route::get('/po-transactions', [PoTransactionController::class, 'index'])->name('po-transactions.index');
-            Route::patch('/po-transactions/{poTransaction}', [PoTransactionController::class, 'update'])->name('po-transactions.update');
+        Route::middleware('menu.access:riders')->group(function () {
+            Route::get('/riders', [RiderDispatchController::class, 'index'])->name('riders.index');
+            Route::get('/riders/locations', [RiderDispatchController::class, 'locations'])->name('riders.locations');
+            Route::patch('/riders/pickup-requests/{pickupRequest}', [RiderDispatchController::class, 'assign'])->name('riders.assign');
         });
         Route::middleware('menu.access:cycles')->group(function () {
             Route::get('/cycles', [CycleController::class, 'index'])->name('cycles.index');

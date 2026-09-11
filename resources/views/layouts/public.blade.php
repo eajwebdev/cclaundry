@@ -18,6 +18,9 @@
     <title>@yield('page_title', 'Laundry pickup & delivery') &middot; {{ $publicBusinessName }}</title>
     <link rel="icon" href="{{ $appBusinessLogo }}">
     <link rel="apple-touch-icon" href="{{ $appBusinessLogo }}">
+    {{-- Page-specific bundles load here, ahead of app.js, so anything they
+         put on window exists before Alpine starts. --}}
+    @stack('head')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <script>
         // The theme store in app.js reads these; without them the public site

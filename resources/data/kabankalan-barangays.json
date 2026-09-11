@@ -1,0 +1,302 @@
+{
+  "_source": "OpenStreetMap admin_level=10 boundaries inside Kabankalan City, fetched via Overpass. Regenerate if a barangay is renamed or split.",
+  "_city": "Kabankalan City, Negros Occidental, Philippines",
+  "barangays": [
+    {
+      "name": "Bantayan",
+      "poblacion": false,
+      "latitude": 9.712609,
+      "longitude": 122.795131,
+      "aliases": []
+    },
+    {
+      "name": "Barangay 1",
+      "poblacion": true,
+      "latitude": 10.002174,
+      "longitude": 122.817258,
+      "aliases": [
+        "Brgy 1",
+        "Brgy. 1",
+        "Barangay I",
+        "Brgy I",
+        "Poblacion 1",
+        "Poblacion"
+      ]
+    },
+    {
+      "name": "Barangay 2",
+      "poblacion": true,
+      "latitude": 9.997044,
+      "longitude": 122.813188,
+      "aliases": [
+        "Brgy 2",
+        "Brgy. 2",
+        "Barangay II",
+        "Brgy II",
+        "Poblacion 2",
+        "Poblacion"
+      ]
+    },
+    {
+      "name": "Barangay 3",
+      "poblacion": true,
+      "latitude": 9.992733,
+      "longitude": 122.813263,
+      "aliases": [
+        "Brgy 3",
+        "Brgy. 3",
+        "Barangay III",
+        "Brgy III",
+        "Poblacion 3",
+        "Poblacion"
+      ]
+    },
+    {
+      "name": "Barangay 4",
+      "poblacion": true,
+      "latitude": 9.989377,
+      "longitude": 122.81983,
+      "aliases": [
+        "Brgy 4",
+        "Brgy. 4",
+        "Barangay IV",
+        "Brgy IV",
+        "Poblacion 4",
+        "Poblacion"
+      ]
+    },
+    {
+      "name": "Barangay 5",
+      "poblacion": true,
+      "latitude": 9.99087,
+      "longitude": 122.811859,
+      "aliases": [
+        "Brgy 5",
+        "Brgy. 5",
+        "Barangay V",
+        "Brgy V",
+        "Poblacion 5",
+        "Poblacion"
+      ]
+    },
+    {
+      "name": "Barangay 6",
+      "poblacion": true,
+      "latitude": 9.993671,
+      "longitude": 122.804039,
+      "aliases": [
+        "Brgy 6",
+        "Brgy. 6",
+        "Barangay VI",
+        "Brgy VI",
+        "Poblacion 6",
+        "Poblacion"
+      ]
+    },
+    {
+      "name": "Barangay 7",
+      "poblacion": true,
+      "latitude": 9.988135,
+      "longitude": 122.812622,
+      "aliases": [
+        "Brgy 7",
+        "Brgy. 7",
+        "Barangay VII",
+        "Brgy VII",
+        "Poblacion 7",
+        "Poblacion"
+      ]
+    },
+    {
+      "name": "Barangay 8",
+      "poblacion": true,
+      "latitude": 9.987115,
+      "longitude": 122.815104,
+      "aliases": [
+        "Brgy 8",
+        "Brgy. 8",
+        "Barangay VIII",
+        "Brgy VIII",
+        "Poblacion 8",
+        "Poblacion"
+      ]
+    },
+    {
+      "name": "Barangay 9",
+      "poblacion": true,
+      "latitude": 9.983821,
+      "longitude": 122.820452,
+      "aliases": [
+        "Brgy 9",
+        "Brgy. 9",
+        "Barangay IX",
+        "Brgy IX",
+        "Poblacion 9",
+        "Poblacion"
+      ]
+    },
+    {
+      "name": "Binicuil",
+      "poblacion": false,
+      "latitude": 10.022552,
+      "longitude": 122.831832,
+      "aliases": []
+    },
+    {
+      "name": "Camansi",
+      "poblacion": false,
+      "latitude": 9.930304,
+      "longitude": 122.80825,
+      "aliases": []
+    },
+    {
+      "name": "Camingawan",
+      "poblacion": false,
+      "latitude": 9.865758,
+      "longitude": 122.882152,
+      "aliases": []
+    },
+    {
+      "name": "Camugao",
+      "poblacion": false,
+      "latitude": 9.9763,
+      "longitude": 122.806861,
+      "aliases": []
+    },
+    {
+      "name": "Carol-an",
+      "poblacion": false,
+      "latitude": 9.900081,
+      "longitude": 122.952804,
+      "aliases": [
+        "Carolan"
+      ]
+    },
+    {
+      "name": "Daan Banwa",
+      "poblacion": false,
+      "latitude": 10.044895,
+      "longitude": 122.814394,
+      "aliases": [
+        "Daan Banua",
+        "Daanbanua"
+      ]
+    },
+    {
+      "name": "Hilamonan",
+      "poblacion": false,
+      "latitude": 9.985098,
+      "longitude": 122.860652,
+      "aliases": []
+    },
+    {
+      "name": "Inapoy",
+      "poblacion": false,
+      "latitude": 9.804635,
+      "longitude": 122.874497,
+      "aliases": []
+    },
+    {
+      "name": "Linao",
+      "poblacion": false,
+      "latitude": 9.984908,
+      "longitude": 122.790853,
+      "aliases": []
+    },
+    {
+      "name": "Locotan",
+      "poblacion": false,
+      "latitude": 9.649716,
+      "longitude": 122.753757,
+      "aliases": []
+    },
+    {
+      "name": "Magballo",
+      "poblacion": false,
+      "latitude": 9.753547,
+      "longitude": 122.76498,
+      "aliases": []
+    },
+    {
+      "name": "Oringao",
+      "poblacion": false,
+      "latitude": 9.906807,
+      "longitude": 122.883348,
+      "aliases": []
+    },
+    {
+      "name": "Orong",
+      "poblacion": false,
+      "latitude": 9.94794,
+      "longitude": 122.84822,
+      "aliases": []
+    },
+    {
+      "name": "Pinaguinpinan",
+      "poblacion": false,
+      "latitude": 9.76528,
+      "longitude": 122.838167,
+      "aliases": [
+        "Pinagüinpinan"
+      ]
+    },
+    {
+      "name": "Salong",
+      "poblacion": false,
+      "latitude": 9.924345,
+      "longitude": 122.766816,
+      "aliases": []
+    },
+    {
+      "name": "Tabugon",
+      "poblacion": false,
+      "latitude": 9.787088,
+      "longitude": 122.790252,
+      "aliases": []
+    },
+    {
+      "name": "Tagoc",
+      "poblacion": false,
+      "latitude": 9.807333,
+      "longitude": 122.837668,
+      "aliases": []
+    },
+    {
+      "name": "Tagukon",
+      "poblacion": false,
+      "latitude": 9.834912,
+      "longitude": 122.897276,
+      "aliases": []
+    },
+    {
+      "name": "Talubangi",
+      "poblacion": false,
+      "latitude": 10.003645,
+      "longitude": 122.806357,
+      "aliases": []
+    },
+    {
+      "name": "Tampalon",
+      "poblacion": false,
+      "latitude": 9.870172,
+      "longitude": 122.811675,
+      "aliases": []
+    },
+    {
+      "name": "Tan-awan",
+      "poblacion": false,
+      "latitude": 9.940915,
+      "longitude": 122.912395,
+      "aliases": [
+        "Tanawan"
+      ]
+    },
+    {
+      "name": "Tapi",
+      "poblacion": false,
+      "latitude": 9.832279,
+      "longitude": 122.766973,
+      "aliases": []
+    }
+  ]
+}

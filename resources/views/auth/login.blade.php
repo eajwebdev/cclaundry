@@ -81,6 +81,13 @@
                         name="login"
                         type="text"
                         value="{{ old('login') }}"
+                        {{-- iOS capitalises the first letter of a text field by
+                             default, which silently breaks a lowercase username
+                             for a rider signing in on a phone. --}}
+                        autocapitalize="none"
+                        autocorrect="off"
+                        spellcheck="false"
+                        autocomplete="username"
                         autocomplete="username"
                         autofocus
                         required

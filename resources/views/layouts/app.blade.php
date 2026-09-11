@@ -7,6 +7,9 @@
     <title>@yield('page_title', 'Dashboard') - {{ $appSystemName }}</title>
     <link rel="icon" href="{{ $appBusinessLogo }}">
     <link rel="apple-touch-icon" href="{{ $appBusinessLogo }}">
+    {{-- Page-specific bundles load here, ahead of app.js, so anything they
+         put on window exists before Alpine starts. --}}
+    @stack('head')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <script>
         window.appDarkModeDefault = @js($appDarkModeDefault);
@@ -82,5 +85,7 @@
             @endunless
         </div>
     </div>
+
+@stack('scripts')
 </body>
 </html>

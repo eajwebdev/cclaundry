@@ -171,6 +171,33 @@
                                 </a>
                             @endif
 
+                            {{-- Rider assignment. Choosing a rider on a still-pending
+                                 booking also confirms it: someone is now going. --}}
+                            @if(in_array($pickupRequest->status, ['pending', 'confirmed', 'picked_up'], true) && $riders->isNotEmpty())
+                                <form method="POST" action="{{ route('admin.riders.assign', $pickupRequest) }}" class="space-y-1.5">
+                                    @csrf @method('PATCH')
+                                    <label class="block text-xs font-medium text-muted" for="rider-{{ $pickupRequest->id }}">Rider</label>
+                                    <div class="flex gap-1.5">
+                                        <select id="rider-{{ $pickupRequest->id }}" name="rider_id"
+                                                class="h-9 min-w-0 flex-1 rounded-md border border-border bg-white px-2 text-sm dark:border-gray-700 dark:bg-gray-950">
+                                            <option value="">Unassigned</option>
+                                            @foreach($riders as $rider)
+                                                <option value="{{ $rider->id }}" @selected((int) $pickupRequest->rider_id === (int) $rider->id)>{{ $rider->name }}</option>
+                                            @endforeach
+                                        </select>
+                                        <button type="submit" title="Save rider"
+                                                class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border transition hover:border-primary/50 hover:text-primary dark:border-gray-700">
+                                            <span data-lucide="check" class="h-4 w-4"></span>
+                                        </button>
+                                    </div>
+                                </form>
+                            @elseif($pickupRequest->rider)
+                                <p class="text-xs text-muted">
+                                    <span data-lucide="truck" class="inline-block h-3 w-3 align-[-2px]"></span>
+                                    {{ $pickupRequest->rider->name }}
+                                </p>
+                            @endif
+
                             @if($pickupRequest->status === 'pending')
                                 <form method="POST" action="{{ route('admin.pickup-requests.status', $pickupRequest) }}">
                                     @csrf @method('PATCH')

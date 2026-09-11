@@ -28,6 +28,12 @@ class User extends Authenticatable
         'face_image_path',
         'face_descriptors',
         'face_enrolled_at',
+        'last_latitude',
+        'last_longitude',
+        'last_location_accuracy',
+        'last_location_heading',
+        'last_location_at',
+        'is_sharing_location',
     ];
 
     protected $hidden = [
@@ -45,6 +51,10 @@ class User extends Authenticatable
             'monthly_salary' => 'decimal:2',
             'face_descriptors' => 'array',
             'face_enrolled_at' => 'datetime',
+            'last_latitude' => 'decimal:7',
+            'last_longitude' => 'decimal:7',
+            'last_location_at' => 'datetime',
+            'is_sharing_location' => 'boolean',
         ];
     }
 
@@ -61,6 +71,41 @@ class User extends Authenticatable
     public function isSuperAdmin(): bool
     {
         return $this->role === 'super_admin';
+    }
+
+    public function isRider(): bool
+    {
+        return $this->role === 'rider';
+    }
+
+    public function assignedPickupRequests()
+    {
+        return $this->hasMany(PickupRequest::class, 'rider_id');
+    }
+
+    public function locationPings()
+    {
+        return $this->hasMany(RiderLocationPing::class, 'rider_id');
+    }
+
+    public function scopeRiders($query)
+    {
+        return $query->where('role', 'rider');
+    }
+
+    /**
+     * A rider counts as trackable only while a recent fix is on file. Anything
+     * older is a stale marker that would show a rider sitting somewhere they
+     * left an hour ago, which is worse than showing nothing.
+     */
+    public function hasLiveLocation(): bool
+    {
+        if (! $this->last_location_at || $this->last_latitude === null) {
+            return false;
+        }
+
+        return $this->last_location_at->diffInSeconds(now())
+            <= (int) config('maps.tracking.stale_after_seconds');
     }
 
     public function isAdmin(): bool

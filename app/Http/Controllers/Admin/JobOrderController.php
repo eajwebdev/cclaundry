@@ -14,7 +14,6 @@ use App\Models\LaundryService;
 use App\Models\LaundryServiceCategory;
 use App\Models\Payment;
 use App\Models\PickupRequest;
-use App\Models\PoTransaction;
 use App\Models\ServicePreset;
 use App\Models\SystemSetting;
 use App\Models\User;
@@ -35,7 +34,7 @@ class JobOrderController extends Controller
         $user = $request->user();
         [$dateFrom, $dateTo] = $this->dateRange($request);
 
-        $ordersQuery = JobOrder::with(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'items', 'payments.receiver', 'payments.collectedBranch', 'poTransaction'])
+        $ordersQuery = JobOrder::with(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'items', 'payments.receiver', 'payments.collectedBranch'])
             ->when($user->role !== 'super_admin' && $user->role !== 'admin', fn ($q) => $q->where('branch_id', $user->branch_id))
             ->when($dateFrom, fn ($q) => $q->whereDate('created_at', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
@@ -282,7 +281,7 @@ class JobOrderController extends Controller
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
             'discount' => ['nullable', 'numeric', 'min:0'],
             'paid_amount' => ['nullable', 'numeric', 'min:0'],
-            'payment_type' => ['nullable', Rule::in(['cash', 'gcash', 'bank', 'unpaid', 'po', 'monthly_billing'])],
+            'payment_type' => ['nullable', Rule::in(['cash', 'gcash', 'bank', 'unpaid', 'monthly_billing'])],
             'payment_reference_no' => ['nullable', 'string', 'max:255'],
             'transaction_type' => ['nullable', Rule::in(['walk_in', 'delivery'])],
             'is_rush' => ['nullable', 'boolean'],
@@ -334,9 +333,7 @@ class JobOrderController extends Controller
             $tax = $settings->vat_enabled ? ($taxable * ((float) $settings->vat_rate / 100)) : 0;
             $total = $taxable + $tax;
             $paymentType = $validated['payment_type'] ?? 'cash';
-            $customer = Customer::query()->find($validated['customer_id']);
-            $isPoTransaction = $paymentType === 'po' || $customer?->billing_type === 'po';
-            $paid = in_array($paymentType, ['unpaid', 'po'], true) || $isPoTransaction
+            $paid = $paymentType === 'unpaid'
                 ? 0
                 : min((float) ($validated['paid_amount'] ?? 0), $total);
 
@@ -384,21 +381,17 @@ class JobOrderController extends Controller
 
             $running = (float) CustomerLedger::where('customer_id', $order->customer_id)->latest()->value('running_balance');
 
-            if ($isPoTransaction) {
-                $this->syncPoTransaction($order, $validated['payment_reference_no'] ?? null);
-            } else {
-                CustomerLedger::create([
-                    'branch_id' => $order->branch_id,
-                    'customer_id' => $order->customer_id,
-                    'job_order_id' => $order->id,
-                    'entry_type' => 'debit',
-                    'amount' => $total,
-                    'running_balance' => $running + $total,
-                    'description' => "Job order {$order->job_order_number}",
-                ]);
-            }
+            CustomerLedger::create([
+                'branch_id' => $order->branch_id,
+                'customer_id' => $order->customer_id,
+                'job_order_id' => $order->id,
+                'entry_type' => 'debit',
+                'amount' => $total,
+                'running_balance' => $running + $total,
+                'description' => "Job order {$order->job_order_number}",
+            ]);
 
-            if ($paid > 0 && ! $isPoTransaction) {
+            if ($paid > 0) {
                 $collectedBranchId = $this->collectedBranchId($request, $order);
                 $payment = Payment::create([
                     'branch_id' => $order->branch_id,
@@ -609,10 +602,7 @@ class JobOrderController extends Controller
                     'customer_id' => $jobOrder->customer_id,
                 ]);
 
-            $jobOrder->load(['customer', 'poTransaction']);
-            if ($jobOrder->poTransaction || $jobOrder->customer?->billing_type === 'po') {
-                $this->syncPoTransaction($jobOrder);
-            }
+            $jobOrder->load('customer');
 
             Activity::log($request, 'job_order_updated', $jobOrder, [
                 'job_order_number' => $jobOrder->job_order_number,
@@ -681,7 +671,7 @@ class JobOrderController extends Controller
         abort_unless($request->user()?->role === 'super_admin', 403);
 
         DB::transaction(function () use ($request, $jobOrder) {
-            $jobOrder->loadMissing(['items', 'payments', 'poTransaction', 'cycles']);
+            $jobOrder->loadMissing(['items', 'payments', 'cycles']);
 
             $paymentIds = $jobOrder->payments->pluck('id')->all();
             $snapshot = [
@@ -695,7 +685,6 @@ class JobOrderController extends Controller
                 'items_count' => $jobOrder->items->count(),
                 'payments_count' => $jobOrder->payments->count(),
                 'cycles_count' => $jobOrder->cycles->count(),
-                'had_po_transaction' => (bool) $jobOrder->poTransaction,
             ];
 
             $this->restoreInventoryForOrder($jobOrder, $request->user()?->id);
@@ -706,7 +695,6 @@ class JobOrderController extends Controller
                 ->orWhereIn('payment_id', $paymentIds)
                 ->delete();
 
-            $jobOrder->poTransaction()?->delete();
             $jobOrder->payments()->delete();
             $jobOrder->cycles()->delete();
             $jobOrder->items()->delete();
@@ -874,38 +862,6 @@ class JobOrderController extends Controller
     private function collectedBranchId(Request $request, JobOrder $order): int
     {
         return (int) ($request->user()->branch_id ?: $order->branch_id);
-    }
-
-    private function syncPoTransaction(JobOrder $order, ?string $poNumber = null): void
-    {
-        $order->loadMissing('customer');
-        $existing = $order->poTransaction;
-        $paidAmount = min((float) ($existing?->paid_amount ?? 0), (float) $order->total);
-        $balance = max((float) $order->total - $paidAmount, 0);
-        $status = $existing?->status ?? 'pending';
-
-        if ($balance <= 0) {
-            $status = 'paid';
-        } elseif ($paidAmount > 0) {
-            $status = 'partially_paid';
-        }
-
-        PoTransaction::query()->updateOrCreate(
-            ['job_order_id' => $order->id],
-            [
-                'branch_id' => $order->branch_id,
-                'customer_id' => $order->customer_id,
-                'company_name' => $order->customer?->name,
-                'po_number' => filled($poNumber) ? $poNumber : ($existing?->po_number ?: 'PO-'.$order->job_order_number),
-                'transaction_date' => $order->created_at?->toDateString() ?: today()->toDateString(),
-                'amount' => $order->total,
-                'paid_amount' => $paidAmount,
-                'balance' => $balance,
-                'status' => $status,
-                'billed_at' => in_array($status, ['billed', 'partially_paid', 'paid'], true) ? ($existing?->billed_at ?: now()) : null,
-                'paid_at' => $status === 'paid' ? ($existing?->paid_at ?: now()) : null,
-            ]
-        );
     }
 
     private function resolveProcessingBranchId(Branch $originBranch, ?int $processingBranchId, User $user): int

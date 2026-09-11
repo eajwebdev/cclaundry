@@ -53,7 +53,7 @@ class UserSeeder extends Seeder
                 'email' => 'manager@laundry.test',
                 'role' => 'branch_manager',
                 'branch_id' => $branchId,
-                'access' => ['dashboard', 'customers', 'services', 'job_orders', 'pickup_requests', 'cycles', 'employees', 'payments', 'receivables', 'po_transactions', 'expenses', 'accounts_payable', 'petty_cash', 'inventory', 'attendance', 'reports', 'sms_logs', 'settings'],
+                'access' => ['dashboard', 'customers', 'services', 'job_orders', 'pickup_requests', 'riders', 'cycles', 'employees', 'payments', 'receivables', 'expenses', 'accounts_payable', 'petty_cash', 'inventory', 'attendance', 'reports', 'sms_logs', 'settings'],
             ],
             [
                 'name' => 'Cashier User',
@@ -61,7 +61,7 @@ class UserSeeder extends Seeder
                 'email' => 'cashier@laundry.test',
                 'role' => 'cashier',
                 'branch_id' => $branchId,
-                'access' => ['dashboard', 'customers', 'job_orders', 'pickup_requests', 'cycles', 'payments', 'receivables', 'po_transactions'],
+                'access' => ['dashboard', 'customers', 'job_orders', 'pickup_requests', 'riders', 'cycles', 'payments', 'receivables'],
             ],
             [
                 'name' => 'Staff User',

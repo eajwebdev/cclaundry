@@ -11,7 +11,7 @@
                 Unpaid balances
             </div>
             <h1 class="text-xl font-semibold tracking-normal">Receivables</h1>
-            <p class="text-sm text-muted">Track partial payments and PO customer accounts.</p>
+            <p class="text-sm text-muted">Track partial payments and outstanding customer balances.</p>
         </div>
 
         <div class="grid grid-cols-2 gap-2 sm:min-w-80">
@@ -44,13 +44,6 @@
                 <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id }}">
             @endif
 
-            <select name="billing_type" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
-                <option value="">All billing</option>
-                @foreach($billingTypes as $billingType)
-                    <option value="{{ $billingType }}" @selected(request('billing_type') === $billingType)>{{ \App\Support\StatusBadge::label($billingType) }}</option>
-                @endforeach
-            </select>
-
             <select name="status" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
                 <option value="">All status</option>
                 @foreach($statuses as $status)
@@ -73,7 +66,6 @@
                         <th class="px-4 py-3">Customer</th>
                         <th class="px-4 py-3">Sales Branch</th>
                         <th class="px-4 py-3">Release At</th>
-                        <th class="px-4 py-3">Billing</th>
                         <th class="px-4 py-3 text-right">Total</th>
                         <th class="px-4 py-3 text-right">Paid</th>
                         <th class="px-4 py-3 text-right">Balance</th>
@@ -94,7 +86,6 @@
                             </td>
                             <td class="px-4 py-3">{{ $order->branch?->name ?? 'N/A' }}</td>
                             <td class="px-4 py-3">{{ $order->releaseBranch?->name ?? $order->currentBranch?->name ?? $order->branch?->name ?? 'N/A' }}</td>
-                            <td class="px-4 py-3"><span class="{{ \App\Support\StatusBadge::classes($order->customer?->billing_type ?? 'regular') }}">{{ \App\Support\StatusBadge::label($order->customer?->billing_type ?? 'regular') }}</span></td>
                             <td class="px-4 py-3 text-right">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $order->total, 2) }}</td>
                             <td class="px-4 py-3 text-right">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $order->paid_amount, 2) }}</td>
                             <td class="px-4 py-3 text-right font-semibold text-amber-700 dark:text-amber-300">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $order->balance, 2) }}</td>
@@ -111,7 +102,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="px-4 py-10 text-center text-muted">No receivables found.</td>
+                            <td colspan="9" class="px-4 py-10 text-center text-muted">No receivables found.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -148,7 +139,6 @@
                         <select name="payment_type" class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
                             <option value="cash">Cash</option>
                             <option value="gcash">GCash</option>
-                            <option value="po">PO</option>
                         </select>
                     </div>
 

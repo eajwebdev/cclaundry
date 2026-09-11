@@ -677,13 +677,13 @@ class CycleMonitoringTest extends TestCase
             ->get(route('admin.cycles.index', ['search' => 'JO-MACHINE-MATCH']))
             ->assertOk()
             ->assertSee('Machine overview')
-            ->assertSee('xl:grid-cols-[minmax(36rem,46rem)_minmax(26rem,1fr)]', false)
+            ->assertSee('lg:grid-cols-[minmax(28rem,34rem)_minmax(22rem,1fr)]', false)
             ->assertSee('Wash Machines')
             ->assertSee('Dry Machines')
             ->assertSee('Wash #5')
             ->assertSee('Dry #5')
             ->assertSee('Job Orders')
-            ->assertSee('h-[42rem] overflow-y-auto', false)
+            ->assertSee('xl:h-[42rem] xl:overflow-y-auto', false)
             ->assertSee('unavailable.png')
             ->assertSee($customer->name)
             ->assertSee('JO-MACHINE-MATCH')
@@ -691,19 +691,20 @@ class CycleMonitoringTest extends TestCase
             ->assertSee('Rush')
             ->assertSee('Loyal Customer')
             ->assertSeeInOrder([
-                'Wash #1',
-                'unavailable.png',
-                '>1</p>',
-                'Washing cycles',
                 'Dry Machines',
                 'Dry #1',
                 '>1</p>',
                 'Drying cycles',
+                'Wash Machines',
+                'Wash #1',
+                'unavailable.png',
+                '>1</p>',
+                'Washing cycles',
             ], false)
             ->assertDontSee('JO-MACHINE-HIDDEN');
 
-        $this->assertSame(5, substr_count($response->getContent(), 'text-xs font-semibold">Wash #'));
-        $this->assertSame(5, substr_count($response->getContent(), 'text-xs font-semibold">Dry #'));
+        $this->assertSame(5, substr_count($response->getContent(), 'text-sm font-semibold">Wash #'));
+        $this->assertSame(5, substr_count($response->getContent(), 'text-sm font-semibold">Dry #'));
     }
 
     public function test_machine_usage_counts_ignore_search_customer_and_status_filters(): void

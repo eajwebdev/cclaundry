@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en" x-data x-init="$store.theme.init()" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    {{-- viewport-fit=cover so sticky bars clear the home indicator on a notched
+         phone, and no user scaling: this is an app surface, not a document. --}}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="theme-color" content="#A07148">
+    <title>@yield('page_title', 'Rider') &middot; {{ $appSystemName ?? config('app.name') }}</title>
+    <link rel="icon" href="{{ asset('logo.png') }}">
+    @stack('head')
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+</head>
+{{-- overflow-hidden on full-bleed screens: the navigation view manages its own
+     viewport and must never let the page scroll behind the map. --}}
+<body class="app-surface min-h-dvh text-dark dark:text-gray-100 @if(trim($__env->yieldContent('full_bleed'))) overflow-hidden @endif">
+
+{{-- Location sharing lives in the header so it is one tap from anywhere and
+     always visible — a rider must never have to hunt for it, or wonder whether
+     dispatch can see them. --}}
+<div x-data="riderTracker()" x-init="init()" class="contents">
+
+    <header class="sticky top-0 z-40 h-15 border-b border-border bg-white/95 backdrop-blur dark:border-gray-800 dark:bg-[#241a13]/95">
+        <div class="mx-auto flex h-15 max-w-2xl items-center gap-2 px-3">
+            @if(trim($__env->yieldContent('full_bleed')))
+                <a href="{{ route('rider.index') }}" aria-label="All runs"
+                   class="inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-border dark:border-gray-800">
+                    <span data-lucide="arrow-left" class="h-4 w-4"></span>
+                </a>
+            @else
+                <img src="{{ asset('logo.png') }}" alt="" class="h-10 w-10 shrink-0 rounded-lg object-contain">
+            @endif
+
+            <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-semibold leading-tight">@yield('page_title', 'My runs')</span>
+                <span class="block truncate text-xs text-muted">{{ auth()->user()->name }}</span>
+            </span>
+
+            {{-- Compact sharing switch: dot shows state, tap toggles. --}}
+            <button type="button" @click="toggle()"
+                    :aria-label="sharing ? 'Stop sharing location' : 'Start sharing location'"
+                    class="inline-flex h-11 shrink-0 touch-manipulation items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition"
+                    :class="sharing
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300'
+                        : 'border-border text-muted dark:border-gray-800'">
+                <span class="relative flex h-2.5 w-2.5">
+                    <span x-show="sharing" x-cloak
+                          class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex h-2.5 w-2.5 rounded-full"
+                          :class="sharing ? 'bg-emerald-500' : 'bg-slate-400'"></span>
+                </span>
+                <span x-text="sharing ? 'Live' : 'Off'"></span>
+            </button>
+
+            <button type="button" @click="$store.theme.toggle()"
+                    aria-label="Toggle theme"
+                    class="inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-border dark:border-gray-800">
+                <span data-lucide="moon" class="h-4 w-4"></span>
+            </button>
+
+            <form method="POST" action="{{ route('logout') }}" class="shrink-0">
+                @csrf
+                <button type="submit" aria-label="Sign out"
+                        class="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-lg border border-border dark:border-gray-800">
+                    <span data-lucide="logout" class="h-4 w-4"></span>
+                </button>
+            </form>
+        </div>
+
+        {{-- Status line only appears when there is something to say, so it
+             costs no vertical space the rest of the time. --}}
+        <p x-show="sharing && statusLine" x-cloak
+           class="truncate bg-emerald-50 px-3 py-1 text-center text-[11px] text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
+           x-text="statusLine"></p>
+    </header>
+
+    @if(trim($__env->yieldContent('full_bleed')))
+        @yield('content')
+    @else
+        <main class="mx-auto max-w-2xl px-3 pb-8 pt-3">
+            @include('partials.alerts')
+            @yield('content')
+        </main>
+    @endif
+</div>
+
+@include('rider.partials.tracker-script')
+@stack('scripts')
+</body>
+</html>

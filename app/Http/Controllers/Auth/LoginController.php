@@ -87,10 +87,9 @@ class LoginController extends Controller
         }
 
         return match ($user->role) {
-            'super_admin' => redirect()->route('dashboard'),
-            'admin' => redirect()->route('dashboard'),
-            'branch_manager' => redirect()->route('dashboard'),
-            'cashier' => redirect()->route('dashboard'),
+            // A rider has no dashboard to land on: their whole job lives in the
+            // phone console.
+            'rider' => redirect()->route('rider.index'),
             default => redirect()->route('dashboard'),
         };
     }
