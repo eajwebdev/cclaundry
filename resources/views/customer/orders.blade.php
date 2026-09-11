@@ -5,7 +5,7 @@
 
 @section('content')
 <section class="px-4 pt-6 sm:pt-10">
-    <div class="mx-auto max-w-3xl">
+    <div class="mx-auto max-w-3xl lg:max-w-5xl">
 
         {{-- Header --}}
         <div class="flex flex-col gap-4 text-center sm:flex-row sm:items-end sm:justify-between sm:text-left">
@@ -39,9 +39,10 @@
                 </a>
             </div>
         @else
-            <div class="mt-4 space-y-3">
+            {{-- Desktop: two columns of bookings once there is more than one. --}}
+            <div class="mt-4 space-y-3 {{ $requests->count() > 1 ? 'lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0' : '' }}">
                 @foreach ($requests as $pickupRequest)
-                    <article class="cc-card p-4 sm:p-5">
+                    <article class="cc-card p-4 sm:p-5 lg:flex lg:flex-col">
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <a href="{{ route('customer.bookings.show', $pickupRequest) }}"
@@ -69,12 +70,13 @@
                             <span data-lucide="calendar-days" class="h-4 w-4 shrink-0 text-cc-brown"></span>
                             {{ $pickupRequest->pickup_date->format('M j, Y') }} &middot; {{ $pickupRequest->pickupSlotLabel() }}
                         </p>
-                        <p class="mt-1 flex items-start gap-2 text-sm text-cc-muted">
+                        <p class="mt-1 flex items-start gap-2 text-sm text-cc-muted lg:mb-4">
                             <span data-lucide="map-pin" class="mt-0.5 h-4 w-4 shrink-0 text-cc-brown"></span>
                             <span class="min-w-0">{{ \Illuminate\Support\Str::limit($pickupRequest->pickup_address, 90) }}</span>
                         </p>
 
-                        <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-cc-line pt-3">
+                        {{-- Pinned to the bottom so the actions line up across a row of cards. --}}
+                        <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-cc-line pt-3 lg:mt-auto">
                             <a href="{{ route('customer.bookings.show', $pickupRequest) }}" class="cc-btn-outline cc-btn-sm">
                                 <span data-lucide="eye" class="h-4 w-4"></span>
                                 View status

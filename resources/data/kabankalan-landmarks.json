@@ -1,0 +1,2911 @@
+{
+    "_source": "OpenStreetMap features inside the Kabankalan City boundary (admin_level=6, relation 3740502), fetched via Overpass on 2026-09-11. Regenerate with the query in _query when places open, close or get mapped, then clear the application cache.",
+    "_query": "[out:json][timeout:120];\narea[\"boundary\"=\"administrative\"][\"name\"~\"Kabankalan\"]->.kab;\n.kab out tags;\n(\n  nwr[\"name\"][\"shop\"~\"^(mall|department_store|supermarket|convenience|chemist|hardware|electronics|appliance|clothes|bakery|furniture|mobile_phone|variety_store|cosmetics|beauty|car|motorcycle)$\"](area.kab);\n  nwr[\"name\"][\"amenity\"~\"^(bank|pharmacy|hospital|clinic|doctors|school|college|university|place_of_worship|townhall|courthouse|police|fire_station|post_office|marketplace|bus_station|fuel|fast_food|restaurant|cafe|community_centre|events_venue|library)$\"](area.kab);\n  nwr[\"name\"][\"leisure\"~\"^(park|stadium|sports_centre|sports_hall|pitch)$\"](area.kab);\n  nwr[\"name\"][\"tourism\"~\"^(hotel|guest_house|motel|resort|attraction)$\"](area.kab);\n  nwr[\"name\"][\"office\"=\"government\"](area.kab);\n  nwr[\"name\"][\"healthcare\"](area.kab);\n);\nout center tags;",
+    "_manual": "A place OpenStreetMap does not have yet (a Watsons, say) can be appended by hand: a real surveyed latitude/longitude, one of the categories already used below, a min_zoom (13 = visible from the opening view, 16 = street level only), aliases, and \"osm\": null. Adding it on openstreetmap.org as well keeps it through the next regeneration.",
+    "_city": "Kabankalan City, Negros Occidental, Philippines",
+    "landmarks": [
+        {
+            "name": "Kabankalan Cathedral",
+            "category": "church",
+            "min_zoom": 13,
+            "latitude": 9.989424,
+            "longitude": 122.814835,
+            "aliases": [
+                "Cathedral"
+            ],
+            "osm": "way/247031156"
+        },
+        {
+            "name": "New-St Francis Xavier Cathedral",
+            "category": "church",
+            "min_zoom": 13,
+            "latitude": 10.00832,
+            "longitude": 122.808927,
+            "aliases": [],
+            "osm": "way/1291991419"
+        },
+        {
+            "name": "Dr. Gumersindo Garcia Sr. Memorial",
+            "category": "hospital",
+            "min_zoom": 13,
+            "latitude": 9.989726,
+            "longitude": 122.813175,
+            "aliases": [],
+            "osm": "way/247032278"
+        },
+        {
+            "name": "Holy Mother of Mercy Hospital",
+            "category": "hospital",
+            "min_zoom": 13,
+            "latitude": 9.982973,
+            "longitude": 122.820274,
+            "aliases": [],
+            "osm": "node/12136667737"
+        },
+        {
+            "name": "Kabankalan City Hospital",
+            "category": "hospital",
+            "min_zoom": 13,
+            "latitude": 9.787517,
+            "longitude": 122.803206,
+            "aliases": [
+                "Hospital"
+            ],
+            "osm": "way/838905925"
+        },
+        {
+            "name": "Lorenzo D. Zayco District Hospital",
+            "category": "hospital",
+            "min_zoom": 13,
+            "latitude": 10.010125,
+            "longitude": 122.820886,
+            "aliases": [],
+            "osm": "way/519187989"
+        },
+        {
+            "name": "CityMall Kabankalan",
+            "category": "mall",
+            "min_zoom": 13,
+            "latitude": 10.001635,
+            "longitude": 122.81044,
+            "aliases": [
+                "CityMall",
+                "City Mall"
+            ],
+            "osm": "way/519017326"
+        },
+        {
+            "name": "Gaisano Grand Mall Kabankalan",
+            "category": "mall",
+            "min_zoom": 13,
+            "latitude": 9.993177,
+            "longitude": 122.818839,
+            "aliases": [
+                "Gaisano Grand Mall"
+            ],
+            "osm": "way/247293840"
+        },
+        {
+            "name": "Bantayan Public Market",
+            "category": "market",
+            "min_zoom": 13,
+            "latitude": 9.72486,
+            "longitude": 122.787343,
+            "aliases": [
+                "Palengke"
+            ],
+            "osm": "way/283651062"
+        },
+        {
+            "name": "Camingawan Public Market",
+            "category": "market",
+            "min_zoom": 13,
+            "latitude": 9.865881,
+            "longitude": 122.872008,
+            "aliases": [
+                "Palengke"
+            ],
+            "osm": "way/246338355"
+        },
+        {
+            "name": "Kabankalan Public Market",
+            "category": "market",
+            "min_zoom": 13,
+            "latitude": 9.992803,
+            "longitude": 122.819952,
+            "aliases": [
+                "Public Market",
+                "Palengke"
+            ],
+            "osm": "way/624985029"
+        },
+        {
+            "name": "Kabankalan Plaza",
+            "category": "park",
+            "min_zoom": 13,
+            "latitude": 9.988723,
+            "longitude": 122.81334,
+            "aliases": [
+                "Plaza"
+            ],
+            "osm": "way/247293144"
+        },
+        {
+            "name": "BDO",
+            "category": "bank",
+            "min_zoom": 14,
+            "latitude": 9.996104,
+            "longitude": 122.815203,
+            "aliases": [],
+            "osm": "node/4169108596"
+        },
+        {
+            "name": "BPI",
+            "category": "bank",
+            "min_zoom": 14,
+            "latitude": 9.993717,
+            "longitude": 122.814643,
+            "aliases": [],
+            "osm": "way/1374319930"
+        },
+        {
+            "name": "Landbank",
+            "category": "bank",
+            "min_zoom": 14,
+            "latitude": 9.994122,
+            "longitude": 122.814233,
+            "aliases": [],
+            "osm": "node/4579207691"
+        },
+        {
+            "name": "ASCO Bible College",
+            "category": "college",
+            "min_zoom": 14,
+            "latitude": 9.992413,
+            "longitude": 122.823657,
+            "aliases": [],
+            "osm": "node/7430177902"
+        },
+        {
+            "name": "Central Philippines State University",
+            "category": "college",
+            "min_zoom": 14,
+            "latitude": 9.851221,
+            "longitude": 122.889701,
+            "aliases": [],
+            "osm": "relation/16220977"
+        },
+        {
+            "name": "Fortress College",
+            "category": "college",
+            "min_zoom": 14,
+            "latitude": 9.993551,
+            "longitude": 122.817305,
+            "aliases": [],
+            "osm": "way/794405978"
+        },
+        {
+            "name": "Kabankalan Catholic College",
+            "category": "college",
+            "min_zoom": 14,
+            "latitude": 9.997647,
+            "longitude": 122.814596,
+            "aliases": [
+                "Catholic College"
+            ],
+            "osm": "way/247297761"
+        },
+        {
+            "name": "Little way college",
+            "category": "college",
+            "min_zoom": 14,
+            "latitude": 10.012548,
+            "longitude": 122.821017,
+            "aliases": [],
+            "osm": "node/6440006695"
+        },
+        {
+            "name": "7-Eleven",
+            "category": "convenience",
+            "min_zoom": 14,
+            "latitude": 9.995202,
+            "longitude": 122.814777,
+            "aliases": [],
+            "osm": "node/3933405878"
+        },
+        {
+            "name": "7-Eleven",
+            "category": "convenience",
+            "min_zoom": 14,
+            "latitude": 9.988441,
+            "longitude": 122.812713,
+            "aliases": [],
+            "osm": "node/4567931891"
+        },
+        {
+            "name": "Jollibee",
+            "category": "food",
+            "min_zoom": 14,
+            "latitude": 9.995584,
+            "longitude": 122.814973,
+            "aliases": [],
+            "osm": "node/4567931893"
+        },
+        {
+            "name": "McDonald's",
+            "category": "food",
+            "min_zoom": 14,
+            "latitude": 9.99706,
+            "longitude": 122.815703,
+            "aliases": [],
+            "osm": "way/1324311963"
+        },
+        {
+            "name": "Caltex",
+            "category": "fuel",
+            "min_zoom": 14,
+            "latitude": 9.991406,
+            "longitude": 122.819821,
+            "aliases": [],
+            "osm": "way/814071602"
+        },
+        {
+            "name": "Petron",
+            "category": "fuel",
+            "min_zoom": 14,
+            "latitude": 10.007184,
+            "longitude": 122.818575,
+            "aliases": [],
+            "osm": "node/6440006699"
+        },
+        {
+            "name": "Petron",
+            "category": "fuel",
+            "min_zoom": 14,
+            "latitude": 9.99557,
+            "longitude": 122.814498,
+            "aliases": [],
+            "osm": "way/247032426"
+        },
+        {
+            "name": "Petron",
+            "category": "fuel",
+            "min_zoom": 14,
+            "latitude": 9.987285,
+            "longitude": 122.820144,
+            "aliases": [],
+            "osm": "way/814071591"
+        },
+        {
+            "name": "Petron",
+            "category": "fuel",
+            "min_zoom": 14,
+            "latitude": 9.988036,
+            "longitude": 122.813192,
+            "aliases": [],
+            "osm": "way/1324320658"
+        },
+        {
+            "name": "Shell",
+            "category": "fuel",
+            "min_zoom": 14,
+            "latitude": 9.994034,
+            "longitude": 122.814643,
+            "aliases": [],
+            "osm": "way/247030664"
+        },
+        {
+            "name": "City of Kabankalan Government Center",
+            "category": "government",
+            "min_zoom": 14,
+            "latitude": 10.003923,
+            "longitude": 122.805921,
+            "aliases": [
+                "Government Center"
+            ],
+            "osm": "way/247300599"
+        },
+        {
+            "name": "Best Department Store",
+            "category": "mall",
+            "min_zoom": 14,
+            "latitude": 9.989713,
+            "longitude": 122.814427,
+            "aliases": [],
+            "osm": "node/4567944690"
+        },
+        {
+            "name": "Chua Chong",
+            "category": "mall",
+            "min_zoom": 14,
+            "latitude": 9.989845,
+            "longitude": 122.814499,
+            "aliases": [],
+            "osm": "node/4567883294"
+        },
+        {
+            "name": "Glory Bazaar",
+            "category": "mall",
+            "min_zoom": 14,
+            "latitude": 9.99003,
+            "longitude": 122.814627,
+            "aliases": [],
+            "osm": "node/4567933303"
+        },
+        {
+            "name": "Mercury Drug",
+            "category": "pharmacy",
+            "min_zoom": 14,
+            "latitude": 9.996219,
+            "longitude": 122.81513,
+            "aliases": [],
+            "osm": "node/6440009885"
+        },
+        {
+            "name": "Lopue's",
+            "category": "supermarket",
+            "min_zoom": 14,
+            "latitude": 9.998873,
+            "longitude": 122.81606,
+            "aliases": [],
+            "osm": "node/6440009786"
+        },
+        {
+            "name": "Puregold",
+            "category": "supermarket",
+            "min_zoom": 14,
+            "latitude": 9.994031,
+            "longitude": 122.813818,
+            "aliases": [],
+            "osm": "way/839116971"
+        },
+        {
+            "name": "Ceres Bus Terminal",
+            "category": "terminal",
+            "min_zoom": 14,
+            "latitude": 9.997182,
+            "longitude": 122.811657,
+            "aliases": [],
+            "osm": "way/519187986"
+        },
+        {
+            "name": "Public Terminal",
+            "category": "terminal",
+            "min_zoom": 14,
+            "latitude": 9.992878,
+            "longitude": 122.820906,
+            "aliases": [],
+            "osm": "way/247295044"
+        },
+        {
+            "name": "Mag Aso Falls",
+            "category": "attraction",
+            "min_zoom": 15,
+            "latitude": 9.900694,
+            "longitude": 122.893451,
+            "aliases": [],
+            "osm": "node/3369728379"
+        },
+        {
+            "name": "Allied",
+            "category": "bank",
+            "min_zoom": 15,
+            "latitude": 9.991591,
+            "longitude": 122.813755,
+            "aliases": [],
+            "osm": "way/247296676"
+        },
+        {
+            "name": "Bank of Commerce",
+            "category": "bank",
+            "min_zoom": 15,
+            "latitude": 9.996359,
+            "longitude": 122.815237,
+            "aliases": [],
+            "osm": "way/1374316232"
+        },
+        {
+            "name": "China Bank",
+            "category": "bank",
+            "min_zoom": 15,
+            "latitude": 9.994076,
+            "longitude": 122.817715,
+            "aliases": [],
+            "osm": "node/4567944491"
+        },
+        {
+            "name": "CitySavings",
+            "category": "bank",
+            "min_zoom": 15,
+            "latitude": 9.998593,
+            "longitude": 122.816004,
+            "aliases": [],
+            "osm": "way/839098311"
+        },
+        {
+            "name": "DBP",
+            "category": "bank",
+            "min_zoom": 15,
+            "latitude": 9.990716,
+            "longitude": 122.815327,
+            "aliases": [],
+            "osm": "node/4567933304"
+        },
+        {
+            "name": "kabilog-pa",
+            "category": "bank",
+            "min_zoom": 15,
+            "latitude": 9.996816,
+            "longitude": 122.813243,
+            "aliases": [],
+            "osm": "node/4567944489"
+        },
+        {
+            "name": "PNB",
+            "category": "bank",
+            "min_zoom": 15,
+            "latitude": 9.996523,
+            "longitude": 122.815337,
+            "aliases": [],
+            "osm": "way/247033114"
+        },
+        {
+            "name": "Producers Bank",
+            "category": "bank",
+            "min_zoom": 15,
+            "latitude": 9.994017,
+            "longitude": 122.817793,
+            "aliases": [],
+            "osm": "node/4867384421"
+        },
+        {
+            "name": "RCBC",
+            "category": "bank",
+            "min_zoom": 15,
+            "latitude": 9.998729,
+            "longitude": 122.815517,
+            "aliases": [],
+            "osm": "node/6440009200"
+        },
+        {
+            "name": "Taytay Sa Kauswagan, Inc. Kabankalan Branch",
+            "category": "bank",
+            "min_zoom": 15,
+            "latitude": 9.998843,
+            "longitude": 122.807436,
+            "aliases": [
+                "Taytay Sa Kauswagan, Inc. Branch"
+            ],
+            "osm": "node/6680846587"
+        },
+        {
+            "name": "Baptist Church",
+            "category": "church",
+            "min_zoom": 15,
+            "latitude": 9.986372,
+            "longitude": 122.817661,
+            "aliases": [],
+            "osm": "way/247293479"
+        },
+        {
+            "name": "CPSU Catholic Church",
+            "category": "church",
+            "min_zoom": 15,
+            "latitude": 9.855732,
+            "longitude": 122.88829,
+            "aliases": [],
+            "osm": "way/883682310"
+        },
+        {
+            "name": "Good Sheperd Church",
+            "category": "church",
+            "min_zoom": 15,
+            "latitude": 9.993678,
+            "longitude": 122.816876,
+            "aliases": [],
+            "osm": "way/794405976"
+        },
+        {
+            "name": "Hillside New Life Church",
+            "category": "church",
+            "min_zoom": 15,
+            "latitude": 9.992352,
+            "longitude": 122.823398,
+            "aliases": [],
+            "osm": "way/794400381"
+        },
+        {
+            "name": "Iglesia Ni Cristo",
+            "category": "church",
+            "min_zoom": 15,
+            "latitude": 10.003768,
+            "longitude": 122.818041,
+            "aliases": [],
+            "osm": "way/839073213"
+        },
+        {
+            "name": "Kabankalan evangelical church",
+            "category": "church",
+            "min_zoom": 15,
+            "latitude": 10.011834,
+            "longitude": 122.820629,
+            "aliases": [
+                "evangelical church"
+            ],
+            "osm": "node/6440006696"
+        },
+        {
+            "name": "Lokal ng Bantayan",
+            "category": "church",
+            "min_zoom": 15,
+            "latitude": 9.722671,
+            "longitude": 122.786425,
+            "aliases": [],
+            "osm": "way/1010410915"
+        },
+        {
+            "name": "San Vicente Ferrer Catholic Church",
+            "category": "church",
+            "min_zoom": 15,
+            "latitude": 10.019942,
+            "longitude": 122.823982,
+            "aliases": [],
+            "osm": "node/7830079809"
+        },
+        {
+            "name": "South Harvest Church",
+            "category": "church",
+            "min_zoom": 15,
+            "latitude": 9.982645,
+            "longitude": 122.821522,
+            "aliases": [],
+            "osm": "node/12134930190"
+        },
+        {
+            "name": "The Church of Jesus Christ of Latter-day Saints",
+            "category": "church",
+            "min_zoom": 15,
+            "latitude": 9.996216,
+            "longitude": 122.813175,
+            "aliases": [],
+            "osm": "way/247034728"
+        },
+        {
+            "name": "Barangay 7 Health Center",
+            "category": "clinic",
+            "min_zoom": 15,
+            "latitude": 9.986855,
+            "longitude": 122.812757,
+            "aliases": [],
+            "osm": "node/7328653086"
+        },
+        {
+            "name": "Baranggay 4 Health Center",
+            "category": "clinic",
+            "min_zoom": 15,
+            "latitude": 9.990666,
+            "longitude": 122.815922,
+            "aliases": [],
+            "osm": "node/7328568585"
+        },
+        {
+            "name": "Daan Banua Barangay Health Station",
+            "category": "clinic",
+            "min_zoom": 15,
+            "latitude": 10.036206,
+            "longitude": 122.816853,
+            "aliases": [],
+            "osm": "way/1349666440"
+        },
+        {
+            "name": "Locotan Barangay Health Station",
+            "category": "clinic",
+            "min_zoom": 15,
+            "latitude": 9.697856,
+            "longitude": 122.759153,
+            "aliases": [],
+            "osm": "way/1490446016"
+        },
+        {
+            "name": "MDasein Guidance Counselling Services",
+            "category": "clinic",
+            "min_zoom": 15,
+            "latitude": 9.990841,
+            "longitude": 122.81196,
+            "aliases": [],
+            "osm": "node/11100677902"
+        },
+        {
+            "name": "Talubangi Barangay Health Station",
+            "category": "clinic",
+            "min_zoom": 15,
+            "latitude": 10.007655,
+            "longitude": 122.803641,
+            "aliases": [],
+            "osm": "way/1374309467"
+        },
+        {
+            "name": "CPSU - Cafeteria",
+            "category": "food",
+            "min_zoom": 15,
+            "latitude": 9.853238,
+            "longitude": 122.890908,
+            "aliases": [],
+            "osm": "node/5328932823"
+        },
+        {
+            "name": "Golden Plate Pizza",
+            "category": "food",
+            "min_zoom": 15,
+            "latitude": 9.992523,
+            "longitude": 122.813978,
+            "aliases": [],
+            "osm": "node/4567931896"
+        },
+        {
+            "name": "Greenoz",
+            "category": "food",
+            "min_zoom": 15,
+            "latitude": 9.991664,
+            "longitude": 122.814074,
+            "aliases": [],
+            "osm": "node/4567931895"
+        },
+        {
+            "name": "Nanay Mer's Eatery",
+            "category": "food",
+            "min_zoom": 15,
+            "latitude": 9.98638,
+            "longitude": 122.816535,
+            "aliases": [],
+            "osm": "node/6201015385"
+        },
+        {
+            "name": "serfino's asalan",
+            "category": "food",
+            "min_zoom": 15,
+            "latitude": 9.990971,
+            "longitude": 122.815352,
+            "aliases": [],
+            "osm": "node/4266076191"
+        },
+        {
+            "name": "Shakehouse",
+            "category": "food",
+            "min_zoom": 15,
+            "latitude": 9.995803,
+            "longitude": 122.814903,
+            "aliases": [],
+            "osm": "node/4579164596"
+        },
+        {
+            "name": "Cymapsea",
+            "category": "fuel",
+            "min_zoom": 15,
+            "latitude": 9.866064,
+            "longitude": 122.873431,
+            "aliases": [],
+            "osm": "node/5328932825"
+        },
+        {
+            "name": "JETTI",
+            "category": "fuel",
+            "min_zoom": 15,
+            "latitude": 10.004259,
+            "longitude": 122.817684,
+            "aliases": [],
+            "osm": "node/4863002524"
+        },
+        {
+            "name": "Phoenix",
+            "category": "fuel",
+            "min_zoom": 15,
+            "latitude": 9.997935,
+            "longitude": 122.815705,
+            "aliases": [],
+            "osm": "node/4567931193"
+        },
+        {
+            "name": "Phoenix",
+            "category": "fuel",
+            "min_zoom": 15,
+            "latitude": 10.001974,
+            "longitude": 122.808908,
+            "aliases": [],
+            "osm": "node/4567944596"
+        },
+        {
+            "name": "Phoenix",
+            "category": "fuel",
+            "min_zoom": 15,
+            "latitude": 9.984426,
+            "longitude": 122.819735,
+            "aliases": [],
+            "osm": "way/814071621"
+        },
+        {
+            "name": "Rigpoint",
+            "category": "fuel",
+            "min_zoom": 15,
+            "latitude": 9.996167,
+            "longitude": 122.81574,
+            "aliases": [],
+            "osm": "way/1324311960"
+        },
+        {
+            "name": "Seaoil",
+            "category": "fuel",
+            "min_zoom": 15,
+            "latitude": 10.003487,
+            "longitude": 122.817721,
+            "aliases": [],
+            "osm": "node/6440006703"
+        },
+        {
+            "name": "Seaoil",
+            "category": "fuel",
+            "min_zoom": 15,
+            "latitude": 9.992563,
+            "longitude": 122.818343,
+            "aliases": [],
+            "osm": "way/814071600"
+        },
+        {
+            "name": "Total",
+            "category": "fuel",
+            "min_zoom": 15,
+            "latitude": 10.004496,
+            "longitude": 122.818099,
+            "aliases": [],
+            "osm": "node/6440006702"
+        },
+        {
+            "name": "Total",
+            "category": "fuel",
+            "min_zoom": 15,
+            "latitude": 9.990835,
+            "longitude": 122.819868,
+            "aliases": [],
+            "osm": "way/814071606"
+        },
+        {
+            "name": "VELOX ENERGY",
+            "category": "fuel",
+            "min_zoom": 15,
+            "latitude": 10.008441,
+            "longitude": 122.819552,
+            "aliases": [],
+            "osm": "node/6440009196"
+        },
+        {
+            "name": "Bahay Pamahalaan ng Barangay Binicuil",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 10.021802,
+            "longitude": 122.821946,
+            "aliases": [],
+            "osm": "way/1349692259"
+        },
+        {
+            "name": "Bahay Pamahalaan ng Barangay Daan Banua",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 10.036113,
+            "longitude": 122.816931,
+            "aliases": [],
+            "osm": "way/1349666439"
+        },
+        {
+            "name": "Bahay Pamahalaan ng Barangay Magballo",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 9.766036,
+            "longitude": 122.735906,
+            "aliases": [],
+            "osm": "way/1374324702"
+        },
+        {
+            "name": "Bahay Pamahalaan ng Barangay Talubangi",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 10.007949,
+            "longitude": 122.8034,
+            "aliases": [],
+            "osm": "way/1374309464"
+        },
+        {
+            "name": "Community Environment and Natural Resources Office Kabankalan",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 9.997306,
+            "longitude": 122.816209,
+            "aliases": [
+                "Community Environment and Natural Resources Office"
+            ],
+            "osm": "way/839098315"
+        },
+        {
+            "name": "DepEd SDO Kabankalan City",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 9.988378,
+            "longitude": 122.815081,
+            "aliases": [
+                "DepEd SDO"
+            ],
+            "osm": "way/247033659"
+        },
+        {
+            "name": "Kabankalan City Motorpool",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 9.994201,
+            "longitude": 122.808572,
+            "aliases": [
+                "Motorpool"
+            ],
+            "osm": "way/839212661"
+        },
+        {
+            "name": "kusug-pa office",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 9.996395,
+            "longitude": 122.812455,
+            "aliases": [],
+            "osm": "node/4196578292"
+        },
+        {
+            "name": "PYAP",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 9.989582,
+            "longitude": 122.813405,
+            "aliases": [],
+            "osm": "node/4567949289"
+        },
+        {
+            "name": "Regional Trial Court Br. 61",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 9.995613,
+            "longitude": 122.812609,
+            "aliases": [],
+            "osm": "node/4731452322"
+        },
+        {
+            "name": "Sangguniang Kabataan ng Binicuil",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 10.021785,
+            "longitude": 122.821995,
+            "aliases": [],
+            "osm": "node/12485737295"
+        },
+        {
+            "name": "Sangguniang Kabataan ng Daan Banua",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 10.036127,
+            "longitude": 122.816874,
+            "aliases": [],
+            "osm": "node/12485483110"
+        },
+        {
+            "name": "Sangguniang Kabataan ng Magballo",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 9.766074,
+            "longitude": 122.7359,
+            "aliases": [],
+            "osm": "node/12724755755"
+        },
+        {
+            "name": "Sangguniang Kabataan ng Talubangi",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 10.007973,
+            "longitude": 122.803378,
+            "aliases": [],
+            "osm": "node/12724643161"
+        },
+        {
+            "name": "Sangguniang Pambarangay ng Binicuil",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 10.021782,
+            "longitude": 122.821985,
+            "aliases": [],
+            "osm": "node/12485737294"
+        },
+        {
+            "name": "Sangguniang Pambarangay ng Daan Banua",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 10.03614,
+            "longitude": 122.816866,
+            "aliases": [],
+            "osm": "node/12485483111"
+        },
+        {
+            "name": "Sangguniang Pambarangay ng Magballo",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 9.766082,
+            "longitude": 122.735924,
+            "aliases": [],
+            "osm": "node/12724755756"
+        },
+        {
+            "name": "Sangguniang Pambarangay ng Talubangi",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 10.007989,
+            "longitude": 122.803396,
+            "aliases": [],
+            "osm": "node/12724643162"
+        },
+        {
+            "name": "Tabugon Barangay Hall",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 9.787568,
+            "longitude": 122.801614,
+            "aliases": [],
+            "osm": "way/616079410"
+        },
+        {
+            "name": "Tampalon Barangay Hall",
+            "category": "government",
+            "min_zoom": 15,
+            "latitude": 9.872653,
+            "longitude": 122.798773,
+            "aliases": [],
+            "osm": "node/6440009254"
+        },
+        {
+            "name": "Ajp inn",
+            "category": "lodging",
+            "min_zoom": 15,
+            "latitude": 10.011514,
+            "longitude": 122.820562,
+            "aliases": [],
+            "osm": "node/6440006697"
+        },
+        {
+            "name": "Bella's",
+            "category": "lodging",
+            "min_zoom": 15,
+            "latitude": 9.991028,
+            "longitude": 122.815048,
+            "aliases": [],
+            "osm": "node/4567883296"
+        },
+        {
+            "name": "Han's Guest House",
+            "category": "lodging",
+            "min_zoom": 15,
+            "latitude": 9.994286,
+            "longitude": 122.813708,
+            "aliases": [],
+            "osm": "node/4579156696"
+        },
+        {
+            "name": "hans Guest House",
+            "category": "lodging",
+            "min_zoom": 15,
+            "latitude": 9.994233,
+            "longitude": 122.81309,
+            "aliases": [],
+            "osm": "way/839116975"
+        },
+        {
+            "name": "Justine’s Guest House",
+            "category": "lodging",
+            "min_zoom": 15,
+            "latitude": 9.991323,
+            "longitude": 122.812799,
+            "aliases": [],
+            "osm": "node/5416569121"
+        },
+        {
+            "name": "Mansion nina Kuya Ryan",
+            "category": "lodging",
+            "min_zoom": 15,
+            "latitude": 10.023039,
+            "longitude": 122.819928,
+            "aliases": [],
+            "osm": "node/5632295921"
+        },
+        {
+            "name": "Monbela",
+            "category": "lodging",
+            "min_zoom": 15,
+            "latitude": 9.996338,
+            "longitude": 122.813816,
+            "aliases": [],
+            "osm": "node/6440009224"
+        },
+        {
+            "name": "Monbella",
+            "category": "lodging",
+            "min_zoom": 15,
+            "latitude": 9.995686,
+            "longitude": 122.814149,
+            "aliases": [],
+            "osm": "node/4579208390"
+        },
+        {
+            "name": "RGA",
+            "category": "lodging",
+            "min_zoom": 15,
+            "latitude": 9.991691,
+            "longitude": 122.814157,
+            "aliases": [],
+            "osm": "node/4567931910"
+        },
+        {
+            "name": "South Gate Inn",
+            "category": "lodging",
+            "min_zoom": 15,
+            "latitude": 9.998288,
+            "longitude": 122.81545,
+            "aliases": [],
+            "osm": "node/4579208391"
+        },
+        {
+            "name": "Zaycoland Resort and Hotel",
+            "category": "lodging",
+            "min_zoom": 15,
+            "latitude": 9.982107,
+            "longitude": 122.820843,
+            "aliases": [],
+            "osm": "node/4169108694"
+        },
+        {
+            "name": "Balicaocao Mountain Resort",
+            "category": "park",
+            "min_zoom": 15,
+            "latitude": 9.956547,
+            "longitude": 122.858201,
+            "aliases": [],
+            "osm": "way/527207731"
+        },
+        {
+            "name": "Grace",
+            "category": "pharmacy",
+            "min_zoom": 15,
+            "latitude": 9.995796,
+            "longitude": 122.814701,
+            "aliases": [],
+            "osm": "node/4579208789"
+        },
+        {
+            "name": "Maya's pharmacy & medi-Specialty clinic",
+            "category": "pharmacy",
+            "min_zoom": 15,
+            "latitude": 10.010937,
+            "longitude": 122.820167,
+            "aliases": [],
+            "osm": "node/6440009195"
+        },
+        {
+            "name": "TGP",
+            "category": "pharmacy",
+            "min_zoom": 15,
+            "latitude": 9.988709,
+            "longitude": 122.812741,
+            "aliases": [
+                "The Generics Pharmacy"
+            ],
+            "osm": "node/4567944593"
+        },
+        {
+            "name": "TGP",
+            "category": "pharmacy",
+            "min_zoom": 15,
+            "latitude": 9.995339,
+            "longitude": 122.81424,
+            "aliases": [
+                "The Generics Pharmacy"
+            ],
+            "osm": "node/4579207690"
+        },
+        {
+            "name": "Alicabog",
+            "category": "public",
+            "min_zoom": 15,
+            "latitude": 9.888228,
+            "longitude": 122.81256,
+            "aliases": [],
+            "osm": "node/6440009310"
+        },
+        {
+            "name": "ASCO Library",
+            "category": "public",
+            "min_zoom": 15,
+            "latitude": 9.992347,
+            "longitude": 122.823606,
+            "aliases": [],
+            "osm": "way/794400383"
+        },
+        {
+            "name": "CPSU Library",
+            "category": "public",
+            "min_zoom": 15,
+            "latitude": 9.8542,
+            "longitude": 122.889693,
+            "aliases": [],
+            "osm": "node/11425469869"
+        },
+        {
+            "name": "Exevea Memorial Center",
+            "category": "public",
+            "min_zoom": 15,
+            "latitude": 9.992384,
+            "longitude": 122.823992,
+            "aliases": [],
+            "osm": "way/794401502"
+        },
+        {
+            "name": "JRS",
+            "category": "public",
+            "min_zoom": 15,
+            "latitude": 9.992445,
+            "longitude": 122.81412,
+            "aliases": [],
+            "osm": "node/4579208289"
+        },
+        {
+            "name": "Kabankalan City Cultural & Sports Center",
+            "category": "public",
+            "min_zoom": 15,
+            "latitude": 9.987935,
+            "longitude": 122.814944,
+            "aliases": [
+                "Cultural & Sports Center"
+            ],
+            "osm": "way/914114088"
+        },
+        {
+            "name": "Kabankalan City Fire Station",
+            "category": "public",
+            "min_zoom": 15,
+            "latitude": 9.995071,
+            "longitude": 122.812589,
+            "aliases": [
+                "Fire Station"
+            ],
+            "osm": "way/1239427766"
+        },
+        {
+            "name": "Kabankalan City Post Office",
+            "category": "public",
+            "min_zoom": 15,
+            "latitude": 9.987834,
+            "longitude": 122.814499,
+            "aliases": [
+                "Post Office"
+            ],
+            "osm": "way/818183153"
+        },
+        {
+            "name": "Overflow",
+            "category": "public",
+            "min_zoom": 15,
+            "latitude": 9.965285,
+            "longitude": 122.832634,
+            "aliases": [],
+            "osm": "node/6441759487"
+        },
+        {
+            "name": "Philippine National Police",
+            "category": "public",
+            "min_zoom": 15,
+            "latitude": 9.995929,
+            "longitude": 122.812669,
+            "aliases": [],
+            "osm": "node/4169181389"
+        },
+        {
+            "name": "Porok bayhaw brgy. Camansi",
+            "category": "public",
+            "min_zoom": 15,
+            "latitude": 9.921944,
+            "longitude": 122.822795,
+            "aliases": [],
+            "osm": "node/6440009312"
+        },
+        {
+            "name": "Porok tuburan tampalon",
+            "category": "public",
+            "min_zoom": 15,
+            "latitude": 9.902861,
+            "longitude": 122.817375,
+            "aliases": [],
+            "osm": "node/6440009256"
+        },
+        {
+            "name": "San juan health center brgy cambugao",
+            "category": "public",
+            "min_zoom": 15,
+            "latitude": 9.962891,
+            "longitude": 122.805846,
+            "aliases": [],
+            "osm": "node/6570294389"
+        },
+        {
+            "name": "San juan health center brgy cambugao",
+            "category": "public",
+            "min_zoom": 15,
+            "latitude": 9.964658,
+            "longitude": 122.805935,
+            "aliases": [],
+            "osm": "node/6570301188"
+        },
+        {
+            "name": "Villa Crispina",
+            "category": "public",
+            "min_zoom": 15,
+            "latitude": 9.931298,
+            "longitude": 122.841229,
+            "aliases": [],
+            "osm": "node/12287557387"
+        },
+        {
+            "name": "Bantayan National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.726798,
+            "longitude": 122.789951,
+            "aliases": [],
+            "osm": "way/283651061"
+        },
+        {
+            "name": "Bantayan National High School – Baras Diutay Extension",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.722973,
+            "longitude": 122.81724,
+            "aliases": [],
+            "osm": "way/836984191"
+        },
+        {
+            "name": "Binicuil National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 10.020976,
+            "longitude": 122.82213,
+            "aliases": [],
+            "osm": "way/847368893"
+        },
+        {
+            "name": "Camansi National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.948578,
+            "longitude": 122.800129,
+            "aliases": [],
+            "osm": "way/848255928"
+        },
+        {
+            "name": "Camingawan National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.865044,
+            "longitude": 122.871588,
+            "aliases": [],
+            "osm": "way/988992306"
+        },
+        {
+            "name": "Carol-an National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.899698,
+            "longitude": 122.943992,
+            "aliases": [],
+            "osm": "way/987137904"
+        },
+        {
+            "name": "Daan Banua National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 10.038148,
+            "longitude": 122.818428,
+            "aliases": [],
+            "osm": "way/847370306"
+        },
+        {
+            "name": "Florentino Galang National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.899275,
+            "longitude": 122.862374,
+            "aliases": [],
+            "osm": "relation/18977453"
+        },
+        {
+            "name": "Florentino Galang, Sr. National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.954056,
+            "longitude": 122.836496,
+            "aliases": [],
+            "osm": "way/773672789"
+        },
+        {
+            "name": "Inapoy National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.8165,
+            "longitude": 122.864324,
+            "aliases": [],
+            "osm": "way/847871495"
+        },
+        {
+            "name": "Kabankalan National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.987574,
+            "longitude": 122.817,
+            "aliases": [
+                "National High School"
+            ],
+            "osm": "way/491714833"
+        },
+        {
+            "name": "Kauswagan High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.805531,
+            "longitude": 122.89463,
+            "aliases": [],
+            "osm": "way/843402166"
+        },
+        {
+            "name": "Locotan National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.698663,
+            "longitude": 122.758206,
+            "aliases": [],
+            "osm": "way/847415541"
+        },
+        {
+            "name": "Magballo National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.763874,
+            "longitude": 122.735017,
+            "aliases": [],
+            "osm": "relation/13291716"
+        },
+        {
+            "name": "Pinaguinpinan National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.770069,
+            "longitude": 122.823812,
+            "aliases": [],
+            "osm": "way/843400080"
+        },
+        {
+            "name": "Salong National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.964494,
+            "longitude": 122.77898,
+            "aliases": [],
+            "osm": "way/783226768"
+        },
+        {
+            "name": "Salong National High School - San Jose Extension",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.901039,
+            "longitude": 122.763525,
+            "aliases": [],
+            "osm": "way/1349497171"
+        },
+        {
+            "name": "Southland College",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.983963,
+            "longitude": 122.820529,
+            "aliases": [],
+            "osm": "node/12136622998"
+        },
+        {
+            "name": "Southland Highschool",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.984853,
+            "longitude": 122.819029,
+            "aliases": [],
+            "osm": "node/4169108495"
+        },
+        {
+            "name": "Tabugon National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.791398,
+            "longitude": 122.798504,
+            "aliases": [],
+            "osm": "way/838386186"
+        },
+        {
+            "name": "Tagoc National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.788185,
+            "longitude": 122.825405,
+            "aliases": [],
+            "osm": "relation/13287872"
+        },
+        {
+            "name": "Tagukon National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.82692,
+            "longitude": 122.908636,
+            "aliases": [],
+            "osm": "way/847873043"
+        },
+        {
+            "name": "Talubangi National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 10.006089,
+            "longitude": 122.803536,
+            "aliases": [],
+            "osm": "way/847368559"
+        },
+        {
+            "name": "Tampalon National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.875407,
+            "longitude": 122.800285,
+            "aliases": [],
+            "osm": "way/848255124"
+        },
+        {
+            "name": "Tan-awan National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.965958,
+            "longitude": 122.903632,
+            "aliases": [],
+            "osm": "way/918072148"
+        },
+        {
+            "name": "Tapi National High School",
+            "category": "school",
+            "min_zoom": 15,
+            "latitude": 9.832223,
+            "longitude": 122.753408,
+            "aliases": [],
+            "osm": "way/838388840"
+        },
+        {
+            "name": "ASCO Basketball court",
+            "category": "sports",
+            "min_zoom": 15,
+            "latitude": 9.992584,
+            "longitude": 122.823539,
+            "aliases": [],
+            "osm": "way/794401503"
+        },
+        {
+            "name": "Bingabila Basketball Court",
+            "category": "sports",
+            "min_zoom": 15,
+            "latitude": 9.872827,
+            "longitude": 122.798451,
+            "aliases": [],
+            "osm": "way/687486890"
+        },
+        {
+            "name": "Biniculi Gym",
+            "category": "sports",
+            "min_zoom": 15,
+            "latitude": 10.021877,
+            "longitude": 122.822468,
+            "aliases": [],
+            "osm": "way/1349692263"
+        },
+        {
+            "name": "Daan Banua Gym",
+            "category": "sports",
+            "min_zoom": 15,
+            "latitude": 10.037657,
+            "longitude": 122.818062,
+            "aliases": [],
+            "osm": "way/1349666443"
+        },
+        {
+            "name": "Genito Basketball court",
+            "category": "sports",
+            "min_zoom": 15,
+            "latitude": 9.993665,
+            "longitude": 122.817228,
+            "aliases": [],
+            "osm": "way/794405977"
+        },
+        {
+            "name": "Kabankalan City Football Field",
+            "category": "sports",
+            "min_zoom": 15,
+            "latitude": 9.988407,
+            "longitude": 122.814181,
+            "aliases": [
+                "Football Field"
+            ],
+            "osm": "way/247032203"
+        },
+        {
+            "name": "Kabankalan Oval Sports Field",
+            "category": "sports",
+            "min_zoom": 15,
+            "latitude": 9.987454,
+            "longitude": 122.816351,
+            "aliases": [
+                "Oval Sports Field"
+            ],
+            "osm": "way/247031864"
+        },
+        {
+            "name": "Magballo Gym",
+            "category": "sports",
+            "min_zoom": 15,
+            "latitude": 9.766215,
+            "longitude": 122.737032,
+            "aliases": [],
+            "osm": "way/1374324703"
+        },
+        {
+            "name": "Tabugon Basketball Court",
+            "category": "sports",
+            "min_zoom": 15,
+            "latitude": 9.786766,
+            "longitude": 122.798824,
+            "aliases": [],
+            "osm": "way/989269611"
+        },
+        {
+            "name": "Tabugon Gym",
+            "category": "sports",
+            "min_zoom": 15,
+            "latitude": 9.787101,
+            "longitude": 122.801763,
+            "aliases": [],
+            "osm": "way/246241073"
+        },
+        {
+            "name": "Talubangi Gym",
+            "category": "sports",
+            "min_zoom": 15,
+            "latitude": 10.008118,
+            "longitude": 122.803121,
+            "aliases": [],
+            "osm": "way/1374308742"
+        },
+        {
+            "name": "Aida Store",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.933128,
+            "longitude": 122.840447,
+            "aliases": [],
+            "osm": "node/12126333101"
+        },
+        {
+            "name": "Bubbles & Blossom",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.993706,
+            "longitude": 122.814136,
+            "aliases": [],
+            "osm": "node/4579164595"
+        },
+        {
+            "name": "Cabadan Store",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.888161,
+            "longitude": 122.867454,
+            "aliases": [],
+            "osm": "node/12126258803"
+        },
+        {
+            "name": "Carenderia",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.838698,
+            "longitude": 122.759692,
+            "aliases": [],
+            "osm": "node/6570299885"
+        },
+        {
+            "name": "CHA-ROSE",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.991918,
+            "longitude": 122.820513,
+            "aliases": [],
+            "osm": "node/4567883291"
+        },
+        {
+            "name": "Colon Store",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.888956,
+            "longitude": 122.867089,
+            "aliases": [],
+            "osm": "node/12126258804"
+        },
+        {
+            "name": "CPSU - Coop",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.853195,
+            "longitude": 122.890969,
+            "aliases": [],
+            "osm": "node/5328932422"
+        },
+        {
+            "name": "Elvira Store",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.909733,
+            "longitude": 122.859158,
+            "aliases": [],
+            "osm": "node/12126301704"
+        },
+        {
+            "name": "Emerald Store",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.926859,
+            "longitude": 122.846566,
+            "aliases": [],
+            "osm": "node/12126293203"
+        },
+        {
+            "name": "Falychavez store",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.895049,
+            "longitude": 122.877972,
+            "aliases": [],
+            "osm": "node/4196501293"
+        },
+        {
+            "name": "Hashtag",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.998049,
+            "longitude": 122.812164,
+            "aliases": [],
+            "osm": "node/12126373701"
+        },
+        {
+            "name": "I-mart",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.995212,
+            "longitude": 122.814293,
+            "aliases": [],
+            "osm": "node/4579192094"
+        },
+        {
+            "name": "Imperial Appliance Plaza",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.99153,
+            "longitude": 122.814183,
+            "aliases": [],
+            "osm": "node/4867384222"
+        },
+        {
+            "name": "Jlee",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.993603,
+            "longitude": 122.818769,
+            "aliases": [],
+            "osm": "node/4567933299"
+        },
+        {
+            "name": "Julian's",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.997337,
+            "longitude": 122.815462,
+            "aliases": [],
+            "osm": "node/4266112292"
+        },
+        {
+            "name": "Kabankalanon Mart",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.992136,
+            "longitude": 122.818861,
+            "aliases": [],
+            "osm": "node/12126356001"
+        },
+        {
+            "name": "Lucky Store",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.888232,
+            "longitude": 122.867419,
+            "aliases": [],
+            "osm": "node/12126301701"
+        },
+        {
+            "name": "Naldo Store",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.849523,
+            "longitude": 122.884933,
+            "aliases": [],
+            "osm": "node/12126258802"
+        },
+        {
+            "name": "NOVO",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.991969,
+            "longitude": 122.820276,
+            "aliases": [],
+            "osm": "node/4567931196"
+        },
+        {
+            "name": "Salong porok ledesma",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.917482,
+            "longitude": 122.766092,
+            "aliases": [],
+            "osm": "node/6440009298"
+        },
+        {
+            "name": "Unitop",
+            "category": "convenience",
+            "min_zoom": 16,
+            "latitude": 9.993615,
+            "longitude": 122.819197,
+            "aliases": [],
+            "osm": "node/4567933298"
+        },
+        {
+            "name": "Amore Mio Pizza & Inasal",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.983444,
+            "longitude": 122.821842,
+            "aliases": [],
+            "osm": "node/14095675601"
+        },
+        {
+            "name": "Ample Corner",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.98962,
+            "longitude": 122.814,
+            "aliases": [],
+            "osm": "node/4567883293"
+        },
+        {
+            "name": "Ayen's",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.993772,
+            "longitude": 122.818809,
+            "aliases": [],
+            "osm": "node/5487354733"
+        },
+        {
+            "name": "Balay Tulahan",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.996372,
+            "longitude": 122.815526,
+            "aliases": [],
+            "osm": "way/839098320"
+        },
+        {
+            "name": "bbj",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.996296,
+            "longitude": 122.816726,
+            "aliases": [],
+            "osm": "node/4266112291"
+        },
+        {
+            "name": "Bimbimbowls",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.98446,
+            "longitude": 122.819483,
+            "aliases": [],
+            "osm": "node/12231041434"
+        },
+        {
+            "name": "Calle Ramos",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.989154,
+            "longitude": 122.817373,
+            "aliases": [],
+            "osm": "node/12192549354"
+        },
+        {
+            "name": "Chicken Ati-Atihan",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.993594,
+            "longitude": 122.814227,
+            "aliases": [],
+            "osm": "node/4579156693"
+        },
+        {
+            "name": "Chicken Deli",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.994996,
+            "longitude": 122.814352,
+            "aliases": [],
+            "osm": "node/4579192092"
+        },
+        {
+            "name": "Coffee & Talk",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.998415,
+            "longitude": 122.82202,
+            "aliases": [],
+            "osm": "node/12290919180"
+        },
+        {
+            "name": "Cofioca",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.987977,
+            "longitude": 122.813368,
+            "aliases": [],
+            "osm": "way/769589075"
+        },
+        {
+            "name": "daily brew",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.992659,
+            "longitude": 122.81421,
+            "aliases": [],
+            "osm": "node/4567933294"
+        },
+        {
+            "name": "De La Gente Pizza",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.993288,
+            "longitude": 122.817998,
+            "aliases": [],
+            "osm": "node/12126355902"
+        },
+        {
+            "name": "J.M. Sizzler",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.987428,
+            "longitude": 122.814835,
+            "aliases": [],
+            "osm": "way/769589073"
+        },
+        {
+            "name": "Kape Centrale",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.988411,
+            "longitude": 122.812553,
+            "aliases": [],
+            "osm": "node/12159153690"
+        },
+        {
+            "name": "Kawayan's",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.986419,
+            "longitude": 122.816765,
+            "aliases": [],
+            "osm": "node/4567931897"
+        },
+        {
+            "name": "La Familia",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.924069,
+            "longitude": 122.848866,
+            "aliases": [],
+            "osm": "node/12233549233"
+        },
+        {
+            "name": "Max's",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.99408,
+            "longitude": 122.814965,
+            "aliases": [],
+            "osm": "node/4579208389"
+        },
+        {
+            "name": "Melting Pot",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.98831,
+            "longitude": 122.812958,
+            "aliases": [],
+            "osm": "node/5487360540"
+        },
+        {
+            "name": "Park 'On Woods",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.846903,
+            "longitude": 122.888666,
+            "aliases": [],
+            "osm": "node/4863002921"
+        },
+        {
+            "name": "Pensiang",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.989584,
+            "longitude": 122.814371,
+            "aliases": [],
+            "osm": "node/4567931909"
+        },
+        {
+            "name": "Perico",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 10.000379,
+            "longitude": 122.809742,
+            "aliases": [],
+            "osm": "node/4567933293"
+        },
+        {
+            "name": "Redbucks",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.99511,
+            "longitude": 122.814334,
+            "aliases": [],
+            "osm": "node/4579164597"
+        },
+        {
+            "name": "Regals Refreshments",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.987916,
+            "longitude": 122.813541,
+            "aliases": [],
+            "osm": "node/4567931908"
+        },
+        {
+            "name": "Ricardo's Cuisine",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.996617,
+            "longitude": 122.8134,
+            "aliases": [],
+            "osm": "node/6440009208"
+        },
+        {
+            "name": "Rosalino's Chechen",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.995731,
+            "longitude": 122.813484,
+            "aliases": [],
+            "osm": "node/6440009793"
+        },
+        {
+            "name": "Sol's Garden Café",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.983777,
+            "longitude": 122.817666,
+            "aliases": [],
+            "osm": "node/12137330729"
+        },
+        {
+            "name": "Taste & See",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 9.928871,
+            "longitude": 122.842314,
+            "aliases": [],
+            "osm": "node/12126333001"
+        },
+        {
+            "name": "Wow Restaurant",
+            "category": "food",
+            "min_zoom": 16,
+            "latitude": 10.016427,
+            "longitude": 122.822615,
+            "aliases": [],
+            "osm": "node/7830079848"
+        },
+        {
+            "name": "Amian Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.828001,
+            "longitude": 122.815455,
+            "aliases": [],
+            "osm": "way/847428391"
+        },
+        {
+            "name": "Badiangay Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.894957,
+            "longitude": 122.875752,
+            "aliases": [],
+            "osm": "way/989286660"
+        },
+        {
+            "name": "Balagtingon Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.921193,
+            "longitude": 122.788802,
+            "aliases": [],
+            "osm": "way/848255531"
+        },
+        {
+            "name": "Balisong Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.963538,
+            "longitude": 122.868285,
+            "aliases": [],
+            "osm": "way/848259703"
+        },
+        {
+            "name": "Ballo Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.848033,
+            "longitude": 122.916595,
+            "aliases": [],
+            "osm": "node/8218558068"
+        },
+        {
+            "name": "Banman Primary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.677584,
+            "longitude": 122.75983,
+            "aliases": [],
+            "osm": "node/9147085972"
+        },
+        {
+            "name": "Bantayan Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.723168,
+            "longitude": 122.790228,
+            "aliases": [],
+            "osm": "way/283651060"
+        },
+        {
+            "name": "Baras Diutay Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.717478,
+            "longitude": 122.813157,
+            "aliases": [],
+            "osm": "way/847426779"
+        },
+        {
+            "name": "Basak Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.928915,
+            "longitude": 122.915919,
+            "aliases": [],
+            "osm": "way/848259018"
+        },
+        {
+            "name": "Binicuil Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 10.02114,
+            "longitude": 122.822911,
+            "aliases": [],
+            "osm": "relation/18525433"
+        },
+        {
+            "name": "Bino Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.953585,
+            "longitude": 122.83557,
+            "aliases": [],
+            "osm": "way/989286683"
+        },
+        {
+            "name": "Bugtong Primary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.94755,
+            "longitude": 122.887349,
+            "aliases": [],
+            "osm": "way/848259627"
+        },
+        {
+            "name": "Bula Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.89954,
+            "longitude": 122.946404,
+            "aliases": [],
+            "osm": "way/848258822"
+        },
+        {
+            "name": "Calabasahan Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.82856,
+            "longitude": 122.788086,
+            "aliases": [],
+            "osm": "way/847428650"
+        },
+        {
+            "name": "Camandaan Primary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.729718,
+            "longitude": 122.817567,
+            "aliases": [],
+            "osm": "way/847427846"
+        },
+        {
+            "name": "Camansi Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.948066,
+            "longitude": 122.799985,
+            "aliases": [],
+            "osm": "way/848255927"
+        },
+        {
+            "name": "Camingawan Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.8771,
+            "longitude": 122.86868,
+            "aliases": [],
+            "osm": "way/794614299"
+        },
+        {
+            "name": "Camugao Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.98604,
+            "longitude": 122.80613,
+            "aliases": [],
+            "osm": "way/847368481"
+        },
+        {
+            "name": "Candiacap Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.85635,
+            "longitude": 122.76871,
+            "aliases": [],
+            "osm": "way/847844693"
+        },
+        {
+            "name": "Casipsipan Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.984639,
+            "longitude": 122.850357,
+            "aliases": [],
+            "osm": "way/756116441"
+        },
+        {
+            "name": "Colambo Primary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.927285,
+            "longitude": 122.88842,
+            "aliases": [],
+            "osm": "way/848259376"
+        },
+        {
+            "name": "D.C. Gurrucharri Memorial School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.965822,
+            "longitude": 122.83315,
+            "aliases": [],
+            "osm": "way/772349720"
+        },
+        {
+            "name": "Daan Banua Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 10.037223,
+            "longitude": 122.818502,
+            "aliases": [],
+            "osm": "way/847370307"
+        },
+        {
+            "name": "Dacongcogon Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.805558,
+            "longitude": 122.748836,
+            "aliases": [],
+            "osm": "way/773676071"
+        },
+        {
+            "name": "Don Bosco",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 10.005799,
+            "longitude": 122.809348,
+            "aliases": [],
+            "osm": "way/854109790"
+        },
+        {
+            "name": "Dr. Pablo Torre Primary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.879437,
+            "longitude": 122.761747,
+            "aliases": [],
+            "osm": "way/847845258"
+        },
+        {
+            "name": "Esteban R. Abada Memorial School – East",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.98837,
+            "longitude": 122.81603,
+            "aliases": [],
+            "osm": "relation/11185406"
+        },
+        {
+            "name": "Esteban R. Abada Memorial School – West",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.988785,
+            "longitude": 122.815361,
+            "aliases": [],
+            "osm": "relation/11185405"
+        },
+        {
+            "name": "Hilamonan Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 10.000951,
+            "longitude": 122.831587,
+            "aliases": [],
+            "osm": "way/848257445"
+        },
+        {
+            "name": "Hinapunan Integrated School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.895827,
+            "longitude": 122.900756,
+            "aliases": [],
+            "osm": "way/683459383"
+        },
+        {
+            "name": "Ilan Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.6777,
+            "longitude": 122.740202,
+            "aliases": [],
+            "osm": "way/847413443"
+        },
+        {
+            "name": "Inapoy Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.816089,
+            "longitude": 122.863467,
+            "aliases": [],
+            "osm": "way/847871494"
+        },
+        {
+            "name": "Jose G. Peralta Memorial School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 10.027294,
+            "longitude": 122.83837,
+            "aliases": [],
+            "osm": "way/847369401"
+        },
+        {
+            "name": "Kabanyohan Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.869554,
+            "longitude": 122.835109,
+            "aliases": [],
+            "osm": "way/847872421"
+        },
+        {
+            "name": "Linao Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.986616,
+            "longitude": 122.794212,
+            "aliases": [],
+            "osm": "way/847367824"
+        },
+        {
+            "name": "Locotan Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.699618,
+            "longitude": 122.757933,
+            "aliases": [],
+            "osm": "way/847415543"
+        },
+        {
+            "name": "Lorenzo Zayco Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.979054,
+            "longitude": 122.835164,
+            "aliases": [],
+            "osm": "way/848257181"
+        },
+        {
+            "name": "Lowag Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.666832,
+            "longitude": 122.755918,
+            "aliases": [],
+            "osm": "way/847411394"
+        },
+        {
+            "name": "Mabua Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.742093,
+            "longitude": 122.732539,
+            "aliases": [],
+            "osm": "way/847420864"
+        },
+        {
+            "name": "Magballo Catholic School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.769654,
+            "longitude": 122.735729,
+            "aliases": [],
+            "osm": "node/8494078617"
+        },
+        {
+            "name": "Magballo Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.763297,
+            "longitude": 122.736097,
+            "aliases": [],
+            "osm": "relation/13291715"
+        },
+        {
+            "name": "Magtongtong Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.848861,
+            "longitude": 122.826128,
+            "aliases": [],
+            "osm": "way/847428820"
+        },
+        {
+            "name": "Mamig Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.670547,
+            "longitude": 122.778349,
+            "aliases": [],
+            "osm": "way/847412369"
+        },
+        {
+            "name": "Mansumbil Primary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.819681,
+            "longitude": 122.881254,
+            "aliases": [],
+            "osm": "way/847869334"
+        },
+        {
+            "name": "Matama Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.924719,
+            "longitude": 122.822291,
+            "aliases": [],
+            "osm": "way/772148209"
+        },
+        {
+            "name": "NOAC Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.857006,
+            "longitude": 122.881504,
+            "aliases": [],
+            "osm": "way/847872865"
+        },
+        {
+            "name": "Nursery Primary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.740884,
+            "longitude": 122.796494,
+            "aliases": [],
+            "osm": "way/847426698"
+        },
+        {
+            "name": "Oringao Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.905587,
+            "longitude": 122.860382,
+            "aliases": [],
+            "osm": "way/771555844"
+        },
+        {
+            "name": "Orong Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.936236,
+            "longitude": 122.82982,
+            "aliases": [],
+            "osm": "way/848256572"
+        },
+        {
+            "name": "Pacao Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.735457,
+            "longitude": 122.766658,
+            "aliases": [],
+            "osm": "way/847418957"
+        },
+        {
+            "name": "Pangyasan Primary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.766009,
+            "longitude": 122.787354,
+            "aliases": [],
+            "osm": "way/847427951"
+        },
+        {
+            "name": "Piliopiliohan Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.830006,
+            "longitude": 122.859016,
+            "aliases": [],
+            "osm": "way/847871943"
+        },
+        {
+            "name": "Pinaguinpinan Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.769887,
+            "longitude": 122.830615,
+            "aliases": [],
+            "osm": "way/843399349"
+        },
+        {
+            "name": "Pitgong Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.90355,
+            "longitude": 122.926464,
+            "aliases": [],
+            "osm": "way/848259005"
+        },
+        {
+            "name": "Sagumayon Primary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.704797,
+            "longitude": 122.805168,
+            "aliases": [],
+            "osm": "way/1010409231"
+        },
+        {
+            "name": "Salong Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.964373,
+            "longitude": 122.778002,
+            "aliases": [],
+            "osm": "way/771557454"
+        },
+        {
+            "name": "Sampac Primary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.816024,
+            "longitude": 122.839428,
+            "aliases": [],
+            "osm": "node/9322685199"
+        },
+        {
+            "name": "San Jose Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.90454,
+            "longitude": 122.761855,
+            "aliases": [],
+            "osm": "way/848254650"
+        },
+        {
+            "name": "SONEDCO Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.96174,
+            "longitude": 122.805028,
+            "aliases": [],
+            "osm": "way/847368254"
+        },
+        {
+            "name": "Tabugon Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.789155,
+            "longitude": 122.799075,
+            "aliases": [],
+            "osm": "way/770239779"
+        },
+        {
+            "name": "Tagoc Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.787534,
+            "longitude": 122.825013,
+            "aliases": [],
+            "osm": "relation/13287871"
+        },
+        {
+            "name": "Tagukon Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.824423,
+            "longitude": 122.907647,
+            "aliases": [],
+            "osm": "way/773679381"
+        },
+        {
+            "name": "Talubangi Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 10.006932,
+            "longitude": 122.803801,
+            "aliases": [],
+            "osm": "way/847368561"
+        },
+        {
+            "name": "Tampalon Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.873935,
+            "longitude": 122.799439,
+            "aliases": [],
+            "osm": "way/848254973"
+        },
+        {
+            "name": "Tan-awan Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.964446,
+            "longitude": 122.902963,
+            "aliases": [],
+            "osm": "way/848260189"
+        },
+        {
+            "name": "Tapi Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.830984,
+            "longitude": 122.750723,
+            "aliases": [],
+            "osm": "way/838388839"
+        },
+        {
+            "name": "Yanog Elementary School",
+            "category": "school",
+            "min_zoom": 16,
+            "latitude": 9.905519,
+            "longitude": 122.825759,
+            "aliases": [],
+            "osm": "way/848256972"
+        },
+        {
+            "name": "A&A BAMBOO RATTAN",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 10.011421,
+            "longitude": 122.820506,
+            "aliases": [],
+            "osm": "node/6440009194"
+        },
+        {
+            "name": "Avon",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.99418,
+            "longitude": 122.814147,
+            "aliases": [],
+            "osm": "node/4579156697"
+        },
+        {
+            "name": "Bread Box",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.990984,
+            "longitude": 122.815136,
+            "aliases": [],
+            "osm": "node/4567933306"
+        },
+        {
+            "name": "Breadbox",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.993436,
+            "longitude": 122.814115,
+            "aliases": [],
+            "osm": "node/4579156694"
+        },
+        {
+            "name": "DES Marketing",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.988924,
+            "longitude": 122.812854,
+            "aliases": [
+                "Kawasaki"
+            ],
+            "osm": "node/5040616424"
+        },
+        {
+            "name": "Ednits CellWorks",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.993232,
+            "longitude": 122.820074,
+            "aliases": [],
+            "osm": "node/4835556323"
+        },
+        {
+            "name": "Emcor",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.995969,
+            "longitude": 122.816291,
+            "aliases": [],
+            "osm": "node/4567931901"
+        },
+        {
+            "name": "Faciology",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 10.001643,
+            "longitude": 122.809114,
+            "aliases": [],
+            "osm": "node/6222231785"
+        },
+        {
+            "name": "Golden Key Hardware",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.991643,
+            "longitude": 122.815245,
+            "aliases": [],
+            "osm": "node/4867384223"
+        },
+        {
+            "name": "HJ Hardware",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.990853,
+            "longitude": 122.815705,
+            "aliases": [],
+            "osm": "node/4567948989"
+        },
+        {
+            "name": "Honda 3S Shop",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.992309,
+            "longitude": 122.814089,
+            "aliases": [],
+            "osm": "node/4567931199"
+        },
+        {
+            "name": "Lea Jane Beauty Salon and Barber Shop",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.990891,
+            "longitude": 122.815563,
+            "aliases": [],
+            "osm": "node/4567944590"
+        },
+        {
+            "name": "Liam Cakes n’ Cupcakes",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.993944,
+            "longitude": 122.814205,
+            "aliases": [],
+            "osm": "node/6859277486"
+        },
+        {
+            "name": "Lifetime Motorparts",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.997214,
+            "longitude": 122.812836,
+            "aliases": [],
+            "osm": "node/4440019389"
+        },
+        {
+            "name": "Lima Motorcycle",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.994544,
+            "longitude": 122.820825,
+            "aliases": [],
+            "osm": "node/4451170691"
+        },
+        {
+            "name": "lucky 88",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.993728,
+            "longitude": 122.818294,
+            "aliases": [],
+            "osm": "node/4567931898"
+        },
+        {
+            "name": "Merci",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.995829,
+            "longitude": 122.814711,
+            "aliases": [],
+            "osm": "node/4579208589"
+        },
+        {
+            "name": "Motorstar",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 10.006067,
+            "longitude": 122.818562,
+            "aliases": [],
+            "osm": "node/6440006701"
+        },
+        {
+            "name": "Motorstar",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.993134,
+            "longitude": 122.814056,
+            "aliases": [],
+            "osm": "node/6440009203"
+        },
+        {
+            "name": "POS",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.991166,
+            "longitude": 122.813908,
+            "aliases": [],
+            "osm": "node/4567948990"
+        },
+        {
+            "name": "Prizel furniture",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.884892,
+            "longitude": 122.763275,
+            "aliases": [],
+            "osm": "node/6569569485"
+        },
+        {
+            "name": "Rusco Motors",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 10.002755,
+            "longitude": 122.81704,
+            "aliases": [],
+            "osm": "node/6440009199"
+        },
+        {
+            "name": "Rusi Motors",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.993248,
+            "longitude": 122.814313,
+            "aliases": [],
+            "osm": "node/4567944589"
+        },
+        {
+            "name": "Sky Direct",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.998703,
+            "longitude": 122.811531,
+            "aliases": [],
+            "osm": "node/5316044024"
+        },
+        {
+            "name": "Super A's",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.990886,
+            "longitude": 122.815025,
+            "aliases": [],
+            "osm": "node/4567883297"
+        },
+        {
+            "name": "Teng Hwa Trading Co. Inc.",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.9926,
+            "longitude": 122.818418,
+            "aliases": [],
+            "osm": "node/4867384423"
+        },
+        {
+            "name": "TRANSCYCLE",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.99139,
+            "longitude": 122.813737,
+            "aliases": [],
+            "osm": "node/6440009210"
+        },
+        {
+            "name": "Triumph Hardware",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.992533,
+            "longitude": 122.818488,
+            "aliases": [],
+            "osm": "node/4867384424"
+        },
+        {
+            "name": "Yamaha 3S Shop",
+            "category": "shop",
+            "min_zoom": 16,
+            "latitude": 9.992288,
+            "longitude": 122.81394,
+            "aliases": [],
+            "osm": "node/4567933307"
+        }
+    ]
+}

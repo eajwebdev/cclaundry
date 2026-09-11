@@ -60,6 +60,11 @@ Route::middleware('throttle:30,1')->group(function () {
     Route::get('/map/reverse', [GeocodingController::class, 'reverse'])->name('map.reverse');
 });
 
+// Static landmark labels, fetched once per map and cached by the browser.
+Route::get('/map/landmarks', [GeocodingController::class, 'landmarks'])
+    ->middleware('throttle:60,1')
+    ->name('map.landmarks');
+
 // Live rider position for one booking, polled by the customer's tracking page.
 Route::get('/track/{reference}/location', [TrackingController::class, 'location'])
     ->middleware('throttle:120,1')

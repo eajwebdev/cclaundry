@@ -1,7 +1,14 @@
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+// MapLibre 6 renders in a Web Worker it finds next to its own module file.
+// Vite pre-bundles MapLibre in dev and never emits that file in a build, so the
+// worker 404s silently and every map hangs on "Loading map…". Bundling the
+// worker ourselves and handing MapLibre the URL fixes both.
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import installMapPicker from './map-picker';
 import installRiderNav from './rider-nav';
+
+maplibregl.setWorkerUrl(workerUrl);
 
 /**
  * Map layer for the app, built on MapLibre GL JS against keyless OpenStreetMap
@@ -42,6 +49,88 @@ const rasterFallbackStyle = () => {
     };
 };
 
+/**
+ * Kabankalan landmarks (malls, the plaza, markets, banks, churches, schools),
+ * drawn from our own list rather than the base style's POI labels. Those only
+ * appear from zoom 15 and cover everywhere; ours put the big places on the
+ * opening view and stay inside the city.
+ */
+const LANDMARK_SOURCE = 'kabankalan-landmarks';
+
+// Category → icon in the OpenFreeMap sprite.
+const LANDMARK_ICONS = {
+    mall: 'shop',
+    market: 'grocery',
+    park: 'park',
+    hospital: 'hospital',
+    clinic: 'doctors',
+    government: 'town_hall',
+    college: 'college',
+    school: 'school',
+    church: 'place_of_worship',
+    supermarket: 'grocery',
+    terminal: 'bus',
+    bank: 'bank',
+    pharmacy: 'pharmacy',
+    food: 'restaurant',
+    fuel: 'fuel',
+    lodging: 'lodging',
+    attraction: 'attraction',
+    public: 'town_hall',
+    sports: 'stadium',
+    convenience: 'shop',
+    shop: 'shop',
+};
+
+function addLandmarkLayer(map) {
+    const url = settings().endpoints?.landmarks;
+    const style = map.getStyle();
+
+    // The raster fallback has no glyphs or sprite to draw labels with.
+    if (!url || !style?.glyphs || !style?.sprite || map.getSource(LANDMARK_SOURCE)) return;
+
+    // Otherwise the same places would be labelled twice from zoom 15.
+    for (const layer of style.layers) {
+        if (layer['source-layer'] === 'poi') {
+            map.setLayoutProperty(layer.id, 'visibility', 'none');
+        }
+    }
+
+    const dark = isDarkTheme();
+
+    map.addSource(LANDMARK_SOURCE, { type: 'geojson', data: url });
+    map.addLayer({
+        id: LANDMARK_SOURCE,
+        type: 'symbol',
+        source: LANDMARK_SOURCE,
+        // Each place carries the zoom it earns a label at: malls, the plaza and
+        // the market from the opening view, a corner store at street level.
+        filter: ['>=', ['zoom'], ['get', 'min_zoom']],
+        layout: {
+            'icon-image': [
+                'match',
+                ['get', 'category'],
+                ...Object.entries(LANDMARK_ICONS).flat(),
+                'marker',
+            ],
+            'text-field': ['get', 'name'],
+            'text-font': ['Noto Sans Regular'],
+            'text-size': ['interpolate', ['linear'], ['zoom'], 13, 11, 17, 13],
+            'text-anchor': 'top',
+            'text-offset': [0, 0.7],
+            'text-max-width': 9,
+            // Where labels collide the prominent place keeps its name.
+            'symbol-sort-key': ['get', 'min_zoom'],
+            'text-optional': true,
+        },
+        paint: {
+            'text-color': dark ? '#e7d8c6' : '#5b3a24',
+            'text-halo-color': dark ? '#1c1510' : '#ffffff',
+            'text-halo-width': 1.4,
+        },
+    });
+}
+
 const styleUrl = () => {
     const styles = settings().style ?? {};
 
@@ -80,11 +169,26 @@ export function createMap(container, options = {}) {
         'bottom-right'
     );
 
+    // On a narrow map MapLibre opens the credits expanded until the first drag,
+    // which buries a quarter of a phone-sized map. Start collapsed to the (i)
+    // button instead; one tap still shows the full OpenStreetMap attribution.
+    map.once('load', () => {
+        container
+            .querySelector('.maplibregl-ctrl-attrib.maplibregl-compact-show')
+            ?.classList.remove('maplibregl-compact-show');
+    });
+
     if (options.interactive !== false) {
         map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
         // Touch pinch-zoom without also rotating, which on a phone is almost
         // always an accident rather than an intent.
         map.touchZoomRotate.disableRotation();
+    }
+
+    // 'style.load' fires for the first style and again after every theme swap,
+    // which wipes custom layers, so the landmarks are re-added each time.
+    if (options.landmarks !== false) {
+        map.on('style.load', () => addLandmarkLayer(map));
     }
 
     let usingFallback = false;
@@ -99,6 +203,15 @@ export function createMap(container, options = {}) {
             map.setStyle(rasterFallbackStyle());
         }
     });
+
+    // A map that never finishes loading raises no 'error' (a worker that fails
+    // to start is silent), so give the style a deadline and announce a miss.
+    // Callers listen for 'app:load-timeout' to swap their spinner for a message.
+    const loadDeadline = setTimeout(() => {
+        if (!map.isStyleLoaded()) map.fire('app:load-timeout');
+    }, options.loadTimeoutMs ?? 15000);
+    map.once('load', () => clearTimeout(loadDeadline));
+    map.once('remove', () => clearTimeout(loadDeadline));
 
     // Follow the app's theme toggle without tearing the map down.
     const themeObserver = new MutationObserver(() => {

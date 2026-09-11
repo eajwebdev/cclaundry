@@ -29,6 +29,7 @@
                 'endpoints' => [
                     'search' => route('map.geocode'),
                     'reverse' => route('map.reverse'),
+                    'landmarks' => route('map.landmarks'),
                 ],
             ];
         @endphp

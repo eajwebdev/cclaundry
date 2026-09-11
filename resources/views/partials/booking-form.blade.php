@@ -21,6 +21,9 @@
 
     $stepLabels = [1 => 'Service & weight', 2 => 'Your details', 3 => 'Pickup schedule', 4 => 'Review'];
 
+    // Second line under each step in the desktop side panel.
+    $stepHints = [1 => 'What and how much', 2 => 'Contact and address', 3 => 'Date, time and return', 4 => 'Check, then confirm'];
+
     // Which step holds the first thing the server complained about, so a bounced
     // submission reopens where the problem is instead of back at step one.
     $stepFields = [
@@ -79,8 +82,8 @@
     $reviewRows[] = ['sticky-note', 'Special instructions', 'form.notes', 3, 'form.notes'];
 @endphp
 
-<section id="book" class="scroll-mt-20 px-4 pt-16 sm:pt-20">
-    <div class="mx-auto max-w-xl">
+<section id="book" class="scroll-mt-20 px-4 pt-16 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
+    <div class="mx-auto max-w-xl {{ $offerings->isEmpty() ? '' : 'lg:max-w-6xl' }}">
 
         @if($offerings->isEmpty())
             <div class="cc-card px-6 py-12 text-center">
@@ -130,13 +133,83 @@
             @preselect-offering.window="pick($event.detail)"
             @preselect-branch.window="form.branch_id = String($event.detail); openStep(2)"
             @keydown.enter="onEnter($event)"
+            class="lg:grid lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)] lg:items-start lg:gap-10"
         >
             @csrf
 
-            <div x-ref="card" class="cc-card scroll-mt-20 p-5 sm:p-8">
+            {{-- ─────────── Desktop side panel ─────────── --}}
+            {{-- Phones get the progress bar inside the card. A wide screen has room
+                 for the steps by name and a running summary that stays in view. --}}
+            <aside class="hidden lg:sticky lg:top-28 lg:block">
+                <p class="text-xs font-bold tracking-[0.3em] text-cc-brown uppercase">Book a pickup</p>
+                <h2 class="cc-title mt-2">Laundry day, handled in a minute.</h2>
+                <p class="cc-subtitle mt-2">Four quick steps. Nothing is charged until your bag is weighed at the branch.</p>
+
+                <ol class="mt-7 space-y-1.5">
+                    @foreach ($stepLabels as $n => $label)
+                        <li>
+                            <button type="button" @click="goTo({{ $n }})" :disabled="step <= {{ $n }}"
+                                    class="flex w-full items-center gap-3.5 rounded-2xl px-3 py-2.5 text-left transition disabled:cursor-default"
+                                    :class="step === {{ $n }} ? 'bg-cc-surface ring-1 ring-cc-line shadow-[0_14px_30px_-24px_rgba(74,47,31,0.6)]' : (step > {{ $n }} ? 'hover:bg-cc-soft' : '')">
+                                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors"
+                                      :class="step > {{ $n }} ? 'border-cc-brown bg-cc-brown text-white' : (step === {{ $n }} ? 'border-cc-brown bg-cc-surface text-cc-brown' : 'border-cc-line text-cc-muted')">
+                                    <span x-show="step > {{ $n }}" x-cloak class="flex"><span data-lucide="check" class="h-4 w-4"></span></span>
+                                    <span x-show="step <= {{ $n }}">{{ $n }}</span>
+                                </span>
+                                <span class="min-w-0">
+                                    <span class="block text-sm font-bold" :class="step >= {{ $n }} ? 'text-cc-deep' : 'text-cc-muted'">{{ $label }}</span>
+                                    <span class="block text-xs text-cc-muted">{{ $stepHints[$n] }}</span>
+                                </span>
+                            </button>
+                        </li>
+                    @endforeach
+                </ol>
+
+                <div class="cc-card mt-6 p-5">
+                    <p class="text-xs font-bold tracking-[0.2em] text-cc-brown uppercase">Your booking so far</p>
+                    <dl class="mt-3 space-y-3">
+                        @foreach ([
+                            ['laundry', 'Service', "service ? service.label : ''"],
+                            ['scale', 'Weight', 'weightLabel'],
+                            ['calendar-days', 'Pickup', 'pickupLabel'],
+                            ['truck', 'Return', 'returnLabel'],
+                        ] as [$icon, $label, $expression])
+                            <div class="flex items-start gap-3">
+                                <span data-lucide="{{ $icon }}" class="mt-0.5 h-4.5 w-4.5 shrink-0 text-cc-brown"></span>
+                                <div class="min-w-0">
+                                    <dt class="text-[11px] font-semibold text-cc-muted">{{ $label }}</dt>
+                                    <dd class="text-sm font-bold wrap-break-word text-cc-deep" x-text="({{ $expression }}) || '—'"></dd>
+                                </div>
+                            </div>
+                        @endforeach
+                    </dl>
+
+                    <div class="mt-4 flex items-end justify-between gap-3 border-t border-cc-line pt-4">
+                        <span>
+                            <span class="block text-sm font-bold text-cc-deep">Estimated total</span>
+                            <span class="block text-[11px] text-cc-muted"
+                                  x-text="form.is_rush ? 'Includes rush +' + money(rushSurcharge) : 'Confirmed after weighing'">Confirmed after weighing</span>
+                        </span>
+                        <span class="font-display text-[2.2rem] leading-none font-bold text-cc-deep" x-text="money(estimate)"></span>
+                    </div>
+                </div>
+
+                <ul class="mt-5 space-y-2 px-1 text-xs font-semibold text-cc-muted">
+                    <li class="flex items-center gap-2">
+                        <span data-lucide="truck" class="h-4 w-4 shrink-0 text-cc-brown"></span>
+                        Free pickup &amp; delivery from 5 kg
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <span data-lucide="shieldCheck" class="h-4 w-4 shrink-0 text-cc-brown"></span>
+                        No payment needed to book
+                    </li>
+                </ul>
+            </aside>
+
+            <div x-ref="card" class="cc-card scroll-mt-20 p-5 sm:p-8 lg:scroll-mt-28 lg:p-10">
 
                 {{-- ─────────── Progress ─────────── --}}
-                <div>
+                <div class="lg:hidden">
                     <div class="flex items-center justify-between gap-3 text-xs font-bold">
                         <span class="text-cc-muted" x-text="'Step ' + step + ' of ' + totalSteps">Step {{ $initialStep }} of 4</span>
                         <span class="text-cc-brown" x-text="stepLabels[step]">{{ $stepLabels[$initialStep] }}</span>
@@ -151,7 +224,7 @@
                 </div>
 
                 {{-- ═══ Step 1: service & weight ═══ --}}
-                <div data-step="1" x-show="step === 1" class="mt-6">
+                <div data-step="1" x-show="step === 1" class="mt-6 lg:mt-0">
                     <h2 class="cc-title text-[1.7rem] sm:text-3xl">Book Your Laundry Pickup</h2>
                     <p class="cc-subtitle mt-1.5">
                         @if($bookingCustomer)
@@ -192,7 +265,7 @@
                         <legend class="cc-label text-[15px]">2. What would you like us to clean?</legend>
                         <p class="cc-help mt-1">Pick the closest match &mdash; we&rsquo;ll sort the rest when we weigh your bag.</p>
 
-                        <div class="mt-3 space-y-2.5">
+                        <div class="mt-3 space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
                             @foreach ($offerings as $offering)
                                 <label class="cc-option" :class="{ 'cc-option-active': form.offering === '{{ $offering['key'] }}' }">
                                     <input type="radio" name="offering" value="{{ $offering['key'] }}" x-model="form.offering" class="sr-only">
@@ -239,7 +312,7 @@
                 </div>
 
                 {{-- ═══ Step 2: customer details ═══ --}}
-                <div data-step="2" x-show="step === 2" x-cloak class="mt-6">
+                <div data-step="2" x-show="step === 2" x-cloak class="mt-6 lg:mt-0">
                     <h2 class="cc-title text-[1.7rem] sm:text-3xl">Customer Details</h2>
                     <p class="cc-subtitle mt-1.5">Please provide your details so we can contact you.</p>
 
@@ -309,7 +382,7 @@
                 </div>
 
                 {{-- ═══ Step 3: pickup schedule & return ═══ --}}
-                <div data-step="3" x-show="step === 3" x-cloak class="mt-6">
+                <div data-step="3" x-show="step === 3" x-cloak class="mt-6 lg:mt-0">
                     <h2 class="cc-title text-[1.7rem] sm:text-3xl">Choose Your Pickup Schedule</h2>
                     <p class="cc-subtitle mt-1.5">Select your preferred date and time.</p>
 
@@ -335,7 +408,7 @@
                         </div>
                     </div>
 
-                    <ul class="cc-soft mt-5 space-y-3 px-4 py-4">
+                    <ul class="cc-soft mt-5 space-y-3 px-4 py-4 lg:grid lg:grid-cols-3 lg:gap-4 lg:space-y-0 lg:px-5">
                         @foreach ([
                             ['truck', 'Free pickup & delivery', 'For 5 kg and above'],
                             ['scale', 'Minimum 5 kg', 'Per pickup'],
@@ -425,7 +498,7 @@
                 </div>
 
                 {{-- ═══ Step 4: review ═══ --}}
-                <div data-step="4" x-show="step === 4" x-cloak class="mt-6">
+                <div data-step="4" x-show="step === 4" x-cloak class="mt-6 lg:mt-0">
                     <h2 class="cc-title text-[1.7rem] sm:text-3xl">Review Your Booking</h2>
                     <p class="cc-subtitle mt-1.5">Please check your details before confirming.</p>
 
@@ -465,24 +538,25 @@
                 </div>
 
                 {{-- ─────────── Navigation ─────────── --}}
-                <div class="mt-7 flex items-center gap-3">
+                <div class="mt-7 flex items-center gap-3 lg:mt-8 lg:justify-end lg:border-t lg:border-cc-line lg:pt-6">
                     <button type="button" @click="back()" x-show="step > 1" x-cloak
-                            class="cc-btn-outline w-12 shrink-0 px-0" aria-label="Back to the previous step">
+                            class="cc-btn-outline w-12 shrink-0 px-0 lg:mr-auto lg:w-auto lg:px-5" aria-label="Back to the previous step">
                         <span data-lucide="arrow-left" class="h-5 w-5"></span>
+                        <span class="hidden lg:inline">Back</span>
                     </button>
 
-                    <button type="button" @click="next()" x-show="step < totalSteps" class="cc-btn flex-1">
+                    <button type="button" @click="next()" x-show="step < totalSteps" class="cc-btn flex-1 lg:flex-none lg:px-10">
                         Continue
                         <span data-lucide="arrow-right" class="h-4 w-4"></span>
                     </button>
 
-                    <button type="submit" x-show="step === totalSteps" x-cloak class="cc-btn flex-1">
+                    <button type="submit" x-show="step === totalSteps" x-cloak class="cc-btn flex-1 lg:flex-none lg:px-10">
                         Confirm Pickup
                         <span data-lucide="arrow-right" class="h-4 w-4"></span>
                     </button>
                 </div>
 
-                <p class="mt-4 text-center text-xs text-cc-muted">No payment needed to book &middot; Cancel any time before collection</p>
+                <p class="mt-4 text-center text-xs text-cc-muted lg:text-right">No payment needed to book &middot; Cancel any time before collection</p>
             </div>
         </form>
         @endif

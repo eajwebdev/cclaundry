@@ -72,7 +72,15 @@ export default function installMapPicker() {
 
             this.map.on('load', () => {
                 this.ready = true;
+                this.failed = false;
                 this.map.resize();
+            });
+
+            // Never leave the customer watching a spinner: past the deadline,
+            // say plainly that the typed address is enough. A late load still
+            // clears the message above.
+            this.map.on('app:load-timeout', () => {
+                if (!this.ready) this.failed = true;
             });
 
             // A step hidden at build time gives the canvas zero width; redraw
@@ -155,12 +163,19 @@ export default function installMapPicker() {
             this.commit(result.latitude, result.longitude);
 
             // Seed the address box with something the rider can read, keeping
-            // the city on the end so it reads as a real address.
-            this.fillAddress(
-                result.kind === 'barangay'
-                    ? `${result.label}, Kabankalan City`
-                    : `${result.label}, ${result.context}`
-            );
+            // the city on the end so it reads as a real address. A landmark is
+            // a direction rather than an address, so it reads "Near CityMall".
+            let address = `${result.label}, ${result.context}`;
+
+            if (result.kind === 'barangay') {
+                address = `${result.label}, Kabankalan City`;
+            } else if (result.kind === 'landmark') {
+                address = /kabankalan/i.test(result.label)
+                    ? `Near ${result.label}`
+                    : `Near ${result.label}, Kabankalan City`;
+            }
+
+            this.fillAddress(address);
         },
 
         locateMe() {

@@ -109,7 +109,7 @@
 </section>
 
 {{-- ══════════════════════════════ SERVICES ══════════════════════════════ --}}
-<section id="services" class="scroll-mt-20 px-4 pt-16 sm:pt-20">
+<section id="services" class="scroll-mt-20 px-4 pt-16 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
     <div class="mx-auto max-w-6xl">
         <div class="text-center md:text-left">
             <h2 class="cc-title">Our Services</h2>
@@ -143,16 +143,18 @@
                 <p class="cc-subtitle mx-auto mt-1.5 max-w-sm">Please call the branch to book in the meantime &mdash; online booking will be back shortly.</p>
             </div>
         @else
-            <div class="grid gap-3 lg:gap-4">
+            {{-- Desktop: two columns of stacked cards, so the list stays about as
+                 tall as the photos beside it. --}}
+            <div class="grid gap-3 lg:grid-cols-2 lg:gap-4">
                 @foreach ($offerings as $offering)
                     {{-- Block form on purpose: the one-line form, in a file that
                          also uses the block form, makes Blade swallow everything
                          up to the next closing tag. --}}
                     @php $unit = $unitShort($offering['pricing_type']); @endphp
                     <a href="#book" @click="$dispatch('preselect-offering', '{{ $offering['key'] }}')"
-                       class="cc-card group flex items-center gap-4 p-3 pr-4 transition hover:-translate-y-0.5 hover:border-cc-tan">
-                        <span class="cc-icon-tile h-20 w-20 rounded-2xl">
-                            <span data-lucide="{{ $offering['icon'] }}" class="h-9 w-9"></span>
+                       class="cc-card group relative flex items-center gap-4 p-3 pr-4 transition hover:-translate-y-0.5 hover:border-cc-tan lg:flex-col lg:items-start lg:gap-3 lg:p-5">
+                        <span class="cc-icon-tile h-20 w-20 rounded-2xl lg:h-14 lg:w-14">
+                            <span data-lucide="{{ $offering['icon'] }}" class="h-9 w-9 lg:h-7 lg:w-7"></span>
                         </span>
                         <span class="min-w-0 flex-1">
                             <span class="flex flex-wrap items-center gap-1.5">
@@ -170,7 +172,7 @@
                                 <span class="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-cc-muted">{{ $offering['blurb'] }}</span>
                             @endif
                         </span>
-                        <span data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-cc-muted transition group-hover:translate-x-0.5 group-hover:text-cc-brown"></span>
+                        <span data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-cc-muted transition group-hover:translate-x-0.5 group-hover:text-cc-brown lg:absolute lg:top-6 lg:right-5"></span>
                     </a>
                 @endforeach
             </div>
@@ -186,7 +188,7 @@
 </section>
 
 {{-- ══════════════════════════════ HOW IT WORKS ══════════════════════════════ --}}
-<section id="how" class="scroll-mt-20 px-4 pt-16 sm:pt-20">
+<section id="how" class="scroll-mt-20 px-4 pt-16 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
     <div class="mx-auto max-w-6xl">
         <div class="text-center md:text-left">
             <h2 class="cc-title">How It Works</h2>
@@ -215,12 +217,16 @@
 @include('partials.booking-form')
 
 {{-- ══════════════════════════════ TRACK ══════════════════════════════ --}}
-<section id="track" class="scroll-mt-20 px-4 pt-16 sm:pt-20">
-    <div class="cc-card mx-auto max-w-xl p-5 sm:p-8">
-        <h2 class="cc-title">Track My Laundry</h2>
-        <p class="cc-subtitle mt-1.5">Enter your booking number and the mobile number you booked with to check the status of your laundry.</p>
+<section id="track" class="scroll-mt-20 px-4 pt-16 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
+    {{-- Desktop: the explanation and help on the left, the form on the right. --}}
+    <div class="cc-card mx-auto max-w-xl p-5 sm:p-8 lg:grid lg:max-w-6xl lg:grid-cols-2 lg:gap-x-14 lg:p-12">
+        <div>
+            <span class="cc-icon-tile mb-5 hidden h-14 w-14 lg:flex"><span data-lucide="search" class="h-6 w-6"></span></span>
+            <h2 class="cc-title">Track My Laundry</h2>
+            <p class="cc-subtitle mt-1.5 lg:max-w-md">Enter your booking number and the mobile number you booked with to check the status of your laundry.</p>
+        </div>
 
-        <form method="POST" action="{{ route('track') }}" class="mt-6 space-y-3">
+        <form method="POST" action="{{ route('track') }}" class="mt-6 space-y-3 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0 lg:self-center">
             @csrf
             <div>
                 <label for="track_reference" class="sr-only">Booking number</label>
@@ -246,9 +252,9 @@
         </form>
 
         @if($contactNumber || $settings?->business_email)
-            <div class="mt-6 border-t border-cc-line pt-5 text-center text-sm">
+            <div class="mt-6 border-t border-cc-line pt-5 text-center text-sm lg:self-end lg:text-left">
                 <p class="text-cc-muted">Need help? Contact us at</p>
-                <div class="mt-2 flex flex-col items-center gap-1.5 font-semibold text-cc-deep">
+                <div class="mt-2 flex flex-col items-center gap-1.5 font-semibold text-cc-deep lg:items-start">
                     @if($contactNumber)
                         <a href="tel:{{ preg_replace('/\s+/', '', $contactNumber) }}" class="inline-flex items-center gap-2 hover:text-cc-brown">
                             <span data-lucide="phone" class="h-4 w-4 text-cc-brown"></span>{{ $contactNumber }}
@@ -267,14 +273,15 @@
 
 {{-- ══════════════════════════════ PRICE LIST ══════════════════════════════ --}}
 @if($priceList->isNotEmpty())
-<section id="rates" class="scroll-mt-20 px-4 pt-16 sm:pt-20">
-    <div class="mx-auto max-w-3xl">
+<section id="rates" class="scroll-mt-20 px-4 pt-16 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
+    {{-- Desktop: categories side by side, once there is more than one. --}}
+    <div class="mx-auto max-w-3xl {{ $priceList->count() > 1 ? 'lg:max-w-6xl' : '' }}">
         <div class="text-center">
-            <h2 class="font-script text-6xl leading-none text-cc-deep sm:text-7xl">Price List</h2>
+            <h2 class="font-script text-6xl leading-none text-cc-deep sm:text-7xl lg:text-8xl">Price List</h2>
             <p class="cc-subtitle mx-auto mt-3 max-w-md">Your bag is weighed at the branch and priced from this list. The final total is confirmed before we start.</p>
         </div>
 
-        <div class="mt-7 space-y-4">
+        <div class="mt-7 space-y-4 {{ $priceList->count() > 1 ? 'lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 lg:space-y-0' : '' }}">
             @foreach ($priceList as $categoryName => $services)
                 <div class="cc-card overflow-hidden">
                     <h3 class="border-b border-cc-line bg-cc-soft/60 px-5 py-3 font-display text-lg font-bold tracking-wide text-cc-deep uppercase">{{ $categoryName }}</h3>
@@ -295,7 +302,7 @@
                 </div>
             @endforeach
 
-            <div class="cc-soft flex items-center gap-4 px-5 py-4">
+            <div class="cc-soft flex items-center gap-4 px-5 py-4 lg:col-span-2 lg:justify-center">
                 <span data-lucide="truck" class="h-9 w-9 shrink-0 text-cc-brown"></span>
                 <div>
                     <p class="font-display text-lg leading-tight font-bold tracking-wide text-cc-deep uppercase">Free pick up &amp; delivery</p>
@@ -309,37 +316,51 @@
 
 {{-- ══════════════════════════════ BRANCHES ══════════════════════════════ --}}
 @if($branches->isNotEmpty())
-<section id="branches" class="scroll-mt-20 px-4 pt-16 sm:pt-20">
+<section id="branches" class="scroll-mt-20 px-4 pt-16 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
     <div class="mx-auto max-w-6xl">
         <div class="text-center md:text-left">
             <h2 class="cc-title">{{ $branches->count() > 1 ? 'Our Branches' : 'Our Branch' }}</h2>
             <p class="cc-subtitle mt-1">Choose the branch nearest you and our rider comes from there.</p>
         </div>
 
-        <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
+        {{-- A lone branch gets one wide card past phone width, instead of a single
+             tile at the start of an otherwise empty row. --}}
+        @php $singleBranch = $branches->count() === 1; @endphp
+        <div class="mt-6 grid gap-3 {{ $singleBranch ? '' : 'sm:grid-cols-2 lg:grid-cols-3 lg:gap-4' }}">
             @foreach ($branches as $branch)
-                <div class="cc-card p-5">
-                    <div class="flex items-start justify-between gap-3">
-                        <h3 class="font-display text-xl leading-tight font-bold text-cc-deep">{{ $branch->name }}</h3>
-                        <span class="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold tracking-wide text-emerald-700 uppercase ring-1 ring-emerald-200">Open</span>
+                <div class="cc-card p-5 {{ $singleBranch ? 'md:flex md:items-center md:justify-between md:gap-10 md:px-8 md:py-7' : '' }}">
+                    <div class="min-w-0">
+                        <div class="flex items-start justify-between gap-3 {{ $singleBranch ? 'md:items-center md:justify-start' : '' }}">
+                            <h3 class="font-display text-xl leading-tight font-bold text-cc-deep {{ $singleBranch ? 'md:text-2xl' : '' }}">{{ $branch->name }}</h3>
+                            <span class="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold tracking-wide text-emerald-700 uppercase ring-1 ring-emerald-200">Open</span>
+                        </div>
+
+                        <div class="{{ $singleBranch ? 'md:mt-3 md:flex md:flex-wrap md:gap-x-8 md:gap-y-2' : '' }}">
+                            @if($branch->address)
+                                <p class="mt-3 flex items-start gap-2 text-sm leading-relaxed text-cc-muted {{ $singleBranch ? 'md:mt-0' : '' }}">
+                                    <span data-lucide="map-pin" class="mt-0.5 h-4 w-4 shrink-0 text-cc-brown"></span>
+                                    {{ $branch->address }}
+                                </p>
+                            @endif
+
+                            @if($branch->contact_number)
+                                <p class="mt-2 flex items-center gap-2 text-sm text-cc-muted {{ $singleBranch ? 'md:mt-0' : '' }}">
+                                    <span data-lucide="phone" class="h-4 w-4 shrink-0 text-cc-brown"></span>
+                                    <a href="tel:{{ preg_replace('/\s+/', '', $branch->contact_number) }}" class="hover:text-cc-brown">{{ $branch->contact_number }}</a>
+                                </p>
+                            @endif
+
+                            @if($singleBranch)
+                                <p class="hidden items-center gap-2 text-sm text-cc-muted md:flex">
+                                    <span data-lucide="time" class="h-4 w-4 shrink-0 text-cc-brown"></span>
+                                    Pickups daily, 8:00 AM &ndash; 7:00 PM
+                                </p>
+                            @endif
+                        </div>
                     </div>
 
-                    @if($branch->address)
-                        <p class="mt-3 flex items-start gap-2 text-sm leading-relaxed text-cc-muted">
-                            <span data-lucide="map-pin" class="mt-0.5 h-4 w-4 shrink-0 text-cc-brown"></span>
-                            {{ $branch->address }}
-                        </p>
-                    @endif
-
-                    @if($branch->contact_number)
-                        <p class="mt-2 flex items-center gap-2 text-sm text-cc-muted">
-                            <span data-lucide="phone" class="h-4 w-4 shrink-0 text-cc-brown"></span>
-                            <a href="tel:{{ preg_replace('/\s+/', '', $branch->contact_number) }}" class="hover:text-cc-brown">{{ $branch->contact_number }}</a>
-                        </p>
-                    @endif
-
                     <a href="#book" @click="$dispatch('preselect-branch', {{ $branch->id }})"
-                       class="mt-4 inline-flex min-h-11 items-center gap-1.5 text-sm font-bold text-cc-brown hover:gap-2.5">
+                       class="mt-4 inline-flex min-h-11 items-center gap-1.5 text-sm font-bold text-cc-brown hover:gap-2.5 {{ $singleBranch ? 'md:mt-0 md:min-h-12 md:shrink-0 md:rounded-full md:bg-cc-brown md:px-6 md:text-white md:shadow-[0_12px_24px_-14px_rgba(74,47,31,0.75)] md:hover:bg-cc-deep' : '' }}">
                         Book from here
                         <span data-lucide="arrow-right" class="h-4 w-4"></span>
                     </a>
@@ -351,14 +372,32 @@
 @endif
 
 {{-- ══════════════════════════════ FAQ ══════════════════════════════ --}}
-<section id="faq" class="scroll-mt-20 px-4 pt-16 sm:pt-20">
-    <div class="mx-auto max-w-3xl">
-        <div class="text-center">
+<section id="faq" class="scroll-mt-20 px-4 pt-16 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
+    <div class="mx-auto max-w-3xl lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-start lg:gap-14">
+        <div class="text-center lg:sticky lg:top-28 lg:text-left">
             <h2 class="cc-title">Questions? We&rsquo;ve Got You</h2>
             <p class="cc-subtitle mt-1">Everything people usually ask us.</p>
+
+            {{-- Desktop only: the column beside the answers has room for a way out. --}}
+            <div class="cc-soft mt-8 hidden p-6 lg:block">
+                <span class="cc-icon-tile h-11 w-11 bg-none bg-cc-surface"><span data-lucide="message-circle" class="h-5 w-5"></span></span>
+                <p class="mt-4 font-display text-xl font-bold text-cc-deep">Still wondering about something?</p>
+                <p class="mt-1 text-sm leading-relaxed text-cc-muted">
+                    @if($contactNumber)
+                        Call <a href="tel:{{ preg_replace('/\s+/', '', $contactNumber) }}" class="font-bold text-cc-brown hover:underline">{{ $contactNumber }}</a>
+                        and the branch team will sort it out with you.
+                    @else
+                        Our branch team is happy to help &mdash; just mention it in your booking notes.
+                    @endif
+                </p>
+                <a href="#book" class="cc-btn cc-btn-sm mt-5">
+                    <span data-lucide="truck" class="h-4 w-4"></span>
+                    Book a Pickup
+                </a>
+            </div>
         </div>
 
-        <div x-data="{ open: 0 }" class="mt-6 space-y-2.5">
+        <div x-data="{ open: 0 }" class="mt-6 space-y-2.5 lg:mt-0">
             @foreach ([
                 ['Do I need an account to book?', 'You can fill in the whole booking first &mdash; we only ask you to create an account at the last step, and it takes a few seconds. The account is what lets you track the order, cancel it and rebook next time.'],
                 ['How much does pickup and delivery cost?', 'Nothing. Pickup and delivery are free for orders of 5 kg and above. You only pay for the laundry itself, confirmed once your bag is weighed.'],
@@ -385,9 +424,11 @@
 </section>
 
 {{-- ══════════════════════════════ ABOUT & CONTACT ══════════════════════════════ --}}
-<section id="about" class="scroll-mt-20 px-4 pt-16 sm:pt-20">
-    <div class="cc-card mx-auto max-w-6xl overflow-hidden md:grid md:grid-cols-2">
-        <div class="cc-about-banner flex min-h-52 items-center justify-center px-6 py-10 md:min-h-full">
+<section id="about" class="scroll-mt-20 px-4 pt-16 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
+    {{-- Side by side from lg: at tablet width the half-card squeezed the four
+         feature tiles into columns a few words wide. --}}
+    <div class="cc-card mx-auto max-w-6xl overflow-hidden lg:grid lg:grid-cols-2">
+        <div class="cc-about-banner flex min-h-52 items-center justify-center px-6 py-10 md:min-h-72 lg:min-h-full">
             <p class="text-center font-script text-5xl leading-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.35)] sm:text-6xl">
                 Clean clothes.<br>A brighter day.
             </p>

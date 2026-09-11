@@ -51,7 +51,7 @@
             <span data-lucide="search" class="h-4 w-4 shrink-0 text-muted"></span>
             <input type="search" x-model="query" @input.debounce.350ms="search()"
                    @focus="search()" @keydown.escape="results = []"
-                   placeholder="Type a barangay or street in Kabankalan…"
+                   placeholder="Search a barangay, street or landmark…"
                    class="w-full min-w-0 bg-transparent text-sm outline-none">
             <span x-show="searching" x-cloak class="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-primary/30 border-t-primary"></span>
         </div>
@@ -83,12 +83,15 @@
     <div class="relative overflow-hidden rounded-xl border border-border dark:border-white/12">
         <div x-ref="map" class="{{ $height }} w-full bg-cream dark:bg-[#1c1510]"></div>
 
-        {{-- Shown until MapLibre is up, and if it never comes up. --}}
-        <div x-show="!ready" x-cloak
-             class="absolute inset-0 flex items-center justify-center px-4 text-center text-xs text-muted">
+        {{-- Shown until MapLibre is up, and if it never comes up. Opaque, so the
+             blank canvas and a floating pin never show through underneath. --}}
+        <div x-show="!ready"
+             class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 bg-cream px-4 text-center text-xs text-muted dark:bg-[#1c1510]">
+            <span x-show="!failed" class="h-6 w-6 animate-spin rounded-full border-2 border-primary/25 border-t-primary"></span>
+            <span x-show="failed" x-cloak data-lucide="map-pin" class="h-6 w-6 text-primary"></span>
             <span x-text="failed
                 ? 'Map unavailable here — your address and barangay are enough.'
-                : 'Loading map…'"></span>
+                : 'Loading map…'">Loading map…</span>
         </div>
     </div>
 

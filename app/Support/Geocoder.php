@@ -23,13 +23,15 @@ class Geocoder
     private const RATE_LIMIT_KEY = 'geocoder:nominatim';
 
     /**
-     * Address search: our own barangay list first, then Kabankalan streets.
+     * Address search: our own barangay and landmark lists first, then
+     * Kabankalan streets.
      *
-     * The two sources answer different questions. The local barangay list is
-     * how most people here describe where they live, and it always responds.
-     * Nominatim adds street-level precision on top, but its matching is loose
-     * enough that an unfiltered query for "vila" returns places in the next
-     * city over — so anything outside Kabankalan is dropped before it is shown.
+     * The sources answer different questions. The local barangay list is how
+     * most people here describe where they live, and the landmark list is how
+     * they give directions ("near CityMall"); both always respond. Nominatim
+     * adds street-level precision on top, but its matching is loose enough
+     * that an unfiltered query for "vila" returns places in the next city over
+     * — so anything outside Kabankalan is dropped before it is shown.
      *
      * @return array<int, array{label: string, context: string, latitude: float, longitude: float, kind: string}>
      */
@@ -42,16 +44,17 @@ class Geocoder
         }
 
         $barangays = ServiceArea::searchBarangays($query);
+        $landmarks = Landmarks::search($query, $limit - count($barangays));
 
-        // Barangay matches alone are enough to place a pin, so the slower
-        // network call is only worth making when there is room left to fill.
-        $remaining = $limit - count($barangays);
+        // Local matches alone are enough to place a pin, so the slower network
+        // call is only worth making when there is room left to fill.
+        $remaining = $limit - count($barangays) - count($landmarks);
 
         $streets = $remaining > 0 && Str::length($query) >= 3
             ? self::searchStreets($query, $remaining)
             : [];
 
-        return array_merge($barangays, $streets);
+        return array_merge($barangays, $landmarks, $streets);
     }
 
     /**

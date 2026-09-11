@@ -16,4 +16,9 @@ export default defineConfig({
         }),
         tailwindcss(),
     ],
+    // MapLibre always starts its worker as a module worker, so bundle workers
+    // as ES modules to match (the default iife output is for classic workers).
+    worker: {
+        format: 'es',
+    },
 });

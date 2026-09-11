@@ -13,9 +13,13 @@ return [
     | To move to a paid provider later (MapTiler, Stadia, a self-hosted
     | tileserver) only these two URLs change; no application code knows the
     | difference.
+    |
+    | Light is "liberty": full-colour roads, blue water, green parks and place
+    | labels, the familiar Google-style street map customers read at a glance.
+    | (The grey "positron" style was too faint to find a house on.)
     */
     'style' => [
-        'light' => env('MAP_STYLE_LIGHT', 'https://tiles.openfreemap.org/styles/positron'),
+        'light' => env('MAP_STYLE_LIGHT', 'https://tiles.openfreemap.org/styles/liberty'),
         'dark' => env('MAP_STYLE_DARK', 'https://tiles.openfreemap.org/styles/dark'),
     ],
 

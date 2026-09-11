@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\Geocoder;
+use App\Support\Landmarks;
 use Illuminate\Http\Request;
 
 /**
@@ -39,5 +40,16 @@ class GeocodingController extends Controller
             'address' => Geocoder::reverse($latitude, $longitude),
             'within_service_area' => Geocoder::withinServiceArea($latitude, $longitude),
         ]);
+    }
+
+    /**
+     * Kabankalan landmarks as GeoJSON for the map's label layer. The list only
+     * changes when the data file is regenerated, so browsers may keep it a day.
+     */
+    public function landmarks()
+    {
+        return response()
+            ->json(Landmarks::toGeoJson())
+            ->header('Cache-Control', 'public, max-age=86400');
     }
 }
