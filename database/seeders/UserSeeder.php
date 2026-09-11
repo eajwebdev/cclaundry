@@ -71,6 +71,16 @@ class UserSeeder extends Seeder
                 'branch_id' => $branchId,
                 'access' => ['dashboard', 'job_orders', 'cycles'],
             ],
+            [
+                // Signs in at /login like other staff but lands on the rider
+                // console at /rider; it never opens the admin menu.
+                'name' => 'Rider User',
+                'username' => 'rider',
+                'email' => 'rider@laundry.test',
+                'role' => 'rider',
+                'branch_id' => $branchId,
+                'access' => [],
+            ],
         ];
 
         foreach ($users as $user) {
