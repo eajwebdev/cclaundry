@@ -1,6 +1,9 @@
 @php
     /**
-     * Public pickup & delivery booking form.
+     * Public pickup & delivery booking form, laid out as the phone screens a
+     * customer steps through: service & weight, their details, the schedule,
+     * then a review before anything is sent. Field names and validation are
+     * unchanged; only the order and the presentation follow the mockups.
      *
      * Prefill order: what the visitor just typed (a validation bounce) beats a
      * booking parked before sign-up, which beats the signed-in customer's saved
@@ -14,14 +17,16 @@
     };
 
     $defaultBranchId = $value('branch_id', $bookingCustomer?->branch_id ?: $branches->first()?->id);
+    $multipleBranches = $branches->count() > 1;
+
+    $stepLabels = [1 => 'Service & weight', 2 => 'Your details', 3 => 'Pickup schedule', 4 => 'Review'];
 
     // Which step holds the first thing the server complained about, so a bounced
     // submission reopens where the problem is instead of back at step one.
     $stepFields = [
         1 => ['offering', 'estimated_kilos', 'is_rush'],
-        2 => ['branch_id', 'pickup_address', 'pickup_landmark', 'pickup_date', 'pickup_slot'],
-        3 => ['delivery_preference', 'delivery_address', 'delivery_date', 'delivery_slot'],
-        4 => ['contact_name', 'contact_phone', 'contact_email', 'notes'],
+        2 => ['contact_name', 'contact_phone', 'contact_email', 'branch_id', 'pickup_address', 'pickup_landmark', 'pickup_latitude', 'pickup_longitude'],
+        3 => ['pickup_date', 'pickup_slot', 'delivery_preference', 'delivery_address', 'delivery_latitude', 'delivery_longitude', 'delivery_date', 'delivery_slot', 'notes'],
     ];
 
     $initialStep = 1;
@@ -32,8 +37,17 @@
         }
     }
 
-    // Mirrors App\Support\Booking::estimate so the live figure in the summary
-    // and the stored estimate cannot disagree.
+    // Quick picks for the weight question. Each stores the top of its range so
+    // the estimate leans towards what the customer will actually pay.
+    $weightOptions = [
+        ['label' => '5–8 kg', 'value' => '8'],
+        ['label' => '9–12 kg', 'value' => '12'],
+        ['label' => '13–16 kg', 'value' => '16'],
+        ['label' => '17+ kg', 'value' => '17'],
+    ];
+
+    // Mirrors App\Support\Booking::estimate so the live figure and the stored
+    // estimate cannot disagree.
     $offeringMeta = $offerings->map(fn ($offering) => [
         'key' => $offering['key'],
         'label' => $offering['name'],
@@ -43,37 +57,40 @@
     ])->values();
 
     $defaultOffering = $value('offering', $offerings->first()['key'] ?? '');
+
+    $peso = fn ($amount) => '₱'.number_format((float) $amount, fmod((float) $amount, 1) ? 2 : 0);
+
+    // The review screen: [icon, label, Alpine expression, step to edit, shown when].
+    $reviewRows = [
+        ['user', 'Customer', 'form.contact_name', 2, null],
+        ['phone', 'Phone', 'form.contact_phone', 2, null],
+        ['map-pin', 'Pickup Address', 'addressLabel', 2, null],
+        ['scale', 'Weight (estimated)', 'weightLabel', 1, null],
+        ['laundry', 'Service', 'serviceLine', 1, null],
+        ['calendar-days', 'Pickup Schedule', 'pickupLabel', 3, null],
+        ['truck', 'Pickup & Delivery', 'returnLabel', 3, null],
+    ];
+
+    if ($multipleBranches) {
+        $reviewRows[] = ['store', 'Branch', 'branchLabel', 2, null];
+    }
+
+    $reviewRows[] = ['zap', 'Rush service', "'+' + money(rushSurcharge)", 1, 'form.is_rush'];
+    $reviewRows[] = ['sticky-note', 'Special instructions', 'form.notes', 3, 'form.notes'];
 @endphp
 
-<section id="book" class="scroll-mt-24 border-y border-border bg-white py-20 sm:py-24 dark:border-white/10 dark:bg-[#241a13]">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-
-        <div class="mx-auto max-w-2xl text-center">
-            <p class="text-[11px] font-semibold tracking-[0.22em] text-primary uppercase">Book a pickup</p>
-            <h2 class="mt-3 font-serif text-3xl leading-tight font-medium text-primary-deep sm:text-4xl dark:text-cane">
-                Tell us where and when
-            </h2>
-            <p class="mt-4 text-[15px] leading-relaxed text-muted">
-                @if($bookingCustomer)
-                    Booking as <span class="font-medium text-primary">{{ $bookingCustomer->name }}</span>. Everything below is prefilled from your last order.
-                @else
-                    Fill this in first &mdash; we only ask you to create an account at the very end, so nothing you type here is lost.
-                @endif
-            </p>
-        </div>
+<section id="book" class="scroll-mt-20 px-4 pt-16 sm:pt-20">
+    <div class="mx-auto max-w-xl">
 
         @if($offerings->isEmpty())
-            <div class="mx-auto mt-12 max-w-2xl rounded-3xl border border-dashed border-border bg-cream px-8 py-14 text-center dark:border-white/12 dark:bg-[#1c1510]">
-                <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                    <span data-lucide="timer" class="h-6 w-6"></span>
-                </span>
-                <p class="mt-5 font-medium">Online booking is not available right now</p>
-                <p class="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-muted">
+            <div class="cc-card px-6 py-12 text-center">
+                <span class="cc-icon-tile mx-auto h-14 w-14"><span data-lucide="timer" class="h-6 w-6"></span></span>
+                <h2 class="cc-title mt-5 text-2xl sm:text-3xl">Online booking is paused</h2>
+                <p class="cc-subtitle mx-auto mt-2 max-w-sm">
                     No services are published for online booking yet. Please call the branch and we will arrange your pickup.
                 </p>
                 @if($settings?->contact_number)
-                    <a href="tel:{{ preg_replace('/\s+/', '', $settings->contact_number) }}"
-                       class="mt-6 inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-deep">
+                    <a href="tel:{{ preg_replace('/\s+/', '', $settings->contact_number) }}" class="cc-btn mt-6">
                         <span data-lucide="phone" class="h-4 w-4"></span>
                         {{ $settings->contact_number }}
                     </a>
@@ -85,403 +102,388 @@
             action="{{ route('booking.store') }}"
             x-data="bookingForm({
                 step: {{ $initialStep }},
+                stepLabels: {{ Js::from($stepLabels) }},
                 offerings: {{ Js::from($offeringMeta) }},
+                weights: {{ Js::from($weightOptions) }},
                 rushSurcharge: {{ (int) $rushSurcharge }},
                 branches: {{ Js::from($branches->map(fn ($b) => ['id' => $b->id, 'name' => $b->name])) }},
                 slots: {{ Js::from($slots) }},
                 initial: {
                     offering: @js((string) $defaultOffering),
-                    estimated_kilos: @js($value('estimated_kilos', '')),
+                    estimated_kilos: @js((string) $value('estimated_kilos', '')),
                     is_rush: {{ $value('is_rush') ? 'true' : 'false' }},
                     branch_id: @js((string) $defaultBranchId),
-                    pickup_date: @js($value('pickup_date', $earliestPickupDate)),
-                    pickup_slot: @js($value('pickup_slot', 'morning')),
-                    delivery_preference: @js($value('delivery_preference', 'deliver')),
-                    delivery_slot: @js($value('delivery_slot', '')),
-                    delivery_date: @js($value('delivery_date', '')),
-                    pickup_address: @js($value('pickup_address', $bookingCustomer?->address ?? '')),
-                    delivery_address: @js($value('delivery_address', '')),
+                    contact_name: @js((string) $value('contact_name', $bookingCustomer?->name ?? '')),
+                    contact_phone: @js((string) $value('contact_phone', $bookingCustomer?->phone ?? '')),
+                    contact_email: @js((string) $value('contact_email', $bookingCustomer?->email ?? '')),
+                    pickup_address: @js((string) $value('pickup_address', $bookingCustomer?->address ?? '')),
+                    pickup_landmark: @js((string) $value('pickup_landmark', '')),
+                    pickup_date: @js((string) $value('pickup_date', $earliestPickupDate)),
+                    pickup_slot: @js((string) $value('pickup_slot', 'morning')),
+                    delivery_preference: @js((string) $value('delivery_preference', 'deliver')),
+                    delivery_address: @js((string) $value('delivery_address', '')),
+                    delivery_date: @js((string) $value('delivery_date', '')),
+                    delivery_slot: @js((string) $value('delivery_slot', '')),
+                    notes: @js((string) $value('notes', '')),
                 }
             })"
             @preselect-offering.window="pick($event.detail)"
-            @preselect-branch.window="form.branch_id = String($event.detail); step = 2"
-            class="mt-12 grid gap-6 lg:grid-cols-[1.55fr_1fr] lg:items-start"
+            @preselect-branch.window="form.branch_id = String($event.detail); openStep(2)"
+            @keydown.enter="onEnter($event)"
         >
             @csrf
 
-            {{-- ─────────── Steps ─────────── --}}
-            <div class="overflow-hidden rounded-3xl border border-border bg-cream dark:border-white/10 dark:bg-[#1c1510]">
+            <div x-ref="card" class="cc-card scroll-mt-20 p-5 sm:p-8">
 
-                {{-- Progress --}}
-                <div class="border-b border-border px-6 py-5 dark:border-white/10">
-                    <ol class="flex items-center gap-2">
-                        @foreach (['Service', 'Pickup', 'Delivery', 'Contact'] as $i => $label)
-                            @php($n = $i + 1)
-                            <li class="flex flex-1 items-center gap-2">
-                                <button type="button" @click="goTo({{ $n }})"
-                                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-[12px] font-semibold transition"
-                                        :class="step > {{ $n }}
-                                            ? 'border-primary bg-primary text-white'
-                                            : (step === {{ $n }}
-                                                ? 'border-primary bg-primary/10 text-primary'
-                                                : 'border-border text-muted')">
-                                    <span x-show="step > {{ $n }}" x-cloak data-lucide="check" class="h-3.5 w-3.5"></span>
-                                    <span x-show="step <= {{ $n }}">{{ $n }}</span>
-                                </button>
-                                <span class="hidden text-xs font-medium sm:block"
-                                      :class="step >= {{ $n }} ? 'text-primary' : 'text-muted'">{{ $label }}</span>
-                                @if($n < 4)
-                                    <span class="h-px flex-1 transition-colors" :class="step > {{ $n }} ? 'bg-primary' : 'bg-border'"></span>
-                                @endif
-                            </li>
+                {{-- ─────────── Progress ─────────── --}}
+                <div>
+                    <div class="flex items-center justify-between gap-3 text-xs font-bold">
+                        <span class="text-cc-muted" x-text="'Step ' + step + ' of ' + totalSteps">Step {{ $initialStep }} of 4</span>
+                        <span class="text-cc-brown" x-text="stepLabels[step]">{{ $stepLabels[$initialStep] }}</span>
+                    </div>
+                    <div class="mt-2 grid grid-cols-4 gap-1.5">
+                        @foreach ($stepLabels as $n => $label)
+                            <button type="button" @click="goTo({{ $n }})" aria-label="{{ $label }}"
+                                    class="h-1.5 rounded-full transition-colors"
+                                    :class="step >= {{ $n }} ? 'bg-cc-brown' : 'bg-cc-line'"></button>
                         @endforeach
-                    </ol>
+                    </div>
                 </div>
 
-                <div class="p-6 sm:p-8">
+                {{-- ═══ Step 1: service & weight ═══ --}}
+                <div data-step="1" x-show="step === 1" class="mt-6">
+                    <h2 class="cc-title text-[1.7rem] sm:text-3xl">Book Your Laundry Pickup</h2>
+                    <p class="cc-subtitle mt-1.5">
+                        @if($bookingCustomer)
+                            Booking as <span class="font-bold text-cc-brown">{{ $bookingCustomer->name }}</span>. We have filled in what we know.
+                        @else
+                            Tell us what you need and we&rsquo;ll take care of the rest.
+                        @endif
+                    </p>
 
-                    {{-- ═══ Step 1: service ═══ --}}
-                    <div data-step="1" x-show="step === 1">
-                        <h3 class="font-serif text-xl font-medium text-primary-deep dark:text-cane">What are we washing?</h3>
-                        <p class="mt-1.5 text-sm text-muted">Pick the closest match. We will confirm the details when we weigh your bag.</p>
+                    <fieldset class="mt-6">
+                        <legend class="cc-label text-[15px]">1. How much laundry do you have?</legend>
+                        <p class="cc-help mt-1">Choose an estimated weight &mdash; we&rsquo;ll confirm the exact weight upon pickup.</p>
 
-                        {{-- Bundles and single services, pinned by staff. --}}
-                        <div class="mt-6 grid gap-3 sm:grid-cols-2">
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            @foreach ($weightOptions as $option)
+                                <button type="button" @click="form.estimated_kilos = '{{ $option['value'] }}'"
+                                        class="cc-chip" :class="{ 'cc-chip-active': isWeight('{{ $option['value'] }}') }"
+                                        :aria-pressed="isWeight('{{ $option['value'] }}')">{{ $option['label'] }}</button>
+                            @endforeach
+                            <button type="button" @click="form.estimated_kilos = ''"
+                                    class="cc-chip" :class="{ 'cc-chip-active': ! hasWeight }"
+                                    :aria-pressed="! hasWeight">I&rsquo;m not sure</button>
+                        </div>
+
+                        <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                            <label for="estimated_kilos" class="cc-help font-semibold">Or type the exact weight</label>
+                            <div class="relative w-32">
+                                <input id="estimated_kilos" type="number" name="estimated_kilos" inputmode="decimal"
+                                       step="0.5" min="1" max="200" x-model="form.estimated_kilos" placeholder="e.g. 7"
+                                       class="cc-input min-h-11 py-2 pr-10">
+                                <span class="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-xs font-bold text-cc-muted">kg</span>
+                            </div>
+                        </div>
+                        @error('estimated_kilos') <p class="cc-error">{{ $message }}</p> @enderror
+                    </fieldset>
+
+                    <fieldset class="mt-7">
+                        <legend class="cc-label text-[15px]">2. What would you like us to clean?</legend>
+                        <p class="cc-help mt-1">Pick the closest match &mdash; we&rsquo;ll sort the rest when we weigh your bag.</p>
+
+                        <div class="mt-3 space-y-2.5">
                             @foreach ($offerings as $offering)
-                                <label class="relative flex cursor-pointer gap-3 rounded-2xl border p-4 transition"
-                                       :class="form.offering === @js($offering['key'])
-                                            ? 'border-primary bg-primary/6 ring-1 ring-primary/25'
-                                            : 'border-border bg-white hover:border-primary/35 dark:bg-[#241a13]'">
+                                <label class="cc-option" :class="{ 'cc-option-active': form.offering === '{{ $offering['key'] }}' }">
                                     <input type="radio" name="offering" value="{{ $offering['key'] }}" x-model="form.offering" class="sr-only">
-                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition"
-                                          :class="form.offering === @js($offering['key']) ? 'bg-primary text-white' : 'bg-primary/10 text-primary'">
-                                        <span data-lucide="{{ $offering['icon'] }}" class="h-4.5 w-4.5"></span>
-                                    </span>
-                                    <span class="min-w-0">
-                                        <span class="flex flex-wrap items-center gap-1.5">
-                                            <span class="text-sm font-medium">{{ $offering['name'] }}</span>
-                                            @if($offering['type'] === 'preset')
-                                                <span class="rounded-full bg-primary/12 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-primary uppercase">Bundle</span>
-                                            @endif
+                                    <span class="cc-check" aria-hidden="true"><span data-lucide="check" class="h-3.5 w-3.5"></span></span>
+                                    <span class="min-w-0 flex-1">
+                                        <span class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                                            <span class="text-[15px] font-bold text-cc-deep">
+                                                {{ $offering['name'] }}
+                                                @if($offering['type'] === 'preset')
+                                                    <span class="ml-1 rounded-full bg-cc-soft px-1.5 py-0.5 align-middle text-[9px] font-bold tracking-wide text-cc-brown uppercase">Bundle</span>
+                                                @endif
+                                            </span>
+                                            <span class="text-sm font-bold whitespace-nowrap text-cc-brown">
+                                                {{ $peso($offering['price']) }} <span class="font-semibold text-cc-muted">{{ $offering['unit'] }}</span>
+                                            </span>
                                         </span>
-                                        <span class="mt-0.5 block text-xs text-muted">&#8369;{{ number_format($offering['price'], 2) }} {{ $offering['unit'] }}</span>
                                         @if($offering['includes'])
-                                            <span class="mt-1 block text-xs leading-relaxed text-muted">{{ implode(' + ', $offering['includes']) }}</span>
+                                            <span class="mt-0.5 block text-xs leading-relaxed text-cc-muted">{{ implode(' + ', $offering['includes']) }}</span>
                                         @elseif($offering['blurb'])
-                                            <span class="mt-1 block text-xs leading-relaxed text-muted">{{ $offering['blurb'] }}</span>
+                                            <span class="mt-0.5 block text-xs leading-relaxed text-cc-muted">{{ $offering['blurb'] }}</span>
                                         @endif
                                     </span>
                                 </label>
                             @endforeach
                         </div>
-                        @error('offering') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+                        @error('offering') <p class="cc-error">{{ $message }}</p> @enderror
+                    </fieldset>
 
-                        <div class="mt-6 grid gap-5 sm:grid-cols-2">
+                    <label class="cc-option mt-5" :class="{ 'cc-option-active': form.is_rush }">
+                        <input type="checkbox" name="is_rush" value="1" x-model="form.is_rush" class="cc-checkbox mt-0.5">
+                        <span class="min-w-0 flex-1">
+                            <span class="flex items-center gap-1.5 text-[15px] font-bold text-cc-deep">
+                                <span data-lucide="zap" class="h-4 w-4 text-cc-brown"></span>
+                                Need it sooner?
+                            </span>
+                            <span class="mt-0.5 block text-xs text-cc-muted">Rush service jumps the queue for same-day handling (+{{ $peso($rushSurcharge) }}).</span>
+                        </span>
+                    </label>
+
+                    <div class="cc-soft mt-5 flex items-center justify-between gap-3 px-4 py-3">
+                        <span class="text-sm font-bold text-cc-muted">Estimated total</span>
+                        <span class="font-display text-2xl leading-none font-bold text-cc-deep" x-text="money(estimate)"></span>
+                    </div>
+                </div>
+
+                {{-- ═══ Step 2: customer details ═══ --}}
+                <div data-step="2" x-show="step === 2" x-cloak class="mt-6">
+                    <h2 class="cc-title text-[1.7rem] sm:text-3xl">Customer Details</h2>
+                    <p class="cc-subtitle mt-1.5">Please provide your details so we can contact you.</p>
+
+                    <div class="mt-6 space-y-4">
+                        <div>
+                            <label for="contact_name" class="cc-label">Full Name <span class="text-cc-brown">*</span></label>
+                            <input id="contact_name" type="text" name="contact_name" required autocomplete="name"
+                                   x-model="form.contact_name" placeholder="e.g. Juan Dela Cruz" class="cc-input mt-1.5">
+                            @error('contact_name') <p class="cc-error">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div class="grid gap-4 sm:grid-cols-2">
                             <div>
-                                <label for="estimated_kilos" class="block text-sm font-medium">Roughly how many kilos?</label>
-                                <p class="mt-1 text-xs text-muted">Optional &mdash; a guess is fine. One full laundry basket is about 7kg.</p>
-                                <div class="relative mt-2">
-                                    <input id="estimated_kilos" type="number" name="estimated_kilos" step="0.5" min="1" max="200"
-                                           x-model="form.estimated_kilos" placeholder="7"
-                                           class="h-12 w-full rounded-xl border border-border bg-white pr-12 pl-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-white/12 dark:bg-[#241a13]">
-                                    <span class="absolute top-1/2 right-4 -translate-y-1/2 text-xs text-muted">kg</span>
-                                </div>
-                                @error('estimated_kilos') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
+                                <label for="contact_phone" class="cc-label">Mobile Number <span class="text-cc-brown">*</span></label>
+                                <input id="contact_phone" type="tel" name="contact_phone" required inputmode="tel" autocomplete="tel"
+                                       x-model="form.contact_phone" placeholder="e.g. 09XX XXX XXXX" class="cc-input mt-1.5">
+                                @error('contact_phone') <p class="cc-error">{{ $message }}</p> @enderror
                             </div>
 
                             <div>
-                                <span class="block text-sm font-medium">Need it sooner?</span>
-                                <p class="mt-1 text-xs text-muted">Rush jumps the queue for same-day handling.</p>
-                                <label class="mt-2 flex h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 transition"
-                                       :class="form.is_rush ? 'border-amber-400 bg-amber-50 dark:bg-amber-500/10' : 'border-border bg-white dark:bg-[#241a13]'">
-                                    <input type="checkbox" name="is_rush" value="1" x-model="form.is_rush"
-                                           class="h-4 w-4 rounded border-border text-primary focus:ring-primary/30">
-                                    <span data-lucide="zap" class="h-4 w-4" :class="form.is_rush ? 'text-amber-600' : 'text-muted'"></span>
-                                    <span class="text-sm">Rush service <span class="text-muted">(+&#8369;{{ number_format($rushSurcharge) }})</span></span>
-                                </label>
+                                <label for="contact_email" class="cc-label">Email <span class="font-semibold text-cc-muted">(optional)</span></label>
+                                <input id="contact_email" type="email" name="contact_email" inputmode="email" autocomplete="email"
+                                       x-model="form.contact_email" placeholder="you@example.com" class="cc-input mt-1.5">
+                                @error('contact_email') <p class="cc-error">{{ $message }}</p> @enderror
                             </div>
                         </div>
-                    </div>
 
-                    {{-- ═══ Step 2: pickup ═══ --}}
-                    <div data-step="2" x-show="step === 2" x-cloak>
-                        <h3 class="font-serif text-xl font-medium text-primary-deep dark:text-cane">Where and when do we collect?</h3>
-                        <p class="mt-1.5 text-sm text-muted">Our rider will be there within the window you choose.</p>
-
-                        <div class="mt-6 space-y-5">
+                        @if($multipleBranches)
                             <div>
-                                <label for="branch_id" class="block text-sm font-medium">Nearest branch</label>
-                                <select id="branch_id" name="branch_id" x-model="form.branch_id" required
-                                        class="mt-2 h-12 w-full rounded-xl border border-border bg-white px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-white/12 dark:bg-[#241a13]">
+                                <label for="branch_id" class="cc-label">Nearest Branch <span class="text-cc-brown">*</span></label>
+                                <select id="branch_id" name="branch_id" required x-model="form.branch_id" class="cc-input mt-1.5">
                                     @foreach ($branches as $branch)
-                                        <option value="{{ $branch->id }}">{{ $branch->name }}@if($branch->address) &mdash; {{ Str::limit($branch->address, 45) }}@endif</option>
+                                        <option value="{{ $branch->id }}">{{ $branch->name }}@if($branch->address) &mdash; {{ Str::limit($branch->address, 40) }}@endif</option>
                                     @endforeach
                                 </select>
-                                @error('branch_id') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
+                                @error('branch_id') <p class="cc-error">{{ $message }}</p> @enderror
                             </div>
+                        @else
+                            <input type="hidden" name="branch_id" x-model="form.branch_id">
+                            @error('branch_id') <p class="cc-error">{{ $message }}</p> @enderror
+                        @endif
 
-                            <div>
-                                <label for="pickup_address" class="block text-sm font-medium">Pickup address</label>
-                                <textarea id="pickup_address" name="pickup_address" rows="2" required x-model="form.pickup_address"
-                                          placeholder="House/unit number, street, barangay, city"
-                                          class="mt-2 w-full rounded-xl border border-border bg-white px-4 py-3 text-sm outline-none transition placeholder:text-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-white/12 dark:bg-[#241a13]"></textarea>
-                                @error('pickup_address') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
+                        <div>
+                            <label for="pickup_address" class="cc-label">Pickup Address <span class="text-cc-brown">*</span></label>
+                            <textarea id="pickup_address" name="pickup_address" rows="2" required autocomplete="street-address"
+                                      x-model="form.pickup_address" placeholder="House / Street / Barangay"
+                                      class="cc-input mt-1.5"></textarea>
+                            @error('pickup_address') <p class="cc-error">{{ $message }}</p> @enderror
+                        </div>
+
+                        <x-map-picker
+                            name="pickup"
+                            label="Pin your exact spot (optional)"
+                            address-field="pickup_address"
+                            height="h-56 sm:h-64"
+                            :latitude="old('pickup_latitude', $bookingCustomer?->latitude)"
+                            :longitude="old('pickup_longitude', $bookingCustomer?->longitude)"
+                        />
+
+                        <div>
+                            <label for="pickup_landmark" class="cc-label">Landmark / Notes <span class="font-semibold text-cc-muted">(optional)</span></label>
+                            <input id="pickup_landmark" type="text" name="pickup_landmark" x-model="form.pickup_landmark"
+                                   placeholder="e.g. near the school, beside the church" class="cc-input mt-1.5">
+                            @error('pickup_landmark') <p class="cc-error">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ═══ Step 3: pickup schedule & return ═══ --}}
+                <div data-step="3" x-show="step === 3" x-cloak class="mt-6">
+                    <h2 class="cc-title text-[1.7rem] sm:text-3xl">Choose Your Pickup Schedule</h2>
+                    <p class="cc-subtitle mt-1.5">Select your preferred date and time.</p>
+
+                    <div class="mt-6 grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <label for="pickup_date" class="cc-label">Date <span class="text-cc-brown">*</span></label>
+                            <div class="relative mt-1.5">
+                                <span data-lucide="calendar-days" class="pointer-events-none absolute top-1/2 left-4 h-4.5 w-4.5 -translate-y-1/2 text-cc-brown"></span>
+                                <input id="pickup_date" type="date" name="pickup_date" required x-model="form.pickup_date"
+                                       min="{{ $earliestPickupDate }}" max="{{ $latestPickupDate }}" class="cc-input pl-11">
                             </div>
+                            @error('pickup_date') <p class="cc-error">{{ $message }}</p> @enderror
+                        </div>
 
-                            <x-map-picker
-                                name="pickup"
-                                label="Pin the exact spot"
-                                address-field="pickup_address"
-                                :latitude="old('pickup_latitude', $bookingCustomer?->latitude)"
-                                :longitude="old('pickup_longitude', $bookingCustomer?->longitude)"
-                            />
-
-                            <div>
-                                <label for="pickup_landmark" class="block text-sm font-medium">Landmark <span class="font-normal text-muted">(optional)</span></label>
-                                <input id="pickup_landmark" type="text" name="pickup_landmark" value="{{ $value('pickup_landmark') }}"
-                                       placeholder="Beside the blue gate, across the sari-sari store"
-                                       class="mt-2 h-12 w-full rounded-xl border border-border bg-white px-4 text-sm outline-none transition placeholder:text-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-white/12 dark:bg-[#241a13]">
-                            </div>
-
-                            <div class="grid gap-5 sm:grid-cols-2">
-                                <div>
-                                    <label for="pickup_date" class="block text-sm font-medium">Pickup date</label>
-                                    <input id="pickup_date" type="date" name="pickup_date" required x-model="form.pickup_date"
-                                           min="{{ $earliestPickupDate }}" max="{{ $latestPickupDate }}"
-                                           class="mt-2 h-12 w-full rounded-xl border border-border bg-white px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-white/12 dark:bg-[#241a13]">
-                                    @error('pickup_date') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
-                                </div>
-
-                                <div>
-                                    <span class="block text-sm font-medium">Pickup window</span>
-                                    <div class="mt-2 grid gap-2">
-                                        @foreach ($slots as $slotKey => $slotLabel)
-                                            <label class="flex cursor-pointer items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-sm transition"
-                                                   :class="form.pickup_slot === @js($slotKey)
-                                                        ? 'border-primary bg-primary/6'
-                                                        : 'border-border bg-white hover:border-primary/35 dark:bg-[#241a13]'">
-                                                <input type="radio" name="pickup_slot" value="{{ $slotKey }}" x-model="form.pickup_slot"
-                                                       class="h-4 w-4 border-border text-primary focus:ring-primary/30">
-                                                <span>{{ $slotLabel }}</span>
-                                            </label>
-                                        @endforeach
-                                    </div>
-                                    @error('pickup_slot') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
-                                </div>
-                            </div>
+                        <div>
+                            <label for="pickup_slot" class="cc-label">Preferred Time <span class="text-cc-brown">*</span></label>
+                            <select id="pickup_slot" name="pickup_slot" required x-model="form.pickup_slot" class="cc-input mt-1.5">
+                                @foreach ($slots as $slotKey => $slotLabel)
+                                    <option value="{{ $slotKey }}">{{ $slotLabel }}</option>
+                                @endforeach
+                            </select>
+                            @error('pickup_slot') <p class="cc-error">{{ $message }}</p> @enderror
                         </div>
                     </div>
 
-                    {{-- ═══ Step 3: delivery ═══ --}}
-                    <div data-step="3" x-show="step === 3" x-cloak>
-                        <h3 class="font-serif text-xl font-medium text-primary-deep dark:text-cane">How should we return it?</h3>
-                        <p class="mt-1.5 text-sm text-muted">Delivery is charged by zone and added to your total at the branch.</p>
+                    <ul class="cc-soft mt-5 space-y-3 px-4 py-4">
+                        @foreach ([
+                            ['truck', 'Free pickup & delivery', 'For 5 kg and above'],
+                            ['scale', 'Minimum 5 kg', 'Per pickup'],
+                            ['time', 'We’ll confirm the exact time', $settings?->sms_enabled ? 'By SMS before the rider heads over' : 'With a call before the rider heads over'],
+                        ] as [$icon, $title, $body])
+                            <li class="flex items-center gap-3">
+                                <span class="cc-icon-tile h-9 w-9 bg-none bg-cc-surface"><span data-lucide="{{ $icon }}" class="h-4.5 w-4.5"></span></span>
+                                <span>
+                                    <span class="block text-sm font-bold text-cc-deep">{{ $title }}</span>
+                                    <span class="block text-xs text-cc-muted">{{ $body }}</span>
+                                </span>
+                            </li>
+                        @endforeach
+                    </ul>
 
-                        <div class="mt-6 grid gap-3 sm:grid-cols-2">
+                    <fieldset class="mt-7">
+                        <legend class="cc-label text-[15px]">How should we return it?</legend>
+
+                        <div class="mt-3 grid grid-cols-2 gap-2.5">
                             @foreach ($deliveryPreferences as $prefKey => $prefLabel)
-                                <label class="flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition"
-                                       :class="form.delivery_preference === @js($prefKey)
-                                            ? 'border-primary bg-primary/6 ring-1 ring-primary/25'
-                                            : 'border-border bg-white hover:border-primary/35 dark:bg-[#241a13]'">
+                                <label class="cc-option flex-col gap-2 p-3.5"
+                                       :class="{ 'cc-option-active': form.delivery_preference === '{{ $prefKey }}' }">
                                     <input type="radio" name="delivery_preference" value="{{ $prefKey }}" x-model="form.delivery_preference" class="sr-only">
-                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition"
-                                          :class="form.delivery_preference === @js($prefKey) ? 'bg-primary text-white' : 'bg-primary/10 text-primary'">
-                                        <span data-lucide="{{ $prefKey === 'deliver' ? 'truck' : 'store' }}" class="h-4.5 w-4.5"></span>
-                                    </span>
+                                    <span class="cc-icon-tile h-10 w-10"><span data-lucide="{{ $prefKey === 'deliver' ? 'truck' : 'store' }}" class="h-5 w-5"></span></span>
                                     <span>
-                                        <span class="block text-sm font-medium">{{ $prefLabel }}</span>
-                                        <span class="mt-0.5 block text-xs text-muted">
-                                            {{ $prefKey === 'deliver' ? 'We bring it back to your door' : 'No delivery charge' }}
-                                        </span>
+                                        <span class="block text-sm leading-snug font-bold text-cc-deep">{{ $prefLabel }}</span>
+                                        <span class="mt-0.5 block text-xs text-cc-muted">{{ $prefKey === 'deliver' ? 'Free, right to your door' : 'Pick it up yourself' }}</span>
                                     </span>
                                 </label>
                             @endforeach
                         </div>
+                        @error('delivery_preference') <p class="cc-error">{{ $message }}</p> @enderror
 
-                        <div x-show="form.delivery_preference === 'deliver'" x-cloak x-transition class="mt-6 space-y-5">
-                            <label class="flex cursor-pointer items-center gap-2.5 text-sm">
-                                <input type="checkbox" x-model="sameAddress" class="h-4 w-4 rounded border-border text-primary focus:ring-primary/30">
-                                <span>Deliver to the same address we collect from</span>
+                        <div x-show="form.delivery_preference === 'deliver'" x-cloak class="mt-4 space-y-4">
+                            <label class="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-semibold text-cc-ink">
+                                <input type="checkbox" x-model="sameAddress" class="cc-checkbox">
+                                Deliver to the same address we collect from
                             </label>
 
-                            <div x-show="! sameAddress" x-cloak x-transition class="space-y-5">
+                            <div x-show="! sameAddress" x-cloak class="space-y-4">
                                 <div>
-                                    <label for="delivery_address" class="block text-sm font-medium">Delivery address</label>
+                                    <label for="delivery_address" class="cc-label">Delivery Address</label>
                                     <textarea id="delivery_address" name="delivery_address" rows="2" x-model="form.delivery_address"
-                                              placeholder="House/unit number, street, barangay, city"
-                                              class="mt-2 w-full rounded-xl border border-border bg-white px-4 py-3 text-sm outline-none transition placeholder:text-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-white/12 dark:bg-[#241a13]"></textarea>
-                                    @error('delivery_address') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
+                                              placeholder="House / Street / Barangay" class="cc-input mt-1.5"></textarea>
+                                    @error('delivery_address') <p class="cc-error">{{ $message }}</p> @enderror
                                 </div>
 
                                 <x-map-picker
                                     name="delivery"
-                                    label="Pin the drop-off spot"
+                                    label="Pin the drop-off spot (optional)"
                                     address-field="delivery_address"
+                                    height="h-56 sm:h-64"
                                     :latitude="old('delivery_latitude')"
                                     :longitude="old('delivery_longitude')"
                                 />
                             </div>
 
-                            <div class="grid gap-5 sm:grid-cols-2">
+                            <div class="grid gap-4 sm:grid-cols-2">
                                 <div>
-                                    <label for="delivery_date" class="block text-sm font-medium">Preferred delivery date <span class="font-normal text-muted">(optional)</span></label>
+                                    <label for="delivery_date" class="cc-label">Delivery Date <span class="font-semibold text-cc-muted">(optional)</span></label>
                                     <input id="delivery_date" type="date" name="delivery_date" x-model="form.delivery_date"
-                                           :min="form.pickup_date" max="{{ $latestPickupDate }}"
-                                           class="mt-2 h-12 w-full rounded-xl border border-border bg-white px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-white/12 dark:bg-[#241a13]">
-                                    @error('delivery_date') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
+                                           :min="form.pickup_date" max="{{ $latestPickupDate }}" class="cc-input mt-1.5">
+                                    @error('delivery_date') <p class="cc-error">{{ $message }}</p> @enderror
                                 </div>
 
                                 <div>
-                                    <label for="delivery_slot" class="block text-sm font-medium">Delivery window <span class="font-normal text-muted">(optional)</span></label>
-                                    <select id="delivery_slot" name="delivery_slot" x-model="form.delivery_slot"
-                                            class="mt-2 h-12 w-full rounded-xl border border-border bg-white px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-white/12 dark:bg-[#241a13]">
+                                    <label for="delivery_slot" class="cc-label">Delivery Time <span class="font-semibold text-cc-muted">(optional)</span></label>
+                                    <select id="delivery_slot" name="delivery_slot" x-model="form.delivery_slot" class="cc-input mt-1.5">
                                         <option value="">No preference</option>
                                         @foreach ($slots as $slotKey => $slotLabel)
                                             <option value="{{ $slotKey }}">{{ $slotLabel }}</option>
                                         @endforeach
                                     </select>
+                                    @error('delivery_slot') <p class="cc-error">{{ $message }}</p> @enderror
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </fieldset>
 
-                    {{-- ═══ Step 4: contact ═══ --}}
-                    <div data-step="4" x-show="step === 4" x-cloak>
-                        <h3 class="font-serif text-xl font-medium text-primary-deep dark:text-cane">Who do we look for?</h3>
-                        <p class="mt-1.5 text-sm text-muted">The rider will call this number when they are outside.</p>
-
-                        <div class="mt-6 space-y-5">
-                            <div class="grid gap-5 sm:grid-cols-2">
-                                <div>
-                                    <label for="contact_name" class="block text-sm font-medium">Full name</label>
-                                    <input id="contact_name" type="text" name="contact_name" required
-                                           value="{{ $value('contact_name', $bookingCustomer?->name ?? '') }}"
-                                           class="mt-2 h-12 w-full rounded-xl border border-border bg-white px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-white/12 dark:bg-[#241a13]">
-                                    @error('contact_name') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
-                                </div>
-
-                                <div>
-                                    <label for="contact_phone" class="block text-sm font-medium">Mobile number</label>
-                                    <input id="contact_phone" type="tel" name="contact_phone" required placeholder="09XX XXX XXXX"
-                                           value="{{ $value('contact_phone', $bookingCustomer?->phone ?? '') }}"
-                                           class="mt-2 h-12 w-full rounded-xl border border-border bg-white px-4 text-sm outline-none transition placeholder:text-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-white/12 dark:bg-[#241a13]">
-                                    @error('contact_phone') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
-                                </div>
-                            </div>
-
-                            <div>
-                                <label for="contact_email" class="block text-sm font-medium">Email <span class="font-normal text-muted">(optional)</span></label>
-                                <input id="contact_email" type="email" name="contact_email"
-                                       value="{{ $value('contact_email', $bookingCustomer?->email ?? '') }}"
-                                       class="mt-2 h-12 w-full rounded-xl border border-border bg-white px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-white/12 dark:bg-[#241a13]">
-                                @error('contact_email') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
-                            </div>
-
-                            <div>
-                                <label for="notes" class="block text-sm font-medium">Special instructions <span class="font-normal text-muted">(optional)</span></label>
-                                <textarea id="notes" name="notes" rows="3"
-                                          placeholder="Separate the whites, no fabric softener on the baby clothes, call before entering the subdivision..."
-                                          class="mt-2 w-full rounded-xl border border-border bg-white px-4 py-3 text-sm outline-none transition placeholder:text-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-white/12 dark:bg-[#241a13]">{{ $value('notes') }}</textarea>
-                            </div>
-
-                            @unless($bookingCustomer)
-                                <div class="flex items-start gap-3 rounded-2xl border border-primary/25 bg-primary/6 px-4 py-3.5">
-                                    <span data-lucide="lock" class="mt-0.5 h-4 w-4 shrink-0 text-primary"></span>
-                                    <p class="text-[13px] leading-relaxed text-muted">
-                                        <span class="font-medium text-primary-deep dark:text-cane">One last step after this.</span>
-                                        Bookings are tied to an account so you can track and cancel them. When you press
-                                        <em>Confirm booking</em> we will ask you to set a password &mdash; everything you filled in here is kept.
-                                    </p>
-                                </div>
-                            @endunless
-                        </div>
-                    </div>
-
-                    {{-- Navigation --}}
-                    <div class="mt-8 flex items-center justify-between gap-3 border-t border-border pt-6 dark:border-white/10">
-                        <button type="button" @click="back()" x-show="step > 1" x-cloak
-                                class="inline-flex h-12 items-center gap-2 rounded-xl border border-border px-5 text-sm font-medium transition hover:border-primary/40 dark:border-white/12">
-                            <span data-lucide="arrow-left" class="h-4 w-4"></span>
-                            Back
-                        </button>
-                        <span x-show="step === 1" class="hidden sm:block"></span>
-
-                        <button type="button" @click="next()" x-show="step < 4"
-                                class="ml-auto inline-flex h-12 items-center gap-2 rounded-xl bg-primary px-6 text-sm font-semibold text-white shadow-lg shadow-primary/20 transition hover:bg-primary-deep">
-                            Continue
-                            <span data-lucide="arrow-right" class="h-4 w-4"></span>
-                        </button>
-
-                        <button type="submit" x-show="step === 4" x-cloak
-                                class="ml-auto inline-flex h-12 items-center gap-2 rounded-xl bg-primary px-6 text-sm font-semibold text-white shadow-lg shadow-primary/20 transition hover:bg-primary-deep">
-                            <span data-lucide="check" class="h-4 w-4"></span>
-                            Confirm booking
-                        </button>
+                    <div class="mt-6">
+                        <label for="notes" class="cc-label">Special Instructions <span class="font-semibold text-cc-muted">(optional)</span></label>
+                        <textarea id="notes" name="notes" rows="3" x-model="form.notes"
+                                  placeholder="Separate the whites, call before entering the subdivision…"
+                                  class="cc-input mt-1.5"></textarea>
+                        @error('notes') <p class="cc-error">{{ $message }}</p> @enderror
                     </div>
                 </div>
+
+                {{-- ═══ Step 4: review ═══ --}}
+                <div data-step="4" x-show="step === 4" x-cloak class="mt-6">
+                    <h2 class="cc-title text-[1.7rem] sm:text-3xl">Review Your Booking</h2>
+                    <p class="cc-subtitle mt-1.5">Please check your details before confirming.</p>
+
+                    <ul class="mt-5 divide-y divide-cc-line rounded-2xl border border-cc-line bg-white/60 px-4">
+                        @foreach ($reviewRows as [$icon, $label, $expression, $editStep, $visibleWhen])
+                            <li class="flex items-start gap-3 py-3" @if($visibleWhen) x-show="{{ $visibleWhen }}" x-cloak @endif>
+                                <span data-lucide="{{ $icon }}" class="mt-0.5 h-5 w-5 shrink-0 text-cc-brown"></span>
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-xs font-semibold text-cc-muted">{{ $label }}</p>
+                                    <p class="mt-0.5 text-sm font-bold wrap-break-word text-cc-deep" x-text="({{ $expression }}) || '—'"></p>
+                                </div>
+                                <button type="button" @click="goTo({{ $editStep }})"
+                                        class="-mr-2 shrink-0 rounded-full px-3 py-1.5 text-xs font-bold text-cc-brown transition hover:bg-cc-soft">Edit</button>
+                            </li>
+                        @endforeach
+                    </ul>
+
+                    <div class="cc-soft mt-4 px-4 py-4">
+                        <p class="text-sm font-bold text-cc-deep">Estimated Total</p>
+                        <p class="mt-1.5 font-display text-[2.6rem] leading-none font-bold text-cc-deep" x-text="money(estimate)"></p>
+                        <p class="mt-2 flex items-start gap-1.5 text-xs text-cc-muted">
+                            <span data-lucide="info" class="mt-px h-3.5 w-3.5 shrink-0"></span>
+                            Final amount will be based on the actual laundry weight.
+                        </p>
+                    </div>
+
+                    @unless($bookingCustomer)
+                        <div class="mt-4 flex items-start gap-3 rounded-2xl border border-cc-line bg-cc-surface px-4 py-3.5">
+                            <span data-lucide="lock" class="mt-0.5 h-4 w-4 shrink-0 text-cc-brown"></span>
+                            <p class="text-[13px] leading-relaxed text-cc-muted">
+                                <span class="font-bold text-cc-deep">One last step after this.</span>
+                                Bookings are tied to an account so you can track and cancel them. We&rsquo;ll ask you to set a
+                                password next &mdash; everything you filled in here is kept.
+                            </p>
+                        </div>
+                    @endunless
+                </div>
+
+                {{-- ─────────── Navigation ─────────── --}}
+                <div class="mt-7 flex items-center gap-3">
+                    <button type="button" @click="back()" x-show="step > 1" x-cloak
+                            class="cc-btn-outline w-12 shrink-0 px-0" aria-label="Back to the previous step">
+                        <span data-lucide="arrow-left" class="h-5 w-5"></span>
+                    </button>
+
+                    <button type="button" @click="next()" x-show="step < totalSteps" class="cc-btn flex-1">
+                        Continue
+                        <span data-lucide="arrow-right" class="h-4 w-4"></span>
+                    </button>
+
+                    <button type="submit" x-show="step === totalSteps" x-cloak class="cc-btn flex-1">
+                        Confirm Pickup
+                        <span data-lucide="arrow-right" class="h-4 w-4"></span>
+                    </button>
+                </div>
+
+                <p class="mt-4 text-center text-xs text-cc-muted">No payment needed to book &middot; Cancel any time before collection</p>
             </div>
-
-            {{-- ─────────── Live summary ─────────── --}}
-            <aside class="lg:sticky lg:top-24">
-                <div class="overflow-hidden rounded-3xl border border-border bg-cream dark:border-white/10 dark:bg-[#1c1510]">
-                    <div class="border-b border-border bg-primary/6 px-6 py-5 dark:border-white/10">
-                        <h3 class="font-serif text-lg font-medium text-primary-deep dark:text-cane">Your booking</h3>
-                        <p class="mt-1 text-xs text-muted">Updates as you fill the form.</p>
-                    </div>
-
-                    <dl class="divide-y divide-border px-6 dark:divide-white/8">
-                        <div class="flex items-start justify-between gap-4 py-3.5">
-                            <dt class="text-sm text-muted">Service</dt>
-                            <dd class="text-right text-sm font-medium" x-text="serviceLabel"></dd>
-                        </div>
-                        <div class="flex items-start justify-between gap-4 py-3.5">
-                            <dt class="text-sm text-muted">Estimated load</dt>
-                            <dd class="text-right text-sm font-medium" x-text="form.estimated_kilos ? form.estimated_kilos + ' kg' : 'To be weighed'"></dd>
-                        </div>
-                        <div class="flex items-start justify-between gap-4 py-3.5">
-                            <dt class="text-sm text-muted">Branch</dt>
-                            <dd class="text-right text-sm font-medium" x-text="branchLabel"></dd>
-                        </div>
-                        <div class="flex items-start justify-between gap-4 py-3.5">
-                            <dt class="text-sm text-muted">Pickup</dt>
-                            <dd class="text-right text-sm font-medium" x-text="pickupLabel"></dd>
-                        </div>
-                        <div class="flex items-start justify-between gap-4 py-3.5">
-                            <dt class="text-sm text-muted">Return</dt>
-                            <dd class="text-right text-sm font-medium" x-text="returnLabel"></dd>
-                        </div>
-                        <div class="flex items-start justify-between gap-4 py-3.5" x-show="form.is_rush" x-cloak>
-                            <dt class="text-sm text-muted">Rush service</dt>
-                            <dd class="text-right text-sm font-medium text-amber-600">+&#8369;{{ number_format($rushSurcharge) }}</dd>
-                        </div>
-                    </dl>
-
-                    <div class="border-t border-border px-6 py-5 dark:border-white/10">
-                        <div class="flex items-end justify-between gap-4">
-                            <div>
-                                <p class="text-sm text-muted">Estimated total</p>
-                                <p class="mt-0.5 text-[11px] text-muted">Final price set after weighing</p>
-                            </div>
-                            <p class="font-serif text-2xl font-semibold text-primary" x-text="'₱' + estimate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"></p>
-                        </div>
-                    </div>
-
-                    <div class="border-t border-border bg-white/60 px-6 py-4 dark:border-white/10 dark:bg-white/3">
-                        <ul class="space-y-2 text-[12px] text-muted">
-                            @foreach ([
-                                'Pickup is free, always',
-                                'No payment needed to book',
-                                'Cancel any time before collection',
-                            ] as $assurance)
-                                <li class="flex items-center gap-2">
-                                    <span data-lucide="check" class="h-3.5 w-3.5 shrink-0 text-accent-deep"></span>
-                                    {{ $assurance }}
-                                </li>
-                            @endforeach
-                        </ul>
-                    </div>
-                </div>
-            </aside>
         </form>
         @endif
     </div>
@@ -492,7 +494,10 @@
     document.addEventListener('alpine:init', () => {
         Alpine.data('bookingForm', (config) => ({
             step: config.step,
+            stepLabels: config.stepLabels,
+            totalSteps: Object.keys(config.stepLabels).length,
             offerings: config.offerings,
+            weights: config.weights,
             branches: config.branches,
             slots: config.slots,
             rushSurcharge: config.rushSurcharge,
@@ -512,24 +517,49 @@
                 return this.offerings.find((o) => o.key === this.form.offering) || this.offerings[0];
             },
 
-            get serviceLabel() {
-                return this.service ? this.service.label : '--';
+            get serviceLine() {
+                const service = this.service;
+                return service ? service.label + ' · ' + this.money(service.price) + ' ' + service.unit : '';
             },
 
             get branchLabel() {
                 const branch = this.branches.find((b) => String(b.id) === String(this.form.branch_id));
-                return branch ? branch.name : '--';
+                return branch ? branch.name : '';
+            },
+
+            get hasWeight() {
+                return parseFloat(this.form.estimated_kilos) > 0;
+            },
+
+            isWeight(value) {
+                return this.hasWeight && parseFloat(this.form.estimated_kilos) === parseFloat(value);
+            },
+
+            get weightLabel() {
+                if (! this.hasWeight) return 'Not sure yet — we will weigh it';
+                const preset = this.weights.find((weight) => this.isWeight(weight.value));
+                return preset ? preset.label : parseFloat(this.form.estimated_kilos) + ' kg';
+            },
+
+            get addressLabel() {
+                if (! this.form.pickup_address) return '';
+                return this.form.pickup_address + (this.form.pickup_landmark ? ' (' + this.form.pickup_landmark + ')' : '');
             },
 
             get pickupLabel() {
-                if (! this.form.pickup_date) return '--';
-                return this.formatDate(this.form.pickup_date) + ', ' + (this.slots[this.form.pickup_slot] || '');
+                if (! this.form.pickup_date) return '';
+                return this.formatDate(this.form.pickup_date) + ' • ' + (this.slots[this.form.pickup_slot] || '');
             },
 
             get returnLabel() {
-                if (this.form.delivery_preference !== 'deliver') return 'Claim at branch';
-                if (! this.form.delivery_date) return 'Delivered, date to confirm';
-                return this.formatDate(this.form.delivery_date);
+                if (this.form.delivery_preference !== 'deliver') {
+                    return 'Claim at ' + (this.branchLabel || 'the branch');
+                }
+
+                let label = 'Free delivery back to you';
+                if (this.form.delivery_date) label += ' • ' + this.formatDate(this.form.delivery_date);
+                if (this.form.delivery_slot) label += ' • ' + (this.slots[this.form.delivery_slot] || '');
+                return label;
             },
 
             /** Mirrors App\Support\Booking::estimate so the two never disagree. */
@@ -557,10 +587,18 @@
                 return Math.round((this.form.is_rush ? total + this.rushSurcharge : total) * 100) / 100;
             },
 
+            money(value) {
+                const amount = Number(value) || 0;
+                return '₱' + amount.toLocaleString('en-PH', {
+                    minimumFractionDigits: amount % 1 ? 2 : 0,
+                    maximumFractionDigits: 2,
+                });
+            },
+
             formatDate(value) {
                 const date = new Date(value + 'T00:00:00');
                 if (isNaN(date)) return value;
-                return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
             },
 
             pick(offeringKey) {
@@ -570,20 +608,23 @@
                 this.step = 1;
             },
 
+            openStep(target) {
+                this.step = target;
+                this.focusSection();
+            },
+
             goTo(target) {
                 // Only allow jumping back to a step already completed.
-                if (target < this.step) this.step = target;
+                if (target < this.step) this.openStep(target);
             },
 
             back() {
-                if (this.step > 1) this.step--;
-                this.focusSection();
+                if (this.step > 1) this.openStep(this.step - 1);
             },
 
             next() {
                 if (! this.validateStep()) return;
-                if (this.step < 4) this.step++;
-                this.focusSection();
+                if (this.step < this.totalSteps) this.openStep(this.step + 1);
             },
 
             /**
@@ -605,12 +646,29 @@
                 return true;
             },
 
+            /**
+             * Enter on a phone keyboard means "next", not "submit a booking that
+             * is three screens from finished". Map search keeps Enter to itself.
+             */
+            onEnter(event) {
+                const target = event.target;
+                if (target.tagName === 'TEXTAREA' || target.tagName === 'BUTTON') return;
+                if (this.step >= this.totalSteps) return;
+
+                event.preventDefault();
+                if (target.type !== 'search') this.next();
+            },
+
             focusSection() {
                 this.$nextTick(() => {
                     window.renderLucideIcons?.();
-                    const anchor = document.getElementById('book');
-                    if (anchor && anchor.getBoundingClientRect().top < 0) {
-                        anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                    const card = this.$refs.card;
+                    if (! card) return;
+
+                    const top = card.getBoundingClientRect().top;
+                    if (top < 0 || top > window.innerHeight * 0.5) {
+                        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }
                 });
             },

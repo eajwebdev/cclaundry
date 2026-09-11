@@ -66,7 +66,8 @@ class LandingController extends Controller
             ];
         }
 
-        $services = LaundryService::query()->where('is_active', true)->count();
+        // Counts what the public price list actually shows, not every service.
+        $services = LaundryService::query()->where('is_active', true)->where('show_on_landing', true)->count();
         if ($services > 0) {
             $stats[] = [
                 'value' => (string) $services,

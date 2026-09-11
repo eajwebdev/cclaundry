@@ -12,96 +12,28 @@ class DefaultLaundryServices
     public static function all(): array
     {
         return [
-            // Small Machine
-            ['name' => 'Wash 7kg',       'pricing_type' => 'load',   'price' => 60,  'category' => 'Small Machine', 'report_category' => 'small', 'landing' => ['pinned' => true, 'icon' => 'droplets', 'order' => 1, 'blurb' => 'A standard 7kg load, sorted by colour and washed at the right temperature.']],
-            ['name' => 'Dry 7kg',        'pricing_type' => 'load',   'price' => 80,  'category' => 'Small Machine', 'report_category' => 'small', 'landing' => ['pinned' => true, 'icon' => 'wind', 'order' => 2, 'blurb' => 'Tumble dried and folded-ready the same day, even when it rains.']],
-            ['name' => 'Fold 7kg',       'pricing_type' => 'load',   'price' => 25,  'category' => 'Small Machine', 'report_category' => 'small', 'landing' => ['pinned' => true, 'icon' => 'package', 'order' => 3, 'blurb' => 'Neatly folded and bagged, kept separate per household.']],
-            ['name' => 'Detergent 80ml', 'pricing_type' => 'custom', 'price' => 15,  'category' => 'Small Machine', 'report_category' => 'small'],
-            ['name' => 'Fabcon 70ml',    'pricing_type' => 'custom', 'price' => 15,  'category' => 'Small Machine', 'report_category' => 'small'],
-
-            // Big Machine
-            ['name' => 'Wash 10kg',       'pricing_type' => 'load',   'price' => 100, 'category' => 'Big Machine', 'report_category' => 'big', 'landing' => ['pinned' => true, 'icon' => 'droplets', 'order' => 4, 'blurb' => 'Our large load, for bigger households and weekly catch-ups.']],
-            ['name' => 'Dry 10kg',        'pricing_type' => 'load',   'price' => 120, 'category' => 'Big Machine', 'report_category' => 'big', 'landing' => ['pinned' => true, 'icon' => 'wind', 'order' => 5, 'blurb' => 'Large-capacity drying for bulkier loads and beddings.']],
-            ['name' => 'Fold 10kg',       'pricing_type' => 'load',   'price' => 35,  'category' => 'Big Machine', 'report_category' => 'big', 'landing' => ['pinned' => true, 'icon' => 'package', 'order' => 6, 'blurb' => 'Folding for the large load, finished by hand.']],
-            ['name' => 'Detergent 100ml', 'pricing_type' => 'custom', 'price' => 20,  'category' => 'Big Machine', 'report_category' => 'big'],
-            ['name' => 'Fabcon 100ml',    'pricing_type' => 'custom', 'price' => 20,  'category' => 'Big Machine', 'report_category' => 'big'],
-
-            // Delivery
-            ['name' => 'Delivery Zone 1', 'pricing_type' => 'custom', 'price' => 20,  'category' => 'Delivery', 'report_category' => 'delivery'],
-            ['name' => 'Delivery Zone 2', 'pricing_type' => 'custom', 'price' => 30,  'category' => 'Delivery', 'report_category' => 'delivery'],
-            ['name' => 'Delivery Zone 3', 'pricing_type' => 'custom', 'price' => 50,  'category' => 'Delivery', 'report_category' => 'delivery'],
-            ['name' => 'Delivery Zone 4', 'pricing_type' => 'custom', 'price' => 100, 'category' => 'Delivery', 'report_category' => 'delivery'],
+            // Full Service
+            ['name' => 'Regular Laundry',                         'pricing_type' => 'kilo', 'price' => 30,  'category' => 'Full Service', 'report_category' => 'wash',    'landing' => ['pinned' => true, 'icon' => 'scale', 'order' => 1, 'blurb' => 'Washed, dried and folded everyday clothes. Minimum order of 5 kg.']],
+            ['name' => 'Comforters, Blankets & Drapes',           'pricing_type' => 'kilo', 'price' => 55,  'category' => 'Full Service', 'report_category' => 'special', 'landing' => ['pinned' => true, 'icon' => 'bed-double', 'order' => 2, 'blurb' => 'Bulky and heavy fabrics, cleaned with extra care. Minimum order of 4 kg.']],
+            ['name' => 'Bed Sheets, Duvets & Towels (max 10kg)',  'pricing_type' => 'load', 'price' => 350, 'category' => 'Full Service', 'report_category' => 'special', 'landing' => ['pinned' => true, 'icon' => 'bed-double', 'order' => 3, 'blurb' => 'A full load of linens, up to 10 kg per load.']],
+            ['name' => 'Bed Sheets, Towels & Curtains (max 4kg)', 'pricing_type' => 'load', 'price' => 150, 'category' => 'Full Service', 'report_category' => 'special', 'landing' => ['pinned' => true, 'icon' => 'bed-double', 'order' => 4, 'blurb' => 'A smaller linen cycle, up to 4 kg per cycle.']],
 
             // Extra Services
-            ['name' => 'Dry Extension',        'pricing_type' => 'custom', 'price' => 20,  'category' => 'Extra Services', 'report_category' => 'other'],
-            ['name' => 'Spin',                 'pricing_type' => 'custom', 'price' => 30,  'category' => 'Extra Services', 'report_category' => 'other'],
-            ['name' => 'Bleach',               'pricing_type' => 'custom', 'price' => 10,  'category' => 'Extra Services', 'report_category' => 'other'],
-            ['name' => 'Handwash',             'pricing_type' => 'piece',  'price' => 50,  'category' => 'Extra Services', 'report_category' => 'other'],
-            ['name' => 'Steam/Iron',           'pricing_type' => 'piece',  'price' => 50,  'category' => 'Extra Services', 'report_category' => 'other'],
-            ['name' => 'Hard Stain',           'pricing_type' => 'custom', 'price' => 50,  'category' => 'Extra Services', 'report_category' => 'other'],
-            ['name' => 'Carpet Cleaning',      'pricing_type' => 'custom', 'price' => 500, 'category' => 'Extra Services', 'report_category' => 'other'],
-            ['name' => 'Dry Clean',            'pricing_type' => 'custom', 'price' => 200, 'category' => 'Extra Services', 'report_category' => 'other'],
-            ['name' => 'Shoe Cleaning',        'pricing_type' => 'piece',  'price' => 350, 'category' => 'Extra Services', 'report_category' => 'other'],
+            ['name' => 'Uniform Steaming (per pair)', 'pricing_type' => 'piece', 'price' => 80, 'category' => 'Extra Services', 'report_category' => 'other', 'landing' => ['pinned' => true, 'icon' => 'flame', 'order' => 5, 'blurb' => 'Uniforms steamed crisp and ready to wear, priced per pair.']],
 
-            // Special Items
-            ['name' => 'Comforter',    'pricing_type' => 'piece',  'price' => 0, 'category' => 'Special Items', 'report_category' => 'other'],
-            ['name' => 'Bed Sheets',   'pricing_type' => 'piece',  'price' => 0, 'category' => 'Special Items', 'report_category' => 'other'],
-            ['name' => 'Thick Linens', 'pricing_type' => 'piece',  'price' => 0, 'category' => 'Special Items', 'report_category' => 'other'],
-
-            // Establishment
-            ['name' => 'Dynasty',       'pricing_type' => 'piece', 'price' => 0, 'category' => 'Establishment', 'report_category' => 'other'],
-            ['name' => 'Estrella',      'pricing_type' => 'piece', 'price' => 0, 'category' => 'Establishment', 'report_category' => 'other'],
-            ['name' => 'Laybare',       'pricing_type' => 'load',  'price' => 0, 'category' => 'Establishment', 'report_category' => 'other'],
-            ['name' => 'Tresor',        'pricing_type' => 'load',  'price' => 0, 'category' => 'Establishment', 'report_category' => 'other'],
-            ['name' => 'Salon De Rose', 'pricing_type' => 'load',  'price' => 0, 'category' => 'Establishment', 'report_category' => 'other'],
-            ['name' => 'Amuma',         'pricing_type' => 'piece', 'price' => 0, 'category' => 'Establishment', 'report_category' => 'other'],
-            ['name' => 'Nailaholics',   'pricing_type' => 'load',  'price' => 0, 'category' => 'Establishment', 'report_category' => 'other'],
-
-            // For Sale Items
-            ['name' => 'Sachet', 'pricing_type' => 'piece', 'price' => 0, 'category' => 'For Sale Items', 'report_category' => 'other'],
+            // Add-ons: the customer's choice of detergent and fabric conditioner.
+            ['name' => 'Ariel Detergent',            'pricing_type' => 'custom', 'price' => 20, 'category' => 'Add-ons', 'report_category' => 'detergent'],
+            ['name' => 'Tide Detergent',             'pricing_type' => 'custom', 'price' => 18, 'category' => 'Add-ons', 'report_category' => 'detergent'],
+            ['name' => 'Downy Mystique Fabcon',      'pricing_type' => 'custom', 'price' => 10, 'category' => 'Add-ons', 'report_category' => 'fabcon'],
+            ['name' => 'Downy Sunrise Fresh Fabcon', 'pricing_type' => 'custom', 'price' => 10, 'category' => 'Add-ons', 'report_category' => 'fabcon'],
         ];
     }
 
     public static function presets(): array
     {
-        return [
-            [
-                'name' => 'Full Service 7kg',
-                'category' => 'Small Machine',
-                'sort_order' => 1,
-                'landing' => [
-                    'pinned' => true,
-                    'icon' => 'package',
-                    'order' => 1,
-                    'blurb' => 'The whole job in one go, for a standard 7kg load. Detergent and fabric conditioner included.',
-                ],
-                'items' => [
-                    'Wash 7kg' => 1,
-                    'Dry 7kg' => 1,
-                    'Fold 7kg' => 1,
-                    'Detergent 80ml' => 1,
-                    'Fabcon 70ml' => 1,
-                ],
-            ],
-            [
-                'name' => 'Full Service 10kg',
-                'category' => 'Big Machine',
-                'sort_order' => 2,
-                'landing' => [
-                    'pinned' => true,
-                    'icon' => 'package',
-                    'order' => 2,
-                    'blurb' => 'Our large bundle for bigger households, with detergent and fabric conditioner included.',
-                ],
-                'items' => [
-                    'Wash 10kg' => 1,
-                    'Dry 10kg' => 1,
-                    'Fold 10kg' => 1,
-                    'Detergent 100ml' => 1,
-                    'Fabcon 100ml' => 1,
-                ],
-            ],
-        ];
+        // The price list sells no bundles. Returning none also clears the old
+        // machine-based presets from each branch on re-seed.
+        return [];
     }
 
     public static function seedForBranch(Branch $branch): void

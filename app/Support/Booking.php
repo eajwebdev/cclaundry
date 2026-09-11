@@ -163,12 +163,15 @@ class Booking
 
     /**
      * Public price list, grouped by category, for the landing page rate card.
+     * Only services staff have allowed on the landing page (Admin > Laundry
+     * Services > "Show on landing page") are published here.
      */
     public static function priceList(): Collection
     {
         return LaundryService::query()
             ->with('serviceCategory')
             ->where('is_active', true)
+            ->where('show_on_landing', true)
             ->whereHas('serviceCategory', fn ($query) => $query->where('is_active', true))
             ->orderBy('service_category_id')
             ->orderBy('name')
