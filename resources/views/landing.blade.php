@@ -364,8 +364,10 @@
                 @if($settings?->facebook_url)
                     <li class="flex items-center gap-3">
                         <span data-lucide="message-circle" class="h-4.5 w-4.5 shrink-0 text-cc-brown"></span>
+                        {{-- Read off the saved URL: the handle was hard-coded here,
+                             so changing the page in settings left the old one showing. --}}
                         <a href="{{ $settings->facebook_url }}" target="_blank" rel="noopener" class="font-semibold hover:text-cc-brown">
-                            facebook.com/canencotton
+                            {{ rtrim(preg_replace('#^https?://(www\.)?#i', '', $settings->facebook_url), '/') }}
                         </a>
                     </li>
                 @endif
