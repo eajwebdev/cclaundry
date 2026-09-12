@@ -100,6 +100,43 @@ class RiderTrackingTest extends TestCase
         ], $overrides));
     }
 
+    /** The list refreshes itself, so the signature has to notice new work. */
+    public function test_the_runs_feed_signature_changes_when_a_booking_appears(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $this->booking($branch, ['rider_id' => $rider->id]);
+
+        $first = $this->actingAs($rider)->getJson(route('rider.runs'))->assertOk();
+        $before = $first->json('signature');
+
+        // Nothing has happened, so the phone should be told to leave the list be.
+        $this->assertSame($before, $this->actingAs($rider)->getJson(route('rider.runs'))->json('signature'));
+
+        $fresh = $this->booking($branch, ['status' => 'pending']);
+
+        $after = $this->actingAs($rider)->getJson(route('rider.runs'))->assertOk();
+
+        $this->assertNotSame($before, $after->json('signature'));
+        $this->assertStringContainsString($fresh->reference_no, $after->json('html'));
+    }
+
+    /** Another rider's work must not arrive through the refresh either. */
+    public function test_the_runs_feed_never_returns_another_riders_work(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $otherRider = $this->rider($branch);
+
+        $theirs = $this->booking($branch, ['rider_id' => $otherRider->id]);
+        $otherBranch = $this->booking($this->secondBranch(), ['status' => 'pending']);
+
+        $html = $this->actingAs($rider)->getJson(route('rider.runs'))->assertOk()->json('html');
+
+        $this->assertStringNotContainsString($theirs->reference_no, $html);
+        $this->assertStringNotContainsString($otherBranch->reference_no, $html);
+    }
+
     /** The run map is the same work, so it must obey the same boundaries. */
     private function jobOrder(Branch $branch, string $status): JobOrder
     {

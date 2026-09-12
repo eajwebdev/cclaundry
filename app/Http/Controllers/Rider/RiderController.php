@@ -77,14 +77,60 @@ class RiderController extends Controller
             ->whereDate('delivered_at', today())
             ->count();
 
-        return view('rider.index', [
+        $data = [
             'rider' => $rider,
             'toCollect' => $toCollect,
             'toDeliver' => $toDeliver,
             'recent' => $recent,
             'available' => $available,
             'completedToday' => $completedToday,
+        ];
+
+        return view('rider.index', $data + [
+            'runsSignature' => $this->runsSignature($data),
         ]);
+    }
+
+    /**
+     * The same list, rendered again for a phone that is already showing it.
+     *
+     * The server stays the author of how a run looks: this hands back the very
+     * markup the page was built with rather than a shape the client has to
+     * know how to draw. The signature lets the phone skip the swap when
+     * nothing has moved, which is most of the time.
+     */
+    public function runsFeed(Request $request)
+    {
+        $rider = $request->user();
+        $page = $this->index($request);
+        $data = $page->getData();
+
+        return response()->json([
+            'signature' => $data['runsSignature'],
+            'html' => view('rider.partials.runs', $data)->render(),
+            'fetched_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * A fingerprint of everything the list shows. Any new run, any status
+     * change and any reassignment moves it; a page view does not.
+     */
+    private function runsSignature(array $data): string
+    {
+        $parts = collect(['toCollect', 'toDeliver', 'recent', 'available'])
+            ->flatMap(fn (string $key) => $data[$key]
+                ->map(fn (PickupRequest $job) => implode(':', [
+                    $job->id,
+                    $job->status,
+                    $job->rider_id,
+                    $job->tag_code,
+                    $job->updated_at?->getTimestamp(),
+                ]))
+                ->all())
+            ->push('done:'.$data['completedToday']);
+
+        return md5($parts->implode('|'));
     }
 
     public function show(Request $request, PickupRequest $pickupRequest)

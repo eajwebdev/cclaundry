@@ -4,6 +4,7 @@ import 'flatpickr/dist/flatpickr.min.css';
 import Chart from 'chart.js/auto';
 import Alpine from 'alpinejs';
 import installRiderOverview from './rider-overview';
+import installRiderRuns from './rider-runs';
 import Swal from 'sweetalert2';
 import {
     Activity,
@@ -110,6 +111,7 @@ import {
 // Registered here rather than in the map bundle on purpose: the rider's run
 // map has to render its address list even when the map bundle never arrives.
 installRiderOverview();
+installRiderRuns();
 
 window.Alpine = Alpine;
 window.Swal = Swal;

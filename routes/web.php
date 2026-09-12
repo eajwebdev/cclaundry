@@ -167,6 +167,11 @@ Route::middleware('attendance.employee')->group(function () {
 */
 Route::middleware(['auth', 'rider'])->prefix('rider')->name('rider.')->group(function () {
     Route::get('/', [RiderController::class, 'index'])->name('index');
+    // The run list, re-rendered for a phone that already has it open.
+    Route::get('/runs', [RiderController::class, 'runsFeed'])
+        ->middleware('throttle:120,1')
+        ->name('runs');
+
     // Every run on one map, so a rider can pick their next stop by looking
     // rather than by reading down a list.
     Route::get('/map', [RiderController::class, 'map'])->name('map');
