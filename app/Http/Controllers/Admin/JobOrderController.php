@@ -133,7 +133,7 @@ class JobOrderController extends Controller
         $services = LaundryService::where('is_active', true)
             ->when(! in_array($user->role, ['super_admin', 'admin'], true), fn ($q) => $q->where('branch_id', $user->branch_id))
             ->orderBy('name')
-            ->get(['id', 'branch_id', 'name', 'service_category_id', 'pricing_type', 'price']);
+            ->get(['id', 'branch_id', 'name', 'service_category_id', 'pricing_type', 'price', 'price_unit_label']);
 
         $serviceCategories = LaundryServiceCategory::where('is_active', true)
             ->orderBy('sort_order')
@@ -229,7 +229,7 @@ class JobOrderController extends Controller
                 ->where('is_active', true)
                 ->orWhereIn('id', $serviceIds))
             ->orderBy('name')
-            ->get(['id', 'branch_id', 'name', 'service_category_id', 'report_category', 'pricing_type', 'price']);
+            ->get(['id', 'branch_id', 'name', 'service_category_id', 'report_category', 'pricing_type', 'price', 'price_unit_label']);
 
         $branches = Branch::query()
             ->whereKey($branchId)

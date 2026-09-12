@@ -14,21 +14,22 @@ class DefaultLaundryServices
         return [
             // Full Service
             ['name' => 'Regular Laundry',                         'pricing_type' => 'kilo', 'price' => 30,  'minimum_kilos' => 5, 'category' => 'Full Service', 'report_category' => 'wash',    'landing' => ['pinned' => true, 'icon' => 'scale', 'order' => 1, 'blurb' => 'Washed, dried and folded everyday clothes. Minimum order of 5 kg.']],
-            ['name' => 'Comforters, Blankets & Drapes',           'pricing_type' => 'kilo', 'price' => 55,  'minimum_kilos' => 4, 'category' => 'Full Service', 'report_category' => 'special', 'landing' => ['pinned' => true, 'icon' => 'bed-double', 'order' => 2, 'blurb' => 'Bulky and heavy fabrics, cleaned with extra care. Minimum order of 4 kg.']],
-            ['name' => 'Bed Sheets, Towels & Curtains (max 10kg)',  'pricing_type' => 'load', 'price' => 350, 'category' => 'Full Service', 'report_category' => 'special', 'landing' => ['pinned' => true, 'icon' => 'bed-double', 'order' => 3, 'blurb' => 'A full load of linens, up to 10 kg per load.']],
+            ['name' => 'Blankets, Comforters & Duvets',           'pricing_type' => 'kilo', 'price' => 55,  'minimum_kilos' => 4, 'category' => 'Full Service', 'report_category' => 'special', 'landing' => ['pinned' => true, 'icon' => 'bed-double', 'order' => 2, 'blurb' => 'Bulky and heavy fabrics, cleaned with extra care. Minimum order of 4 kg, maximum 10 kg per load.']],
+            ['name' => 'Bed Sheets and Towels (max 10kg)',        'pricing_type' => 'load', 'price' => 350, 'category' => 'Full Service', 'report_category' => 'special', 'landing' => ['pinned' => true, 'icon' => 'bed-double', 'order' => 3, 'blurb' => 'A full load of linens, up to 10 kg per load.']],
+            ['name' => 'Wash Only',                               'pricing_type' => 'load', 'price' => 85,  'category' => 'Full Service', 'report_category' => 'wash',    'landing' => ['pinned' => true, 'icon' => 'laundry', 'order' => 4, 'blurb' => 'Washing only, up to 10 kg per load.']],
+            ['name' => 'Dry Only',                                'pricing_type' => 'load', 'price' => 95,  'category' => 'Full Service', 'report_category' => 'dry',     'landing' => ['pinned' => true, 'icon' => 'wind', 'order' => 5, 'blurb' => 'Drying only, up to 10 kg per load.']],
 
             // Extra Services
-            ['name' => 'Uniform Steaming (Kids)',  'pricing_type' => 'piece', 'price' => 80,  'category' => 'Extra Services', 'report_category' => 'other', 'landing' => ['pinned' => true, 'icon' => 'flame', 'order' => 4, 'blurb' => 'Uniforms steamed crisp and ready to wear, priced per pair.']],
-            ['name' => 'Uniform Steaming (Adult)', 'pricing_type' => 'piece', 'price' => 100, 'category' => 'Extra Services', 'report_category' => 'other', 'landing' => ['pinned' => true, 'icon' => 'flame', 'order' => 5, 'blurb' => 'Uniforms steamed crisp and ready to wear, priced per pair.']],
+            ['name' => 'Uniform Steaming (Kids)',  'pricing_type' => 'piece', 'price' => 80,  'price_unit_label' => 'per pair', 'category' => 'Extra Services', 'report_category' => 'other', 'landing' => ['pinned' => true, 'icon' => 'flame', 'order' => 6, 'blurb' => 'Uniforms steamed crisp and ready to wear, priced per pair.']],
+            ['name' => 'Uniform Steaming (Adult)', 'pricing_type' => 'piece', 'price' => 100, 'price_unit_label' => 'per pair', 'category' => 'Extra Services', 'report_category' => 'other', 'landing' => ['pinned' => true, 'icon' => 'flame', 'order' => 7, 'blurb' => 'Uniforms steamed crisp and ready to wear, priced per pair.']],
 
             // Add-ons: the customer's choice of detergent and fabric conditioner.
             // Pinned so they show on the public price list exactly as the poster
             // does; Booking::services() keeps them out of the bookable list,
             // because nobody books "Ariel" as their laundry service.
-            ['name' => 'Ariel Detergent',            'pricing_type' => 'custom', 'price' => 20, 'category' => 'Add-ons', 'report_category' => 'detergent', 'landing' => ['pinned' => true, 'icon' => 'droplets', 'order' => 6, 'blurb' => 'Per load.']],
-            ['name' => 'Tide Detergent',             'pricing_type' => 'custom', 'price' => 18, 'category' => 'Add-ons', 'report_category' => 'detergent', 'landing' => ['pinned' => true, 'icon' => 'droplets', 'order' => 7, 'blurb' => 'Per load.']],
-            ['name' => 'Downy Mystique Fabcon',      'pricing_type' => 'custom', 'price' => 10, 'category' => 'Add-ons', 'report_category' => 'fabcon', 'landing' => ['pinned' => true, 'icon' => 'sparkles', 'order' => 8, 'blurb' => 'Per load.']],
-            ['name' => 'Downy Sunrise Fresh Fabcon', 'pricing_type' => 'custom', 'price' => 10, 'category' => 'Add-ons', 'report_category' => 'fabcon', 'landing' => ['pinned' => true, 'icon' => 'sparkles', 'order' => 9, 'blurb' => 'Per load.']],
+            ['name' => 'Ariel Detergent',            'pricing_type' => 'custom', 'price' => 20, 'category' => 'Add-ons', 'report_category' => 'detergent', 'landing' => ['pinned' => true, 'icon' => 'droplets', 'order' => 8, 'blurb' => 'Per load.']],
+            ['name' => 'Tide Detergent',             'pricing_type' => 'custom', 'price' => 18, 'category' => 'Add-ons', 'report_category' => 'detergent', 'landing' => ['pinned' => true, 'icon' => 'droplets', 'order' => 9, 'blurb' => 'Per load.']],
+            ['name' => 'Downy',                      'pricing_type' => 'custom', 'price' => 10, 'category' => 'Add-ons', 'report_category' => 'fabcon', 'landing' => ['pinned' => true, 'icon' => 'sparkles', 'order' => 10, 'blurb' => 'Per load.']],
         ];
     }
 
@@ -62,6 +63,7 @@ class DefaultLaundryServices
                 'report_category'     => $service['report_category'],
                 'price'               => $service['price'],
                 'minimum_kilos'       => $service['minimum_kilos'] ?? null,
+                'price_unit_label'    => $service['price_unit_label'] ?? null,
                 'is_active'           => true,
                 'deleted_at'          => null,
             ];

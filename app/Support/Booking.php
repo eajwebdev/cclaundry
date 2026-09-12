@@ -107,6 +107,7 @@ class Booking
             'pricing_type' => 'preset',
             'minimum_kilos' => null,
             'unit' => 'per bundle',
+            'unit_short' => 'bundle',
             'icon' => $preset->landingIcon(),
             'blurb' => $preset->landing_blurb,
             'includes' => $preset->includedServiceNames(),
@@ -122,6 +123,7 @@ class Booking
             'pricing_type' => $service->pricing_type,
             'minimum_kilos' => $service->minimum_kilos !== null ? (float) $service->minimum_kilos : null,
             'unit' => $service->priceUnitLabel(),
+            'unit_short' => $service->priceUnitShort(),
             'icon' => $service->landingIcon(),
             'blurb' => $service->landing_blurb,
             'includes' => [],
@@ -149,6 +151,7 @@ class Booking
             // would never apply.
             'minimum_kilos' => null,
             'unit' => $service->priceUnitLabel(),
+            'unit_short' => $service->priceUnitShort(),
             'icon' => $service->landingIcon(),
             'blurb' => $service->landing_blurb,
             'includes' => [],

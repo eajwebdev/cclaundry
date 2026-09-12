@@ -115,7 +115,7 @@
                             <div class="flex items-start justify-between gap-3">
                                 <div class="min-w-0">
                                     <p class="truncate text-sm font-medium" x-text="service.name"></p>
-                                    <p class="mt-1 text-xs capitalize text-muted" x-text="service.pricing_type"></p>
+                                    <p class="mt-1 text-xs capitalize text-muted" x-text="service.price_unit_label || service.pricing_type"></p>
                                 </div>
                                 <span class="shrink-0 rounded-md bg-smoke px-2 py-1 text-xs font-medium text-primary dark:bg-gray-950">
                                     {{ $appSettings?->currency ?? 'PHP' }} <span x-text="money(service.price)"></span>

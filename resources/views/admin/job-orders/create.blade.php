@@ -246,7 +246,7 @@
                                     </span>
                                     <div class="min-w-0">
                                         <p class="truncate text-sm font-medium" x-text="service.name"></p>
-                                        <p class="mt-0.5 truncate text-[10px] capitalize text-muted" x-text="service.pricing_type"></p>
+                                        <p class="mt-0.5 truncate text-[10px] capitalize text-muted" x-text="service.price_unit_label || service.pricing_type"></p>
                                     </div>
                                 </div>
                                 <span class="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-xs font-bold text-primary">

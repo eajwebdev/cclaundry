@@ -204,6 +204,7 @@ class LaundryServiceController extends Controller
             'price'               => ['required', 'numeric', 'min:0'],
             // Only weighed services have one; anything else ignores it.
             'minimum_kilos'       => ['nullable', 'numeric', 'min:0', 'max:9999'],
+            'price_unit_label'    => ['nullable', 'string', 'max:40'],
             'is_active'           => ['nullable', 'boolean'],
             'show_on_landing'     => ['nullable', 'boolean'],
             'landing_blurb'       => ['nullable', 'string', 'max:255'],

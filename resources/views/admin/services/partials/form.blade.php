@@ -57,6 +57,14 @@
         </div>
 
         <div>
+            <label class="mb-1.5 block text-sm font-medium">Price Unit Label</label>
+            <input type="text" name="price_unit_label" maxlength="40" placeholder="{{ $service->exists ? $service->priceUnitLabel() : 'per kilo' }}"
+                   value="{{ old('price_unit_label', $service->price_unit_label) }}"
+                   class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+            <p class="mt-1 text-xs text-muted">Overrides the wording beside the price, e.g. &ldquo;per pair&rdquo;. Blank uses the pricing type.</p>
+        </div>
+
+        <div>
             <label class="mb-1.5 block text-sm font-medium">Z Reading Column</label>
             <select name="report_category" class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
                 @foreach(\App\Support\ServiceCategories::LABELS as $key => $label)

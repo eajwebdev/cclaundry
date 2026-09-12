@@ -8,14 +8,6 @@
 
     // The price list never uses centavos, so "₱30" rather than "₱30.00".
     $peso = fn ($amount) => '₱'.number_format((float) $amount, fmod((float) $amount, 1) ? 2 : 0);
-    $unitShort = fn (?string $type) => match ($type) {
-        'kilo' => 'kg',
-        'load' => 'load',
-        'piece' => 'pc',
-        'preset' => 'bundle',
-        default => null,
-    };
-
 @endphp
 
 @section('content')
@@ -190,7 +182,7 @@
                     {{-- Block form on purpose: the one-line form, in a file that
                          also uses the block form, makes Blade swallow everything
                          up to the next closing tag. --}}
-                    @php $unit = $unitShort($offering['pricing_type']); @endphp
+                    @php $unit = $offering['unit_short'] ?: null; @endphp
                     <a href="#book" @click="$dispatch('preselect-offering', '{{ $offering['key'] }}')"
                        class="cc-card group relative flex items-center gap-4 p-3 pr-4 transition hover:-translate-y-0.5 hover:border-cc-tan lg:flex-col lg:items-start lg:gap-3 lg:p-5">
                         <span class="cc-icon-tile h-20 w-20 rounded-2xl lg:h-14 lg:w-14">

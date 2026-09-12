@@ -10,7 +10,7 @@ class LaundryService extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'branch_id', 'service_category_id', 'name', 'report_category', 'pricing_type', 'price', 'minimum_kilos',
+        'branch_id', 'service_category_id', 'name', 'report_category', 'pricing_type', 'price', 'minimum_kilos', 'price_unit_label',
         'is_active', 'show_on_landing', 'landing_blurb', 'landing_icon', 'landing_sort_order',
     ];
 
@@ -67,11 +67,32 @@ class LaundryService extends Model
     /** How the price reads to a customer, e.g. "per load". */
     public function priceUnitLabel(): string
     {
+        // Set per service where the pricing type's own wording is wrong:
+        // steaming bills per item but is sold per pair.
+        if (filled($this->price_unit_label)) {
+            return $this->price_unit_label;
+        }
+
         return match ($this->pricing_type) {
             'kilo' => 'per kilo',
             'load' => 'per load',
             'piece' => 'per piece',
             default => 'fixed price',
+        };
+    }
+
+    /** The same unit, abbreviated for the price-list tiles: kg, load, pc, pair. */
+    public function priceUnitShort(): string
+    {
+        if (filled($this->price_unit_label)) {
+            return trim(preg_replace('/^per\s+/i', '', $this->price_unit_label));
+        }
+
+        return match ($this->pricing_type) {
+            'kilo' => 'kg',
+            'load' => 'load',
+            'piece' => 'pc',
+            default => '',
         };
     }
 
