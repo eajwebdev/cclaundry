@@ -25,7 +25,10 @@
     <form
         method="POST"
         action="{{ $isEditing ? route('admin.job-orders.update', $jobOrder) : route('admin.job-orders.store') }}"
-        class="grid gap-4 lg:h-[calc(100dvh-7.5rem)] lg:grid-cols-[minmax(0,1fr)_20rem] lg:overflow-hidden 2xl:grid-cols-[minmax(0,1fr)_22rem]"
+        {{-- The cart becomes a side rail from tablet width up. Stacked, a
+             cashier on a 10" tablet has to scroll past the whole catalog to
+             reach the total and the pay button. --}}
+        class="grid gap-4 md:h-[calc(100dvh-7.5rem)] md:grid-cols-[minmax(0,1fr)_17rem] md:overflow-hidden lg:grid-cols-[minmax(0,1fr)_20rem] 2xl:grid-cols-[minmax(0,1fr)_22rem]"
     >
         @csrf
         @if($isEditing)
@@ -186,7 +189,7 @@
                  viewport. The cart rail takes up to 22rem, so a 1024px screen only
                  leaves the catalog ~630px — viewport breakpoints would put three
                  columns in there and truncate every label. --}}
-            <div class="@container/catalog flex max-h-[68dvh] flex-col rounded-lg border border-border bg-white p-3 shadow-sm lg:h-[calc(100%-13.5rem)] lg:max-h-none dark:border-gray-800 dark:bg-gray-900">
+            <div class="@container/catalog flex max-h-[68dvh] flex-col rounded-lg border border-border bg-white p-3 shadow-sm md:h-[calc(100%-13.5rem)] md:max-h-none dark:border-gray-800 dark:bg-gray-900">
                 <!-- Catalog Header -->
                 <div class="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
                     <div class="flex min-w-0 items-center gap-2">
@@ -211,7 +214,10 @@
                 </div>
 
                 <!-- Service Grid -->
-                <div class="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1 @lg/catalog:grid-cols-2 @3xl/catalog:grid-cols-3 @5xl/catalog:grid-cols-4" x-effect="[...filteredPresets.map(preset => `p${preset.id}`), ...filteredServices.map(service => `s${service.id}`)].join(','); refreshIcons()">
+                {{-- Two columns as soon as the panel can hold them, so a tablet
+                     shows a usable catalog beside the cart rather than one
+                     tile per row. --}}
+                <div class="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1 @md/catalog:grid-cols-2 @3xl/catalog:grid-cols-3 @5xl/catalog:grid-cols-4" x-effect="[...filteredPresets.map(preset => `p${preset.id}`), ...filteredServices.map(service => `s${service.id}`)].join(','); refreshIcons()">
                     <template x-for="preset in filteredPresets" :key="`preset-${preset.id}`">
                         <button type="button" @click="addPreset(preset)" class="group min-w-0 rounded-lg border border-primary/30 bg-primary/5 p-3 text-left transition-all hover:border-primary hover:bg-primary/10 hover:shadow-sm dark:border-primary/40 dark:bg-primary/10">
                             <div class="flex items-start justify-between gap-2">
@@ -257,7 +263,7 @@
         </section>
 
         <!-- RIGHT SIDE - CART -->
-        <aside class="min-h-0 w-full lg:w-80 lg:self-stretch xl:w-[22rem] xl:justify-self-end">
+        <aside class="min-h-0 w-full md:w-[17rem] md:self-stretch lg:w-80 xl:w-[22rem] xl:justify-self-end">
             <div class="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <!-- Cart Header -->
                 <div class="shrink-0 border-b border-border p-4 dark:border-gray-800">

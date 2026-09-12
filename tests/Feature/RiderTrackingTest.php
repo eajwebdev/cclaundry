@@ -52,6 +52,18 @@ class RiderTrackingTest extends TestCase
         ]);
     }
 
+    /** A second, different branch: branch codes are unique. */
+    private function secondBranch(): Branch
+    {
+        return Branch::query()->create([
+            'name' => 'Ilog Satellite',
+            'code' => 'ILG',
+            'address' => 'Ilog, Negros Occidental',
+            'is_active' => true,
+            'machine_count' => 2,
+        ]);
+    }
+
     private function rider(Branch $branch): User
     {
         return User::factory()->create([
@@ -87,7 +99,7 @@ class RiderTrackingTest extends TestCase
         ], $overrides));
     }
 
-    public function test_rider_lands_on_the_console_and_only_sees_their_own_runs(): void
+    public function test_rider_sees_their_own_runs_and_what_is_free_to_take(): void
     {
         $branch = $this->branch();
         $rider = $this->rider($branch);
@@ -95,14 +107,196 @@ class RiderTrackingTest extends TestCase
 
         $mine = $this->booking($branch, ['rider_id' => $rider->id]);
         $theirs = $this->booking($branch, ['rider_id' => $otherRider->id]);
-        $unassigned = $this->booking($branch);
+        $unassigned = $this->booking($branch, ['status' => 'pending']);
+        $otherBranch = $this->booking($this->secondBranch(), ['status' => 'pending']);
 
         $this->actingAs($rider)
             ->get(route('rider.index'))
             ->assertOk()
             ->assertSee($mine->reference_no)
+            ->assertSee($unassigned->reference_no)
             ->assertDontSee($theirs->reference_no)
-            ->assertDontSee($unassigned->reference_no);
+            ->assertDontSee($otherBranch->reference_no);
+    }
+
+    public function test_confirming_a_booking_assigns_it_to_the_rider_who_confirmed_it(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['status' => 'pending']);
+
+        $this->actingAs($rider)
+            ->post(route('rider.jobs.claim', $job))
+            ->assertRedirect(route('rider.jobs.show', $job));
+
+        $job->refresh();
+
+        $this->assertSame($rider->id, $job->rider_id);
+        $this->assertSame('confirmed', $job->status);
+        $this->assertNotNull($job->assigned_at);
+        $this->assertNotNull($job->confirmed_at);
+    }
+
+    /** Two riders tapping at once must not both end up holding the same run. */
+    public function test_a_run_already_taken_cannot_be_claimed_again(): void
+    {
+        $branch = $this->branch();
+        $first = $this->rider($branch);
+        $second = $this->rider($branch);
+        $job = $this->booking($branch, ['status' => 'pending']);
+
+        $this->actingAs($first)->post(route('rider.jobs.claim', $job));
+
+        $this->actingAs($second)
+            ->post(route('rider.jobs.claim', $job))
+            ->assertForbidden();
+
+        $this->assertSame($first->id, $job->refresh()->rider_id);
+    }
+
+    public function test_a_rider_cannot_claim_another_branchs_booking(): void
+    {
+        $rider = $this->rider($this->branch());
+        $elsewhere = $this->booking($this->secondBranch(), ['status' => 'pending']);
+
+        $this->actingAs($rider)
+            ->post(route('rider.jobs.claim', $elsewhere))
+            ->assertForbidden();
+
+        $this->assertNull($elsewhere->refresh()->rider_id);
+    }
+
+    public function test_a_rider_can_hand_a_run_back_to_the_branch(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+
+        $this->actingAs($rider)
+            ->patch(route('rider.jobs.release', $job))
+            ->assertRedirect(route('rider.index'));
+
+        $job->refresh();
+
+        $this->assertNull($job->rider_id);
+        // Still confirmed and still open, so it shows up for the next rider.
+        $this->assertSame('confirmed', $job->status);
+    }
+
+    public function test_laundry_already_collected_cannot_be_handed_back(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'picked_up']);
+
+        $this->actingAs($rider)->patch(route('rider.jobs.release', $job));
+
+        $this->assertSame($rider->id, $job->refresh()->rider_id);
+    }
+
+    public function test_a_rider_cancels_with_a_reason_the_branch_can_repeat(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+
+        $this->actingAs($rider)
+            ->patch(route('rider.jobs.cancel', $job), ['reason' => 'Nobody home after three calls'])
+            ->assertRedirect(route('rider.index'));
+
+        $job->refresh();
+
+        $this->assertSame('cancelled', $job->status);
+        $this->assertNotNull($job->cancelled_at);
+        $this->assertStringContainsString('Nobody home', (string) $job->cancellation_reason);
+    }
+
+    public function test_cancelling_without_saying_why_is_refused(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+
+        $this->actingAs($rider)
+            ->patch(route('rider.jobs.cancel', $job), ['reason' => ''])
+            ->assertSessionHasErrors('reason');
+
+        $this->assertSame('confirmed', $job->refresh()->status);
+    }
+
+    public function test_a_rider_cannot_cancel_another_riders_run(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $theirs = $this->booking($branch, ['rider_id' => $this->rider($branch)->id, 'status' => 'confirmed']);
+
+        $this->actingAs($rider)
+            ->patch(route('rider.jobs.cancel', $theirs), ['reason' => 'not mine to cancel'])
+            ->assertForbidden();
+
+        $this->assertSame('confirmed', $theirs->refresh()->status);
+    }
+
+    /** The tag is what stops one customer's laundry going home with another. */
+    public function test_collecting_requires_the_bag_tag_number(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+
+        $this->actingAs($rider)
+            ->patch(route('rider.jobs.status', $job), ['status' => 'picked_up'])
+            ->assertSessionHasErrors('tag_code');
+
+        $this->assertSame('confirmed', $job->refresh()->status);
+    }
+
+    public function test_collecting_records_the_tag_and_what_the_rider_was_paid(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+
+        $this->actingAs($rider)
+            ->patch(route('rider.jobs.status', $job), [
+                'status' => 'picked_up',
+                'tag_code' => 'cc-1234',
+                'collected_amount' => 195.50,
+                'collected_payment_method' => 'cash',
+            ])
+            ->assertRedirect(route('rider.index'));
+
+        $job->refresh();
+
+        $this->assertSame('picked_up', $job->status);
+        // Stored upper-case, however the rider typed it.
+        $this->assertSame('CC-1234', $job->tag_code);
+        $this->assertSame('195.50', (string) $job->collected_amount);
+        $this->assertSame('cash', $job->collected_payment_method);
+        $this->assertNotNull($job->picked_up_at);
+    }
+
+    /** Two loads under one tag is exactly the mix-up the tag exists to prevent. */
+    public function test_a_tag_already_on_another_load_is_refused(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $first = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+        $second = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+
+        $this->actingAs($rider)->patch(route('rider.jobs.status', $first), [
+            'status' => 'picked_up',
+            'tag_code' => 'CC-7777',
+        ]);
+
+        $this->actingAs($rider)->patch(route('rider.jobs.status', $second), [
+            'status' => 'picked_up',
+            'tag_code' => 'CC-7777',
+        ]);
+
+        $this->assertSame('picked_up', $first->refresh()->status);
+        $this->assertSame('confirmed', $second->refresh()->status);
+        $this->assertNull($second->tag_code);
     }
 
     public function test_rider_cannot_open_another_riders_job(): void
@@ -231,12 +425,14 @@ class RiderTrackingTest extends TestCase
 
         $this->assertSame('confirmed', $job->refresh()->status);
 
+        // Collecting now carries the bag tag, so the load can be matched back.
         $this->actingAs($rider)
-            ->patch(route('rider.jobs.status', $job), ['status' => 'picked_up'])
+            ->patch(route('rider.jobs.status', $job), ['status' => 'picked_up', 'tag_code' => 'CC-0001'])
             ->assertRedirect(route('rider.index'));
 
         $job->refresh();
         $this->assertSame('picked_up', $job->status);
+        $this->assertSame('CC-0001', $job->tag_code);
         $this->assertNotNull($job->picked_up_at);
 
         $this->actingAs($rider)

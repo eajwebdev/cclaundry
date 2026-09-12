@@ -177,6 +177,44 @@ class RiderRoutingTest extends TestCase
             ->assertForbidden();
     }
 
+    /** Deciding whether to take a run means seeing the way to it first. */
+    public function test_a_rider_can_route_a_booking_that_is_still_free_to_take(): void
+    {
+        Http::fake(['*' => Http::response($this->osrmResponse())]);
+
+        [, $job] = $this->job();
+        $job->update(['rider_id' => null, 'status' => 'pending']);
+
+        $sameBranchRider = User::factory()->create([
+            'role' => 'rider', 'branch_id' => $job->branch_id, 'status' => 'active', 'access' => [],
+        ]);
+
+        $this->actingAs($sameBranchRider)
+            ->getJson(route('rider.jobs.route', $job).'?latitude=10.0021&longitude=122.8172')
+            ->assertOk()
+            ->assertJsonCount(1, 'routes');
+    }
+
+    public function test_a_rider_cannot_route_an_unclaimed_booking_at_another_branch(): void
+    {
+        Http::preventStrayRequests();
+
+        [, $job] = $this->job();
+        $job->update(['rider_id' => null, 'status' => 'pending']);
+
+        $elsewhere = Branch::query()->create([
+            'name' => 'Ilog Satellite', 'code' => 'ILG', 'is_active' => true, 'machine_count' => 2,
+        ]);
+
+        $outsider = User::factory()->create([
+            'role' => 'rider', 'branch_id' => $elsewhere->id, 'status' => 'active', 'access' => [],
+        ]);
+
+        $this->actingAs($outsider)
+            ->getJson(route('rider.jobs.route', $job).'?latitude=10.0021&longitude=122.8172')
+            ->assertForbidden();
+    }
+
     public function test_deviation_distance_is_measured_from_the_line(): void
     {
         $line = [[122.8112, 9.9886], [122.8140, 9.9950]];

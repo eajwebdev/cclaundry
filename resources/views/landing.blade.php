@@ -401,6 +401,8 @@
             @foreach ([
                 ['Do I need an account to book?', 'You can fill in the whole booking first &mdash; we only ask you to create an account at the last step, and it takes a few seconds. The account is what lets you track the order, cancel it and rebook next time.'],
                 ['How much does pickup and delivery cost?', 'Nothing. Pickup and delivery are free for orders of 5 kg and above. You only pay for the laundry itself, confirmed once your bag is weighed.'],
+                ['When and how do I pay?', 'Our rider collects payment when they pick your laundry up, in cash or GCash &mdash; so please have it ready at the door. The amount follows the price list and the estimate you see while booking; anything left over or short is settled at the branch once your bag is weighed.'],
+                ['How do you keep my laundry from being mixed up with someone else&rsquo;s?', 'Your bag is tagged at pickup with a code the rider writes down &mdash; you will see it on your tracking page. That tag stays with your laundry through washing, drying and folding, so it is matched back to you by number rather than by memory.'],
                 ['When will my laundry come back?', 'Standard turnaround is 24 hours from pickup. Choose rush when booking and we prioritise your load for same-day handling where the schedule allows.'],
                 ['How is the price calculated?', 'Loads are priced by weight against our published price list. The estimate you see while booking is a guide; the exact total is confirmed once your bag is weighed at the branch.'],
                 ['Can I change or cancel a booking?', 'Yes. Open My bookings and cancel any request that has not been collected yet. To move a pickup to another day, cancel and rebook, or call the branch directly.'],
@@ -465,6 +467,14 @@
                     <span data-lucide="time" class="h-4.5 w-4.5 shrink-0 text-cc-brown"></span>
                     Pickups daily, 8:00 AM &ndash; 7:00 PM
                 </li>
+                @if($settings?->facebook_url)
+                    <li class="flex items-center gap-3">
+                        <span data-lucide="message-circle" class="h-4.5 w-4.5 shrink-0 text-cc-brown"></span>
+                        <a href="{{ $settings->facebook_url }}" target="_blank" rel="noopener" class="font-semibold hover:text-cc-brown">
+                            facebook.com/canencotton
+                        </a>
+                    </li>
+                @endif
             </ul>
 
             <div class="mt-6 grid gap-2.5 sm:grid-cols-2">

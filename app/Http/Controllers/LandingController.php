@@ -41,9 +41,6 @@ class LandingController extends Controller
                     ->orderBy('pickup_date')
                     ->get()
                 : collect(),
-            // A booking captured before sign-up is replayed into the form so
-            // nothing the customer typed is lost.
-            'pendingBooking' => $request->session()->get(Booking::PENDING_SESSION_KEY),
             'stats' => $this->stats(),
         ]);
     }

@@ -95,6 +95,10 @@ class BillingSystemTest extends TestCase
     {
         $this->completeSystemSettings();
         $this->expiredTrial(graceDays: 2);
+        // Five days past due here, so the branch only keeps working while the
+        // billing grace is wider than that; at the default 2 days it is locked
+        // out instead (see the suspended/locked test below).
+        config(['billing.lock_grace_days' => 7]);
         $this->travelTo(Carbon::parse('2026-05-10'));
 
         $paidBranch = $this->createBranch('Paid Branch', 'PAID');
@@ -141,12 +145,12 @@ class BillingSystemTest extends TestCase
         $this->actingAs($unpaidUser)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Your branch subscription for May 2026 is overdue');
+            ->assertSee('Your subscription for May 2026 is overdue by 5 days');
 
         $this->actingAs($missingUser)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('No active branch subscription was found for May 2026')
+            ->assertSee('No active subscription was found for May 2026')
             ->assertSee('Subscription Warning');
     }
 
@@ -168,14 +172,16 @@ class BillingSystemTest extends TestCase
             'billing_month' => 5,
             'billing_year' => 2026,
             'amount' => 1000,
-            'due_date' => '2026-05-05',
+            // Due in two days: a prompt to pay, which the branch may dismiss.
+            // Once it is actually overdue the notice stops being dismissible.
+            'due_date' => '2026-05-09',
             'status' => 'unpaid',
         ]);
 
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Your branch subscription for May 2026 is overdue')
+            ->assertSee('Your subscription for May 2026 is due on May 09, 2026')
             ->assertSee('Dismiss billing notice');
     }
 
@@ -259,6 +265,9 @@ class BillingSystemTest extends TestCase
     {
         $this->completeSystemSettings();
         $this->expiredTrial(graceDays: 0);
+        // The renewal prompt opens inside the notify window, so widen it to the
+        // five days this test is about.
+        config(['billing.notify_days_before' => 5]);
         $this->travelTo(Carbon::parse('2026-06-25'));
 
         $branch = $this->createBranch('Upcoming Billing Branch', 'UPB');
@@ -283,7 +292,7 @@ class BillingSystemTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Upcoming Billing')
-            ->assertSee('Next billing is coming up in 5 days.')
+            ->assertSee('Your subscription ends in 5 days (Jun 30, 2026)')
             ->assertSee('Subscription Notifications')
             ->assertSee('autoOpen: true', false);
     }
@@ -292,6 +301,9 @@ class BillingSystemTest extends TestCase
     {
         $this->completeSystemSettings();
         $this->expiredTrial(graceDays: 0);
+        // The bell lists what falls inside the notify window; this test is
+        // about a bill five days out.
+        config(['billing.notify_days_before' => 5]);
         $this->travelTo(Carbon::parse('2026-06-10'));
 
         $branch = $this->createBranch('Due Soon Branch', 'DUE');
@@ -318,7 +330,7 @@ class BillingSystemTest extends TestCase
             ->assertSee('Subscription Notifications')
             ->assertSee('Due Soon Branch - Billing due')
             ->assertSee('Jun 01, 2026 - Jun 30, 2026 is unpaid and due on Jun 15, 2026.')
-            ->assertSee('Your branch subscription for Jun 01, 2026 - Jun 30, 2026 is due in 5 days.')
+            ->assertSee('Your subscription for Jun 01, 2026 - Jun 30, 2026 is due on Jun 15, 2026')
             ->assertSee('autoOpen: true', false);
     }
 
@@ -339,7 +351,8 @@ class BillingSystemTest extends TestCase
             ->assertDontSee('Branch subscription has expired');
     }
 
-    public function test_suspended_current_subscription_warns_branch_users_without_locking(): void
+    /** A suspended subscription is a hard stop, not a warning: settle it to continue. */
+    public function test_suspended_subscription_locks_the_branch_behind_the_payment_screen(): void
     {
         $this->completeSystemSettings();
         $this->expiredTrial(graceDays: 0);
@@ -364,8 +377,8 @@ class BillingSystemTest extends TestCase
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Branch subscription has been suspended')
-            ->assertSee('Subscription Warning');
+            ->assertSee('Subscription Payment Required')
+            ->assertSee('Your branch subscription has been suspended');
     }
 
     public function test_super_admin_generates_billing_and_updates_only_unpaid_records(): void

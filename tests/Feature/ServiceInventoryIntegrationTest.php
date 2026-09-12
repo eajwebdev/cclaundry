@@ -358,12 +358,14 @@ class ServiceInventoryIntegrationTest extends TestCase
             'quantity' => 1,
             'remarks' => 'Existing usage',
         ]);
+        // One of the add-ons the price list actually sells: the seeder only
+        // carries recipes for services that still exist.
         $service = LaundryService::query()->create([
             'branch_id' => $branch->id,
-            'name' => 'Detergent',
+            'name' => 'Ariel Detergent',
             'report_category' => 'detergent',
             'pricing_type' => 'custom',
-            'price' => 15,
+            'price' => 20,
             'is_active' => true,
         ]);
 

@@ -10,6 +10,8 @@ use App\Http\Middleware\EnsureRider;
 use App\Http\Middleware\EnsureSuperAdmin;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -34,5 +36,22 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        /*
+         * A stale CSRF token — the page sat open past the session lifetime, or
+         * another tab signed in and rotated it — otherwise throws a finished
+         * booking away behind Laravel's blank "Page Expired" screen. Hand the
+         * form back with everything that was typed and say what happened.
+         *
+         * Laravel has already turned TokenMismatchException into a 419
+         * HttpException by the time render callbacks run, hence the status check.
+         */
+        $exceptions->render(function (HttpException $e, Request $request) {
+            if ($e->getStatusCode() !== 419 || $request->expectsJson()) {
+                return null;
+            }
+
+            return back()
+                ->withInput($request->except(['_token', 'password', 'password_confirmation']))
+                ->with('error', 'Your session timed out while the page was open. Nothing was lost — please check the details and submit again.');
+        });
     })->create();

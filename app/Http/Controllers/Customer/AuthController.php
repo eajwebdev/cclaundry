@@ -18,14 +18,13 @@ class AuthController extends Controller
 {
     public function showRegister(Request $request)
     {
-        $pending = $request->session()->get(Booking::PENDING_SESSION_KEY);
-
         return view('customer.register', [
             'settings' => SystemSetting::current(),
             'branches' => Booking::branches(),
-            'pendingBooking' => $pending,
-            'offerings' => Booking::offerings(),
-            'slots' => Booking::slots(),
+            // Someone who just booked as a guest is offered an account with
+            // their details already filled in. The booking itself is placed
+            // either way, so this is a convenience and never a gate.
+            'recentBooking' => $request->session()->get(Booking::RECENT_SESSION_KEY),
         ]);
     }
 
@@ -107,7 +106,6 @@ class AuthController extends Controller
     {
         return view('customer.login', [
             'settings' => SystemSetting::current(),
-            'hasPendingBooking' => $request->session()->has(Booking::PENDING_SESSION_KEY),
         ]);
     }
 
@@ -162,7 +160,7 @@ class AuthController extends Controller
 
         // Only the customer half of the session is discarded; a staff session in
         // the same browser is left alone.
-        $request->session()->forget(Booking::PENDING_SESSION_KEY);
+        $request->session()->forget(Booking::RECENT_SESSION_KEY);
         $request->session()->regenerateToken();
 
         return redirect()->route('landing')->with('success', 'You have been signed out.');
@@ -182,19 +180,12 @@ class AuthController extends Controller
     }
 
     /**
-     * Shared landing spot after register/login: if a booking was parked before
-     * sign-up, create it now and drop the customer straight on its confirmation.
+     * Shared landing spot after register/login. Bookings made as a guest are
+     * already on the account by this point: they hang off the customer record
+     * this mobile number resolved to, which registering has just claimed.
      */
     private function afterAuthentication(Request $request, Customer $customer, string $message)
     {
-        $pickupRequest = BookingController::flushPending($request, $customer);
-
-        if ($pickupRequest) {
-            return redirect()
-                ->route('customer.bookings.show', $pickupRequest)
-                ->with('success', 'Pickup booked. Reference '.$pickupRequest->reference_no.'.');
-        }
-
         return redirect()->route('customer.bookings.index')->with('success', $message);
     }
 }

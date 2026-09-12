@@ -94,6 +94,13 @@
                         <div class="min-w-0 flex-1">
                             <div class="flex flex-wrap items-center gap-2">
                                 <span class="font-mono text-sm font-semibold text-primary">{{ $pickupRequest->reference_no }}</span>
+                                @if($pickupRequest->tag_code)
+                                    {{-- The number on the bag: what matches this load to this booking. --}}
+                                    <span class="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
+                                        <span data-lucide="tag" class="h-2.5 w-2.5"></span>
+                                        {{ $pickupRequest->tag_code }}
+                                    </span>
+                                @endif
                                 @include('partials.booking-status', ['status' => $pickupRequest->status])
                                 @if($pickupRequest->is_rush)
                                     <span class="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
@@ -148,6 +155,21 @@
                                     </div>
                                 @endif
                             </div>
+
+                            @if($pickupRequest->collected_amount !== null || $pickupRequest->collected_payment_method)
+                                {{-- Payment is taken by the rider at the door, so the
+                                     counter needs to see it before pricing the job order. --}}
+                                <p class="mt-3 inline-flex flex-wrap items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                    <span data-lucide="wallet" class="h-3.5 w-3.5"></span>
+                                    @if($pickupRequest->collected_payment_method === 'unpaid' || $pickupRequest->collected_amount === null)
+                                        Rider collected nothing yet &mdash; collect at the counter
+                                    @else
+                                        Rider collected {{ $appSettings?->currency ?? 'PHP' }}
+                                        {{ number_format((float) $pickupRequest->collected_amount, 2) }}
+                                        ({{ ucfirst($pickupRequest->collected_payment_method ?? 'cash') }})
+                                    @endif
+                                </p>
+                            @endif
 
                             <p class="mt-3 text-xs text-muted">
                                 Booked {{ $pickupRequest->created_at->diffForHumans() }} &middot; {{ $pickupRequest->branch?->name }}

@@ -109,6 +109,15 @@
                     </div>
 
                     <div>
+                        {{-- Shown to customers on the public site, so they can message the page. --}}
+                        <label class="block text-sm font-medium mb-2">Facebook Page</label>
+                        <input name="facebook_url" type="url" placeholder="https://www.facebook.com/yourpage"
+                               value="{{ old('facebook_url', $settings->facebook_url) }}"
+                               class="w-full h-9 rounded-md border border-border dark:border-gray-700 bg-white dark:bg-gray-950 px-3 text-sm">
+                        @error('facebook_url') <p class="text-red-500 text-sm mt-1">{{ $message }}</p> @enderror
+                    </div>
+
+                    <div>
                         <label class="block text-sm font-medium mb-2">Currency</label>
                         <input name="currency" value="{{ old('currency', $settings->currency ?? 'PHP') }}" class="w-full h-9 rounded-md border border-border dark:border-gray-700 bg-white dark:bg-gray-950 px-3 text-sm" required>
                     </div>

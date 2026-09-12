@@ -5,16 +5,13 @@
      * then a review before anything is sent. Field names and validation are
      * unchanged; only the order and the presentation follow the mockups.
      *
-     * Prefill order: what the visitor just typed (a validation bounce) beats a
-     * booking parked before sign-up, which beats the signed-in customer's saved
-     * details, which beats empty.
+     * Prefill order: what the visitor just typed (a validation bounce) beats
+     * the signed-in customer's saved details, which beats empty. No account is
+     * needed to book, so a guest simply starts from empty.
      */
     $bookingCustomer = auth('customer')->user();
-    $pending = $pendingBooking ?? null;
 
-    $value = function (string $key, $fallback = '') use ($pending) {
-        return old($key, data_get($pending, $key, $fallback));
-    };
+    $value = fn (string $key, $fallback = '') => old($key, $fallback);
 
     $defaultBranchId = $value('branch_id', $bookingCustomer?->branch_id ?: $branches->first()?->id);
     $multipleBranches = $branches->count() > 1;
@@ -111,6 +108,10 @@
                 rushSurcharge: {{ (int) $rushSurcharge }},
                 branches: {{ Js::from($branches->map(fn ($b) => ['id' => $b->id, 'name' => $b->name])) }},
                 slots: {{ Js::from($slots) }},
+                tokenUrl: @js(route('csrf.token')),
+                earliestPickupDate: @js($earliestPickupDate),
+                latestPickupDate: @js($latestPickupDate),
+                requiresBranch: {{ $multipleBranches ? 'true' : 'false' }},
                 initial: {
                     offering: @js((string) $defaultOffering),
                     estimated_kilos: @js((string) $value('estimated_kilos', '')),
@@ -133,6 +134,8 @@
             @preselect-offering.window="pick($event.detail)"
             @preselect-branch.window="form.branch_id = String($event.detail); openStep(2)"
             @keydown.enter="onEnter($event)"
+            @submit.prevent="submit()"
+            novalidate
             class="lg:grid lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)] lg:items-start lg:gap-10"
         >
             @csrf
@@ -223,6 +226,22 @@
                     </div>
                 </div>
 
+                {{-- ─────────── What still needs fixing ─────────── --}}
+                {{-- Repeated at the top of the card because on a phone the field
+                     itself can be off-screen when Continue is tapped. --}}
+                <div x-show="hasErrors" x-cloak role="alert"
+                     class="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm text-red-900">
+                    <p class="flex items-center gap-2 font-bold">
+                        <span data-lucide="alertTriangle" class="h-4 w-4 shrink-0"></span>
+                        Please check these before you continue
+                    </p>
+                    <ul class="mt-1.5 list-disc space-y-0.5 pl-5">
+                        <template x-for="message in errorList" :key="message">
+                            <li x-text="message"></li>
+                        </template>
+                    </ul>
+                </div>
+
                 {{-- ═══ Step 1: service & weight ═══ --}}
                 <div data-step="1" x-show="step === 1" class="mt-6 lg:mt-0">
                     <h2 class="cc-title text-[1.7rem] sm:text-3xl">Book Your Laundry Pickup</h2>
@@ -254,15 +273,16 @@
                             <div class="relative w-32">
                                 <input id="estimated_kilos" type="number" name="estimated_kilos" inputmode="decimal"
                                        step="0.5" min="1" max="200" x-model="form.estimated_kilos" placeholder="e.g. 7"
-                                       class="cc-input min-h-11 py-2 pr-10">
+                                       class="cc-input min-h-11 py-2 pr-10 @error('estimated_kilos') cc-input-invalid @enderror"
+                                       :class="errors.estimated_kilos && 'cc-input-invalid'">
                                 <span class="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-xs font-bold text-cc-muted">kg</span>
                             </div>
                         </div>
-                        @error('estimated_kilos') <p class="cc-error">{{ $message }}</p> @enderror
+                        @error('estimated_kilos')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.estimated_kilos" x-cloak class="cc-error" x-text="errors.estimated_kilos"></p>@enderror
                     </fieldset>
 
                     <fieldset class="mt-7">
-                        <legend class="cc-label text-[15px]">2. What would you like us to clean?</legend>
+                        <legend class="cc-label text-[15px]">2. What would you like us to clean? <span class="text-cc-brown">*</span></legend>
                         <p class="cc-help mt-1">Pick the closest match &mdash; we&rsquo;ll sort the rest when we weigh your bag.</p>
 
                         <div class="mt-3 space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
@@ -291,7 +311,7 @@
                                 </label>
                             @endforeach
                         </div>
-                        @error('offering') <p class="cc-error">{{ $message }}</p> @enderror
+                        @error('offering')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.offering" x-cloak class="cc-error" x-text="errors.offering"></p>@enderror
                     </fieldset>
 
                     <label class="cc-option mt-5" :class="{ 'cc-option-active': form.is_rush }">
@@ -320,35 +340,43 @@
                         <div>
                             <label for="contact_name" class="cc-label">Full Name <span class="text-cc-brown">*</span></label>
                             <input id="contact_name" type="text" name="contact_name" required autocomplete="name"
-                                   x-model="form.contact_name" placeholder="e.g. Juan Dela Cruz" class="cc-input mt-1.5">
-                            @error('contact_name') <p class="cc-error">{{ $message }}</p> @enderror
+                                   x-model="form.contact_name" placeholder="e.g. Juan Dela Cruz"
+                                   class="cc-input mt-1.5 @error('contact_name') cc-input-invalid @enderror"
+                                   :class="errors.contact_name && 'cc-input-invalid'">
+                            @error('contact_name')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.contact_name" x-cloak class="cc-error" x-text="errors.contact_name"></p>@enderror
                         </div>
 
                         <div class="grid gap-4 sm:grid-cols-2">
                             <div>
                                 <label for="contact_phone" class="cc-label">Mobile Number <span class="text-cc-brown">*</span></label>
                                 <input id="contact_phone" type="tel" name="contact_phone" required inputmode="tel" autocomplete="tel"
-                                       x-model="form.contact_phone" placeholder="e.g. 09XX XXX XXXX" class="cc-input mt-1.5">
-                                @error('contact_phone') <p class="cc-error">{{ $message }}</p> @enderror
+                                       x-model="form.contact_phone" placeholder="e.g. 09XX XXX XXXX"
+                                       class="cc-input mt-1.5 @error('contact_phone') cc-input-invalid @enderror"
+                                       :class="errors.contact_phone && 'cc-input-invalid'">
+                                @error('contact_phone')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.contact_phone" x-cloak class="cc-error" x-text="errors.contact_phone"></p>@enderror
                             </div>
 
                             <div>
                                 <label for="contact_email" class="cc-label">Email <span class="font-semibold text-cc-muted">(optional)</span></label>
                                 <input id="contact_email" type="email" name="contact_email" inputmode="email" autocomplete="email"
-                                       x-model="form.contact_email" placeholder="you@example.com" class="cc-input mt-1.5">
-                                @error('contact_email') <p class="cc-error">{{ $message }}</p> @enderror
+                                       x-model="form.contact_email" placeholder="you@example.com"
+                                       class="cc-input mt-1.5 @error('contact_email') cc-input-invalid @enderror"
+                                       :class="errors.contact_email && 'cc-input-invalid'">
+                                @error('contact_email')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.contact_email" x-cloak class="cc-error" x-text="errors.contact_email"></p>@enderror
                             </div>
                         </div>
 
                         @if($multipleBranches)
                             <div>
                                 <label for="branch_id" class="cc-label">Nearest Branch <span class="text-cc-brown">*</span></label>
-                                <select id="branch_id" name="branch_id" required x-model="form.branch_id" class="cc-input mt-1.5">
+                                <select id="branch_id" name="branch_id" required x-model="form.branch_id"
+                                        class="cc-input mt-1.5 @error('branch_id') cc-input-invalid @enderror"
+                                        :class="errors.branch_id && 'cc-input-invalid'">
                                     @foreach ($branches as $branch)
                                         <option value="{{ $branch->id }}">{{ $branch->name }}@if($branch->address) &mdash; {{ Str::limit($branch->address, 40) }}@endif</option>
                                     @endforeach
                                 </select>
-                                @error('branch_id') <p class="cc-error">{{ $message }}</p> @enderror
+                                @error('branch_id')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.branch_id" x-cloak class="cc-error" x-text="errors.branch_id"></p>@enderror
                             </div>
                         @else
                             <input type="hidden" name="branch_id" x-model="form.branch_id">
@@ -359,8 +387,9 @@
                             <label for="pickup_address" class="cc-label">Pickup Address <span class="text-cc-brown">*</span></label>
                             <textarea id="pickup_address" name="pickup_address" rows="2" required autocomplete="street-address"
                                       x-model="form.pickup_address" placeholder="House / Street / Barangay"
-                                      class="cc-input mt-1.5"></textarea>
-                            @error('pickup_address') <p class="cc-error">{{ $message }}</p> @enderror
+                                      class="cc-input mt-1.5 @error('pickup_address') cc-input-invalid @enderror"
+                                      :class="errors.pickup_address && 'cc-input-invalid'"></textarea>
+                            @error('pickup_address')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.pickup_address" x-cloak class="cc-error" x-text="errors.pickup_address"></p>@enderror
                         </div>
 
                         <x-map-picker
@@ -392,9 +421,11 @@
                             <div class="relative mt-1.5">
                                 <span data-lucide="calendar-days" class="pointer-events-none absolute top-1/2 left-4 h-4.5 w-4.5 -translate-y-1/2 text-cc-brown"></span>
                                 <input id="pickup_date" type="date" name="pickup_date" required x-model="form.pickup_date"
-                                       min="{{ $earliestPickupDate }}" max="{{ $latestPickupDate }}" class="cc-input pl-11">
+                                       min="{{ $earliestPickupDate }}" max="{{ $latestPickupDate }}"
+                                       class="cc-input pl-11 @error('pickup_date') cc-input-invalid @enderror"
+                                       :class="errors.pickup_date && 'cc-input-invalid'">
                             </div>
-                            @error('pickup_date') <p class="cc-error">{{ $message }}</p> @enderror
+                            @error('pickup_date')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.pickup_date" x-cloak class="cc-error" x-text="errors.pickup_date"></p>@enderror
                         </div>
 
                         <div>
@@ -404,14 +435,15 @@
                                     <option value="{{ $slotKey }}">{{ $slotLabel }}</option>
                                 @endforeach
                             </select>
-                            @error('pickup_slot') <p class="cc-error">{{ $message }}</p> @enderror
+                            @error('pickup_slot')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.pickup_slot" x-cloak class="cc-error" x-text="errors.pickup_slot"></p>@enderror
                         </div>
                     </div>
 
-                    <ul class="cc-soft mt-5 space-y-3 px-4 py-4 lg:grid lg:grid-cols-3 lg:gap-4 lg:space-y-0 lg:px-5">
+                    <ul class="cc-soft mt-5 space-y-3 px-4 py-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0 lg:px-5">
                         @foreach ([
                             ['truck', 'Free pickup & delivery', 'For 5 kg and above'],
                             ['scale', 'Minimum 5 kg', 'Per pickup'],
+                            ['wallet', 'Please have payment ready', 'Our rider collects it when they pick up'],
                             ['time', 'We’ll confirm the exact time', $settings?->sms_enabled ? 'By SMS before the rider heads over' : 'With a call before the rider heads over'],
                         ] as [$icon, $title, $body])
                             <li class="flex items-center gap-3">
@@ -425,7 +457,7 @@
                     </ul>
 
                     <fieldset class="mt-7">
-                        <legend class="cc-label text-[15px]">How should we return it?</legend>
+                        <legend class="cc-label text-[15px]">How should we return it? <span class="text-cc-brown">*</span></legend>
 
                         <div class="mt-3 grid grid-cols-2 gap-2.5">
                             @foreach ($deliveryPreferences as $prefKey => $prefLabel)
@@ -440,7 +472,7 @@
                                 </label>
                             @endforeach
                         </div>
-                        @error('delivery_preference') <p class="cc-error">{{ $message }}</p> @enderror
+                        @error('delivery_preference')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.delivery_preference" x-cloak class="cc-error" x-text="errors.delivery_preference"></p>@enderror
 
                         <div x-show="form.delivery_preference === 'deliver'" x-cloak class="mt-4 space-y-4">
                             <label class="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-semibold text-cc-ink">
@@ -470,8 +502,10 @@
                                 <div>
                                     <label for="delivery_date" class="cc-label">Delivery Date <span class="font-semibold text-cc-muted">(optional)</span></label>
                                     <input id="delivery_date" type="date" name="delivery_date" x-model="form.delivery_date"
-                                           :min="form.pickup_date" max="{{ $latestPickupDate }}" class="cc-input mt-1.5">
-                                    @error('delivery_date') <p class="cc-error">{{ $message }}</p> @enderror
+                                           :min="form.pickup_date" max="{{ $latestPickupDate }}"
+                                           class="cc-input mt-1.5 @error('delivery_date') cc-input-invalid @enderror"
+                                           :class="errors.delivery_date && 'cc-input-invalid'">
+                                    @error('delivery_date')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.delivery_date" x-cloak class="cc-error" x-text="errors.delivery_date"></p>@enderror
                                 </div>
 
                                 <div>
@@ -550,8 +584,10 @@
                         <span data-lucide="arrow-right" class="h-4 w-4"></span>
                     </button>
 
-                    <button type="submit" x-show="step === totalSteps" x-cloak class="cc-btn flex-1 lg:flex-none lg:px-10">
-                        Confirm Pickup
+                    <button type="submit" x-show="step === totalSteps" x-cloak
+                            :disabled="submitting" :class="submitting && 'pointer-events-none opacity-70'"
+                            class="cc-btn flex-1 lg:flex-none lg:px-10">
+                        <span x-text="submitting ? 'Booking…' : 'Confirm Pickup'">Confirm Pickup</span>
                         <span data-lucide="arrow-right" class="h-4 w-4"></span>
                     </button>
                 </div>
@@ -575,6 +611,14 @@
             branches: config.branches,
             slots: config.slots,
             rushSurcharge: config.rushSurcharge,
+            tokenUrl: config.tokenUrl,
+            earliest: config.earliestPickupDate,
+            latest: config.latestPickupDate,
+            requiresBranch: config.requiresBranch,
+            // Field name => message, for whatever the customer has not filled in
+            // correctly yet. Server-side errors are rendered by Blade instead.
+            errors: {},
+            submitting: false,
             form: { ...config.initial },
             // Default to a single address; unticking reveals a separate one.
             sameAddress: ! config.initial.delivery_address,
@@ -697,27 +741,128 @@
             },
 
             next() {
-                if (! this.validateStep()) return;
+                if (! this.validateStep()) {
+                    this.focusFirstError();
+                    return;
+                }
+
                 if (this.step < this.totalSteps) this.openStep(this.step + 1);
             },
 
             /**
-             * Let the browser surface its own messages for the fields on this
-             * step, so an incomplete step cannot be skipped past.
+             * Submit is ours rather than the browser's: native validation cannot
+             * report a problem sitting on a step that is currently display:none,
+             * so it would silently refuse to submit with nothing shown.
              */
-            validateStep() {
-                const panel = this.$el.querySelector('[data-step="' + this.step + '"]');
-                if (! panel) return true;
-
-                for (const field of panel.querySelectorAll('input, select, textarea')) {
-                    if (field.offsetParent === null && field.type !== 'radio') continue;
-                    if (! field.checkValidity()) {
-                        field.reportValidity();
-                        return false;
+            async submit() {
+                for (const step of [1, 2, 3]) {
+                    if (! this.validateStep(step)) {
+                        this.openStep(step);
+                        this.focusFirstError();
+                        return;
                     }
                 }
 
-                return true;
+                if (this.submitting) return;
+                this.submitting = true;
+
+                // A form left open outlives its CSRF token (and another tab
+                // signing in rotates it), which is what turns a finished booking
+                // into a blank 419 "Page Expired". Take a fresh one first.
+                try {
+                    const response = await fetch(this.tokenUrl, {
+                        headers: { Accept: 'application/json' },
+                        credentials: 'same-origin',
+                    });
+
+                    if (response.ok) {
+                        const { token } = await response.json();
+                        const field = this.$el.querySelector('input[name="_token"]');
+
+                        if (token && field) field.value = token;
+                    }
+                } catch {
+                    // Offline or blocked: submit with the token we have and let
+                    // the server's own 419 recovery hand the form back.
+                }
+
+                this.$el.submit();
+            },
+
+            /**
+             * What each step needs before it can be left, mirroring the rules in
+             * BookingController::validateBooking so the two cannot disagree.
+             */
+            get checks() {
+                const filled = (value) => String(value ?? '').trim() !== '';
+
+                return {
+                    1: [
+                        ['offering', 'Choose what you would like us to clean.', () => filled(this.form.offering)],
+                        ['estimated_kilos', 'Enter a weight between 1 and 200 kg, or tap “I’m not sure”.', () => {
+                            if (! filled(this.form.estimated_kilos)) return true;
+                            const kilos = parseFloat(this.form.estimated_kilos);
+                            return kilos >= 1 && kilos <= 200;
+                        }],
+                    ],
+                    2: [
+                        ['contact_name', 'Enter your full name so we know who to ask for.', () => filled(this.form.contact_name)],
+                        ['contact_phone', 'Enter a mobile number we can reach you on, like 0917 123 4567.', () => this.isMobile(this.form.contact_phone)],
+                        ['contact_email', 'That email address does not look right.', () => ! filled(this.form.contact_email) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.form.contact_email.trim())],
+                        ['branch_id', 'Choose the branch nearest you.', () => ! this.requiresBranch || filled(this.form.branch_id)],
+                        ['pickup_address', 'Tell us where to collect: house, street and barangay.', () => filled(this.form.pickup_address)],
+                    ],
+                    3: [
+                        ['pickup_date', 'Choose a pickup date from ' + this.formatDate(this.earliest) + ' onwards.', () =>
+                            filled(this.form.pickup_date) && this.form.pickup_date >= this.earliest && this.form.pickup_date <= this.latest],
+                        ['pickup_slot', 'Choose the time that suits you.', () => filled(this.form.pickup_slot)],
+                        ['delivery_preference', 'Tell us how you want your laundry back.', () => filled(this.form.delivery_preference)],
+                        ['delivery_date', 'Delivery cannot be earlier than the pickup.', () =>
+                            ! filled(this.form.delivery_date) || this.form.delivery_date >= this.form.pickup_date],
+                    ],
+                    4: [],
+                };
+            },
+
+            /** Mirrors Customer::normalizePhone, so the two never disagree. */
+            isMobile(value) {
+                let digits = String(value ?? '').replace(/\D+/g, '');
+
+                if (digits.startsWith('63') && digits.length === 12) digits = '0' + digits.slice(2);
+                if (digits.startsWith('9') && digits.length === 10) digits = '0' + digits;
+
+                return /^09\d{9}$/.test(digits);
+            },
+
+            validateStep(step = this.step) {
+                const checks = this.checks[step] ?? [];
+
+                // Only this step's messages are rebuilt, so a problem waiting on
+                // another step is not wiped before the customer has fixed it.
+                for (const [field] of checks) delete this.errors[field];
+
+                for (const [field, message, passes] of checks) {
+                    if (! passes()) this.errors[field] = message;
+                }
+
+                return checks.every(([field]) => ! this.errors[field]);
+            },
+
+            get hasErrors() {
+                return Object.keys(this.errors).length > 0;
+            },
+
+            get errorList() {
+                return Object.values(this.errors);
+            },
+
+            focusFirstError() {
+                this.$nextTick(() => {
+                    const field = Object.keys(this.errors)[0];
+                    const el = field && this.$el.querySelector('[name="' + field + '"]:not([type="hidden"])');
+
+                    if (el && el.offsetParent !== null) el.focus();
+                });
             },
 
             /**

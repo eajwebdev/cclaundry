@@ -49,7 +49,10 @@ class SmsNotifierTest extends TestCase
             && $request['recipient'] === '+639171234567'
             && $request['sender_id'] === 'SPINKLEAN'
             && $request['metadata']['sms_log_id'] !== null
-            && stripos($request['content'], 'ready for pickup') !== false);
+            // The ready template announces "Your laundry is READY!" with the
+            // order number the customer quotes at the counter.
+            && str_contains($request['content'], 'READY')
+            && str_contains($request['content'], 'JO-TEST-001'));
 
         $this->assertDatabaseHas('sms_logs', [
             'recipient' => '09171234567',
@@ -151,7 +154,8 @@ class SmsNotifierTest extends TestCase
 
         Http::assertSent(fn ($request) => $request->url() === 'https://unismsapi.com/api/sms'
             && $request['recipient'] === '+639171234567'
-            && stripos($request['content'], 'ready for pickup') !== false);
+            && str_contains($request['content'], 'READY')
+            && str_contains($request['content'], 'JO-TEST-001'));
 
         $this->assertDatabaseHas('sms_logs', [
             'recipient' => '09171234567',
@@ -182,9 +186,12 @@ class SmsNotifierTest extends TestCase
         SmsNotifier::jobOrderReceived($order);
 
         $message = (string) SmsLog::query()->value('message');
-        $this->assertStringContainsString('We received your laundry', $message);
+        // The drop-off wording, not the delivery template's "We've picked up
+        // and received your laundry" — telling a walk-in we collected from
+        // their door is exactly the mix-up this guards against.
+        $this->assertStringContainsString("We've received your laundry", $message);
         $this->assertStringNotContainsString('picked up', $message);
-        $this->assertStringContainsString('once it is ready', $message);
+        $this->assertStringContainsString('once your laundry is ready', $message);
     }
 
     public function test_custom_sms_template_replaces_order_placeholders(): void
@@ -265,6 +272,9 @@ class SmsNotifierTest extends TestCase
         $order->update(['status' => 'ready_for_delivery']);
         SmsNotifier::jobOrderStatus($order->fresh(['branch', 'customer']));
 
+        // Completing an order deliberately sends nothing (see SmsNotifier):
+        // the customer already heard from us when it was ready to claim, and
+        // a second message after they have it in hand is just noise.
         $order->update(['status' => 'completed']);
         SmsNotifier::jobOrderStatus($order->fresh(['branch', 'customer']));
 
@@ -275,7 +285,6 @@ class SmsNotifierTest extends TestCase
             'Pickup received JO-TEST-001.',
             'Pickup ready JO-TEST-001.',
             'Delivery ready JO-TEST-001.',
-            'Completed JO-TEST-001.',
         ], $messages);
     }
 

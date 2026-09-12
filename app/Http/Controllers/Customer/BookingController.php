@@ -16,57 +16,93 @@ use Illuminate\Validation\Rule;
 class BookingController extends Controller
 {
     /**
-     * The landing page posts here. A booking always needs an account behind it
-     * (that is what lets the customer track it, and what lets the branch call
-     * them back) but we never make them sign up before they have seen the form.
-     * We validate first, park the booking in the session, and send them through
-     * sign-up. Once they are in, the booking is created automatically.
+     * The landing page posts here. The booking is placed immediately, account
+     * or no account: making someone sign up before their laundry is booked is
+     * how a booking gets abandoned. A guest gets the same kind of record a
+     * walk-in gets at the counter — contact details, no password — so the
+     * branch has someone to call and the order has a home. Signing up later
+     * with that number claims the record and everything booked under it.
      */
     public function store(Request $request)
     {
         $validated = $this->validateBooking($request);
 
-        $customer = Auth::guard('customer')->user();
-
-        if (! $customer) {
-            $request->session()->put(Booking::PENDING_SESSION_KEY, $validated);
-
-            $existing = Customer::query()
-                ->matchingPhone($validated['contact_phone'])
-                ->first();
-
-            // Someone who already booked with us goes to sign-in; a first-time
-            // customer, and a walk-in whose record has no password yet, both go
-            // to sign-up (the sign-up screen claims the walk-in record).
-            $hasAccount = $existing && $existing->hasPortalAccount();
-
-            return redirect()
-                ->to($hasAccount ? route('customer.login') : route('customer.register'))
-                ->with('info', $hasAccount
-                    ? 'Welcome back. Sign in and we will place the pickup you just filled out.'
-                    : 'Almost there. Create your free account and we will confirm this pickup right away.');
-        }
+        $customer = Auth::guard('customer')->user() ?: $this->customerFor($validated);
 
         $pickupRequest = $this->createFor($customer, $validated);
 
+        // What lets a guest reopen this confirmation, and prefills the optional
+        // sign-up, without a password or a link in an email we never asked for.
+        $request->session()->put(Booking::RECENT_SESSION_KEY, [
+            'reference_no' => $pickupRequest->reference_no,
+            'contact_name' => $pickupRequest->contact_name,
+            'contact_phone' => $pickupRequest->contact_phone,
+            'contact_email' => $pickupRequest->contact_email,
+            'pickup_address' => $pickupRequest->pickup_address,
+            'branch_id' => $pickupRequest->branch_id,
+        ]);
+
         return redirect()
-            ->route('customer.bookings.show', $pickupRequest)
+            ->route('booking.confirmed', $pickupRequest->reference_no)
             ->with('success', 'Pickup booked. Reference '.$pickupRequest->reference_no.'.');
     }
 
     /**
-     * Replays a booking parked in the session once the customer has an account.
-     * Called right after register and after login.
+     * Who a guest booking belongs to: the record we already hold for that
+     * mobile number, or a new passwordless one. Never a new record for a number
+     * we know, so a repeat guest keeps one history rather than collecting
+     * duplicates the counter would have to merge.
      */
-    public static function flushPending(Request $request, Customer $customer): ?PickupRequest
+    private function customerFor(array $data): Customer
     {
-        $payload = $request->session()->pull(Booking::PENDING_SESSION_KEY);
+        $existing = Customer::query()->matchingPhone($data['contact_phone'])->first();
 
-        if (! is_array($payload) || $payload === []) {
-            return null;
+        if ($existing) {
+            return $existing;
         }
 
-        return (new self)->createFor($customer, $payload);
+        return Customer::create([
+            'branch_id' => $data['branch_id'],
+            'name' => $data['contact_name'],
+            'phone' => $data['contact_phone'],
+            'email' => $data['contact_email'] ?? null,
+            'address' => $data['pickup_address'],
+            'latitude' => $data['pickup_latitude'] ?? null,
+            'longitude' => $data['pickup_longitude'] ?? null,
+            'billing_type' => 'regular',
+            'is_active' => true,
+        ]);
+    }
+
+    /**
+     * The confirmation screen, reachable without an account: a guest has none
+     * to sign in to. Shown for the booking this browser just placed, or one the
+     * signed-in customer owns; anyone else is sent to public tracking, which
+     * asks for the reference and the mobile number it was booked with.
+     */
+    public function confirmed(Request $request, string $reference)
+    {
+        $pickupRequest = PickupRequest::query()
+            ->with(['branch', 'jobOrder'])
+            ->where('reference_no', $reference)
+            ->firstOrFail();
+
+        $recent = $request->session()->get(Booking::RECENT_SESSION_KEY, []);
+        $customer = Auth::guard('customer')->user();
+
+        $mayView = ($recent['reference_no'] ?? null) === $pickupRequest->reference_no
+            || ($customer && $pickupRequest->customer_id === $customer->id);
+
+        if (! $mayView) {
+            return redirect()
+                ->to(route('landing').'#track')
+                ->with('info', 'Enter your booking number and the mobile number you booked with to see your laundry.');
+        }
+
+        return view('customer.booking-confirmed', [
+            'settings' => SystemSetting::current(),
+            'pickupRequest' => $pickupRequest,
+        ]);
     }
 
     public function show(Request $request, PickupRequest $pickupRequest)
@@ -194,7 +230,13 @@ class BookingController extends Controller
             'offering' => ['required', 'string', Rule::in(Booking::offeringKeys($request->integer('branch_id')))],
             'estimated_kilos' => ['nullable', 'numeric', 'min:1', 'max:200'],
             'contact_name' => ['required', 'string', 'max:120'],
-            'contact_phone' => ['required', 'string', 'max:40'],
+            // Length alone would accept "asdf". The branch has to be able to
+            // ring this number back, so it must normalise to a real PH mobile.
+            'contact_phone' => ['required', 'string', 'max:40', function ($attribute, $value, $fail) {
+                if (! preg_match('/^09\d{9}$/', Customer::normalizePhone($value))) {
+                    $fail('Enter a mobile number we can reach you on, like 0917 123 4567.');
+                }
+            }],
             'contact_email' => ['nullable', 'email', 'max:150'],
             'pickup_address' => ['required', 'string', 'max:500'],
             // The pin is optional on purpose. Kabankalan addresses are given by
@@ -216,6 +258,14 @@ class BookingController extends Controller
         ];
 
         $messages = [
+            'branch_id.required' => 'Please choose the branch nearest you.',
+            'contact_name.required' => 'Please enter your full name so we know who to ask for.',
+            'contact_phone.required' => 'Please enter your mobile number.',
+            'contact_email.email' => 'That email address does not look right.',
+            'pickup_address.required' => 'Please tell us where to collect: house, street and barangay.',
+            'pickup_date.required' => 'Please choose a pickup date.',
+            'pickup_slot.required' => 'Please choose the time that suits you.',
+            'delivery_preference.required' => 'Please tell us how you want your laundry back.',
             'pickup_date.after_or_equal' => 'The earliest pickup we can promise is tomorrow.',
             'delivery_date.after_or_equal' => 'Delivery cannot be scheduled before the pickup.',
             'branch_id.exists' => 'Please choose one of our active branches.',

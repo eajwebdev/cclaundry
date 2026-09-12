@@ -19,8 +19,12 @@ use Illuminate\Support\Collection;
  */
 class Booking
 {
-    /** Session key holding a booking captured before the customer signed up. */
-    public const PENDING_SESSION_KEY = 'booking.pending';
+    /**
+     * Session key holding the booking this browser just placed: enough to
+     * reopen its confirmation without an account, and to prefill the optional
+     * sign-up afterwards.
+     */
+    public const RECENT_SESSION_KEY = 'booking.recent';
 
     /** Rush handling is priced as a flat surcharge on top of the service. */
     public const RUSH_SURCHARGE = 100;
@@ -36,10 +40,17 @@ class Booking
      * Services pinned to the landing page. Scoped to a branch when given, so a
      * customer only sees what the branch they picked actually offers.
      */
+    /** Extras chosen with a load, never the load itself. */
+    public const ADDON_CATEGORY = 'Add-ons';
+
     public static function services(?int $branchId = null): Collection
     {
         return LaundryService::query()
             ->onLanding()
+            // Detergent and fabric conditioner belong on the published price
+            // list, but nobody books "Ariel" as their laundry service, so they
+            // stay out of the booking form's service choices.
+            ->whereDoesntHave('serviceCategory', fn ($query) => $query->where('name', self::ADDON_CATEGORY))
             ->when($branchId, fn ($query) => $query->where(fn ($inner) => $inner
                 ->where('branch_id', $branchId)
                 ->orWhereNull('branch_id')))
@@ -173,9 +184,16 @@ class Booking
             ->where('is_active', true)
             ->where('show_on_landing', true)
             ->whereHas('serviceCategory', fn ($query) => $query->where('is_active', true))
-            ->orderBy('service_category_id')
-            ->orderBy('name')
             ->get()
+            // Printed-poster order: categories in the order staff arranged them,
+            // and inside each one the cheapest-first sequence the price list is
+            // written in — not category id and alphabetical, which read as random.
+            ->sortBy(fn (LaundryService $service) => sprintf(
+                '%03d-%03d-%s',
+                $service->serviceCategory?->sort_order ?? 999,
+                $service->landing_sort_order,
+                $service->name
+            ))
             ->groupBy(fn (LaundryService $service) => $service->serviceCategory?->name ?: 'Other Services');
     }
 

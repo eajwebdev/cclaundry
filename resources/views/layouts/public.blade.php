@@ -317,6 +317,14 @@
                     <span data-lucide="time" class="h-4 w-4 text-cc-brown"></span>
                     Pickups daily, 8:00 AM &ndash; 7:00 PM
                 </li>
+                @if($appSettings?->facebook_url)
+                    <li class="flex items-center gap-2">
+                        <span data-lucide="message-circle" class="h-4 w-4 text-cc-brown"></span>
+                        <a href="{{ $appSettings->facebook_url }}" target="_blank" rel="noopener" class="hover:text-cc-brown">
+                            Message us on Facebook
+                        </a>
+                    </li>
+                @endif
             </ul>
 
             <p class="mt-6 text-xs text-cc-muted">
@@ -328,5 +336,17 @@
     </footer>
 
     @stack('scripts')
+
+    @if($errors->any())
+        {{-- A rejected form lands back at the top of the page. Once Alpine has
+             opened whichever step or card the problem is on, scroll to it so
+             nobody has to hunt for what went wrong. --}}
+        <script>
+            window.addEventListener('load', () => setTimeout(() => {
+                const problem = [...document.querySelectorAll('.cc-error')].find((el) => el.offsetParent !== null);
+                problem?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 400));
+        </script>
+    @endif
 </body>
 </html>

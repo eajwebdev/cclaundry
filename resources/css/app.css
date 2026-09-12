@@ -758,6 +758,14 @@ textarea {
         outline: none;
     }
 
+    /* A field that failed validation, server- or client-side, says so in colour
+       as well as in words. */
+    .cc-input-invalid,
+    .cc-input-invalid:focus {
+        border-color: #b42318;
+        box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.16);
+    }
+
     textarea.cc-input {
         min-height: 5.5rem;
         resize: vertical;

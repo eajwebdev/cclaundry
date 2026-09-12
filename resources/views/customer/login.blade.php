@@ -11,24 +11,8 @@
         <div class="text-center">
             <x-brand-mark class="mx-auto h-20 w-20" />
             <h1 class="cc-title mt-5">Welcome back</h1>
-            <p class="cc-subtitle mt-1.5">
-                @if($hasPendingBooking)
-                    Sign in and we will place the pickup you just filled out.
-                @else
-                    Sign in to book a pickup or check on your laundry.
-                @endif
-            </p>
+            <p class="cc-subtitle mt-1.5">Sign in to book a pickup or check on your laundry.</p>
         </div>
-
-        @if($hasPendingBooking)
-            <div class="mt-6 flex items-start gap-3 rounded-2xl border border-cc-line bg-cc-surface px-4 py-3.5">
-                <span data-lucide="truck" class="mt-0.5 h-4 w-4 shrink-0 text-cc-brown"></span>
-                <p class="text-[13px] leading-relaxed text-cc-muted">
-                    <span class="font-bold text-cc-deep">Your booking is waiting.</span>
-                    It will be confirmed the moment you sign in.
-                </p>
-            </div>
-        @endif
 
         <div class="cc-card mt-6 p-5 sm:p-8">
             <form method="POST" action="{{ route('customer.login.submit') }}" class="space-y-4" x-data="{ show: false }">

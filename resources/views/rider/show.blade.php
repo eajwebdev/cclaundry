@@ -4,6 +4,9 @@
 @section('full_bleed', true)
 
 @php
+    // Unclaimed bookings open here too, so a rider can see where one is before
+    // taking it. Confirming is what puts it on their list.
+    $isMine = $isMine ?? true;
     $isCollected = $job->status === 'picked_up';
     $destination = $job->destinationCoordinates();
     $address = $isCollected && $job->delivery_address ? $job->delivery_address : $job->pickup_address;
@@ -193,29 +196,180 @@
             </div>
 
             {{-- The action, pinned above the home indicator --}}
-            @if(in_array($job->status, ['confirmed', 'picked_up'], true))
-                <form method="POST" action="{{ route('rider.jobs.status', $job) }}"
+            @if(! $isMine)
+                {{-- Nobody has taken this one yet. --}}
+                <form method="POST" action="{{ route('rider.jobs.claim', $job) }}"
                       class="px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+                    @csrf
+                    <button type="submit"
+                            class="inline-flex h-14 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-primary text-base font-semibold text-white shadow-sm transition hover:opacity-90">
+                        <span data-lucide="check" class="h-5 w-5"></span>
+                        Confirm pickup &mdash; take this run
+                    </button>
+                </form>
+            @elseif(in_array($job->status, ['confirmed', 'picked_up'], true))
+                <form method="POST" action="{{ route('rider.jobs.status', $job) }}"
+                      class="px-4">
                     @csrf
                     @method('PATCH')
                     <input type="hidden" name="status" value="{{ $isCollected ? 'completed' : 'picked_up' }}">
+
+                    @unless($isCollected)
+                        {{-- Filled in at the door: the tag that goes on the bag,
+                             and what the customer handed over. Payment is taken
+                             on pickup, so it is recorded with the collection. --}}
+                        <div class="mb-3 space-y-2 rounded-xl border border-border p-3 dark:border-gray-800">
+                            <div>
+                                <label for="tag_code" class="block text-xs font-semibold text-muted">Bag tag # <span class="text-primary">*</span></label>
+                                <input id="tag_code" name="tag_code" required maxlength="24" autocomplete="off"
+                                       value="{{ old('tag_code', $job->tag_code ?: $job->suggestedTagCode()) }}"
+                                       class="mt-1 h-11 w-full rounded-lg border border-border bg-white px-3 font-mono text-base uppercase dark:border-gray-700 dark:bg-gray-950">
+                                <p class="mt-1 text-[11px] text-muted">Write this on the bag. It follows the laundry through the branch.</p>
+                                @error('tag_code') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label for="collected_amount" class="block text-xs font-semibold text-muted">Amount collected</label>
+                                    <input id="collected_amount" name="collected_amount" type="number" inputmode="decimal" step="0.01" min="0"
+                                           placeholder="{{ $job->estimated_total ? number_format((float) $job->estimated_total, 2, '.', '') : '0.00' }}"
+                                           value="{{ old('collected_amount') }}"
+                                           class="mt-1 h-11 w-full rounded-lg border border-border bg-white px-3 text-base dark:border-gray-700 dark:bg-gray-950">
+                                </div>
+                                <div>
+                                    <label for="collected_payment_method" class="block text-xs font-semibold text-muted">Paid by</label>
+                                    <select id="collected_payment_method" name="collected_payment_method"
+                                            class="mt-1 h-11 w-full rounded-lg border border-border bg-white px-2 text-sm dark:border-gray-700 dark:bg-gray-950">
+                                        <option value="cash">Cash</option>
+                                        <option value="gcash">GCash</option>
+                                        <option value="unpaid">Not paid yet</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    @endunless
                     <button type="submit"
-                            x-on:click.prevent="Swal.fire({
-                                title: @js($isCollected ? 'Mark as delivered?' : 'Mark as collected?'),
-                                text: @js($isCollected
-                                    ? 'Confirm the customer has their laundry back.'
-                                    : 'Confirm you have the laundry with you.'),
-                                icon: 'question',
-                                showCancelButton: true,
-                                confirmButtonColor: '#A07148',
-                                confirmButtonText: @js($isCollected ? 'Delivered' : 'Collected'),
-                            }).then((result) => { if (result.isConfirmed) $el.closest('form').submit(); })"
+                            x-on:click.prevent="(() => {
+                                const form = $el.closest('form');
+                                const tag = form.querySelector('[name=tag_code]');
+
+                                if (tag && ! tag.value.trim()) { tag.focus(); return; }
+
+                                Swal.fire({
+                                    title: @js($isCollected ? 'Mark as delivered?' : 'Mark as collected?'),
+                                    text: tag
+                                        ? 'Tag ' + tag.value.toUpperCase() + ' goes on this bag.'
+                                        : 'Confirm the customer has their laundry back.',
+                                    icon: 'question',
+                                    showCancelButton: true,
+                                    confirmButtonColor: '#A07148',
+                                    confirmButtonText: @js($isCollected ? 'Delivered' : 'Collected'),
+                                }).then((result) => { if (result.isConfirmed) form.submit(); });
+                            })()"
                             class="inline-flex h-14 w-full touch-manipulation items-center justify-center gap-2 rounded-xl text-base font-semibold text-white shadow-sm transition
                                 {{ $isCollected ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-primary hover:opacity-90' }}">
                         <span data-lucide="{{ $isCollected ? 'package-check' : 'hand-helping' }}" class="h-5 w-5"></span>
                         {{ $isCollected ? 'Mark delivered' : 'Mark collected' }}
                     </button>
                 </form>
+
+                {{-- The ways out, deliberately quieter than the action above:
+                     hand the run back, or close it off with a reason the branch
+                     can repeat to the customer. --}}
+                <div class="grid {{ $job->status === 'confirmed' ? 'grid-cols-2' : 'grid-cols-1' }} gap-2 px-4 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+                    @if($job->status === 'confirmed')
+                        <form method="POST" action="{{ route('rider.jobs.release', $job) }}">
+                            @csrf
+                            @method('PATCH')
+                            <button type="submit"
+                                    x-on:click.prevent="Swal.fire({
+                                        title: 'Hand this run back?',
+                                        text: 'It goes back on the branch list for another rider to take.',
+                                        icon: 'question',
+                                        showCancelButton: true,
+                                        confirmButtonColor: '#A07148',
+                                        confirmButtonText: 'Hand back',
+                                    }).then((result) => { if (result.isConfirmed) $el.closest('form').submit(); })"
+                                    class="inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-lg border border-border text-sm font-semibold dark:border-gray-800">
+                                <span data-lucide="undo-2" class="h-4 w-4"></span>
+                                Hand back
+                            </button>
+                        </form>
+                    @endif
+
+                    @if($job->isCancellable())
+                        <form method="POST" action="{{ route('rider.jobs.cancel', $job) }}">
+                            @csrf
+                            @method('PATCH')
+                            <input type="hidden" name="reason" x-ref="cancelReason">
+                            <button type="submit"
+                                    x-on:click.prevent="Swal.fire({
+                                        title: 'Cancel this booking?',
+                                        input: 'text',
+                                        inputLabel: 'What happened? The branch will tell the customer.',
+                                        inputPlaceholder: 'e.g. nobody home after three calls',
+                                        inputAttributes: { maxlength: 200 },
+                                        icon: 'warning',
+                                        showCancelButton: true,
+                                        confirmButtonColor: '#b42318',
+                                        confirmButtonText: 'Cancel booking',
+                                        cancelButtonText: 'Keep it',
+                                        inputValidator: (value) => (! value || ! value.trim())
+                                            &amp;&amp; 'Please say what happened.',
+                                    }).then((result) => {
+                                        if (! result.isConfirmed) return;
+                                        $refs.cancelReason.value = result.value;
+                                        $el.closest('form').submit();
+                                    })"
+                                    class="inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-lg border border-red-200 text-sm font-semibold text-red-700 dark:border-red-900/60 dark:text-red-300">
+                                <span data-lucide="x" class="h-4 w-4"></span>
+                                Cancel
+                            </button>
+                        </form>
+                    @endif
+                </div>
+            @else
+                {{-- Finished or called off. Nothing left to do, but the run stays
+                     openable so a rider can check what they dropped off
+                     yesterday without ringing the branch. --}}
+                <div class="space-y-2 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+                    <div class="rounded-xl border border-border p-3 text-sm dark:border-gray-800">
+                        <p class="flex items-center gap-2 font-semibold">
+                            <span data-lucide="{{ $job->status === 'cancelled' ? 'x' : 'package-check' }}"
+                                  class="h-4 w-4 {{ $job->status === 'cancelled' ? 'text-red-600' : 'text-emerald-600' }}"></span>
+                            {{ $job->status === 'cancelled' ? 'Cancelled' : 'Delivered' }}
+                            {{ ($job->status === 'cancelled' ? $job->cancelled_at : $job->delivered_at)?->format('D, M j · g:i A') }}
+                        </p>
+
+                        <dl class="mt-2 space-y-1 text-xs text-muted">
+                            @if($job->tag_code)
+                                <div class="flex justify-between gap-3">
+                                    <dt>Bag tag</dt>
+                                    <dd class="font-mono font-semibold text-primary">{{ $job->tag_code }}</dd>
+                                </div>
+                            @endif
+                            @if($job->collected_amount !== null)
+                                <div class="flex justify-between gap-3">
+                                    <dt>Collected</dt>
+                                    <dd class="font-semibold">₱{{ number_format((float) $job->collected_amount, 2) }}
+                                        ({{ ucfirst($job->collected_payment_method ?? 'cash') }})</dd>
+                                </div>
+                            @endif
+                            @if($job->cancellation_reason)
+                                <div class="flex justify-between gap-3">
+                                    <dt class="shrink-0">Reason</dt>
+                                    <dd class="text-right">{{ $job->cancellation_reason }}</dd>
+                                </div>
+                            @endif
+                        </dl>
+                    </div>
+
+                    <a href="{{ route('rider.index') }}"
+                       class="inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-lg border border-border text-sm font-semibold dark:border-gray-800">
+                        <span data-lucide="arrow-left" class="h-4 w-4"></span>
+                        Back to my runs
+                    </a>
+                </div>
             @endif
         </div>
     </div>

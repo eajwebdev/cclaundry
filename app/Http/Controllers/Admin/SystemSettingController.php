@@ -107,6 +107,7 @@ class SystemSettingController extends Controller
                 'business_name' => ['required', 'string', 'max:255'],
                 'business_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
                 'business_email' => ['nullable', 'email', 'max:255'],
+                'facebook_url' => ['nullable', 'url', 'max:255'],
                 'contact_number' => ['required', 'string', 'max:50'],
                 'business_address' => ['required', 'string'],
                 'currency' => ['required', 'string', 'max:10'],

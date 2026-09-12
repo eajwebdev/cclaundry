@@ -60,6 +60,14 @@ Route::middleware('throttle:30,1')->group(function () {
     Route::get('/map/reverse', [GeocodingController::class, 'reverse'])->name('map.reverse');
 });
 
+// A fresh CSRF token for a page that has been open a while. The booking form
+// asks for one right before it submits, so a long booking never dies on a 419.
+Route::get('/csrf-token', fn () => response()
+    ->json(['token' => csrf_token()])
+    ->header('Cache-Control', 'no-store'))
+    ->middleware('throttle:60,1')
+    ->name('csrf.token');
+
 // Static landmark labels, fetched once per map and cached by the browser.
 Route::get('/map/landmarks', [GeocodingController::class, 'landmarks'])
     ->middleware('throttle:60,1')
@@ -70,9 +78,15 @@ Route::get('/track/{reference}/location', [TrackingController::class, 'location'
     ->middleware('throttle:120,1')
     ->name('track.location');
 
-// The booking form itself is open to everyone. If the visitor has no account
-// yet the controller parks the booking and routes them through sign-up.
+// Booking is open to everyone and needs no account: a guest booking is placed
+// against a passwordless customer record, the same kind a walk-in gets.
 Route::post('/book', [BookingController::class, 'store'])->name('booking.store');
+
+// The confirmation afterwards, gated in the controller on having just made
+// this booking (or owning it) rather than on being signed in.
+Route::get('/booking/{reference}', [BookingController::class, 'confirmed'])
+    ->middleware('throttle:60,1')
+    ->name('booking.confirmed');
 
 Route::middleware('guest:customer')->group(function () {
     Route::get('/customer/register', [CustomerAuthController::class, 'showRegister'])->name('customer.register');
@@ -155,6 +169,12 @@ Route::middleware(['auth', 'rider'])->prefix('rider')->name('rider.')->group(fun
     Route::get('/', [RiderController::class, 'index'])->name('index');
     Route::get('/jobs/{pickupRequest}', [RiderController::class, 'show'])->name('jobs.show');
     Route::patch('/jobs/{pickupRequest}/status', [RiderController::class, 'updateStatus'])->name('jobs.status');
+
+    // Confirming an unclaimed booking is what assigns it to the rider who
+    // confirmed it; the other two hand it back or close it from the road.
+    Route::post('/jobs/{pickupRequest}/claim', [RiderController::class, 'claim'])->name('jobs.claim');
+    Route::patch('/jobs/{pickupRequest}/release', [RiderController::class, 'release'])->name('jobs.release');
+    Route::patch('/jobs/{pickupRequest}/cancel', [RiderController::class, 'cancel'])->name('jobs.cancel');
 
     // Routing is the chattiest rider endpoint (reroutes on deviation), so it
     // gets its own allowance rather than eating into the position budget.

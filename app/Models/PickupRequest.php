@@ -18,7 +18,7 @@ class PickupRequest extends Model
     ];
 
     protected $fillable = [
-        'reference_no', 'customer_id', 'branch_id', 'laundry_service_id', 'service_preset_id',
+        'reference_no', 'tag_code', 'customer_id', 'branch_id', 'laundry_service_id', 'service_preset_id',
         'service_name', 'service_price', 'service_pricing_type', 'estimated_kilos',
         'contact_name', 'contact_phone', 'contact_email',
         'pickup_address', 'pickup_landmark', 'pickup_date', 'pickup_slot',
@@ -26,6 +26,7 @@ class PickupRequest extends Model
         'delivery_preference', 'delivery_address', 'delivery_date', 'delivery_slot',
         'delivery_latitude', 'delivery_longitude',
         'is_rush', 'notes', 'estimated_total',
+        'collected_amount', 'collected_payment_method',
         'status', 'job_order_id', 'handled_by',
         'rider_id', 'assigned_at', 'picked_up_at', 'delivered_at',
         'confirmed_at', 'cancelled_at', 'cancellation_reason',
@@ -35,6 +36,7 @@ class PickupRequest extends Model
         'estimated_kilos' => 'decimal:2',
         'service_price' => 'decimal:2',
         'estimated_total' => 'decimal:2',
+        'collected_amount' => 'decimal:2',
         'is_rush' => 'boolean',
         'pickup_date' => 'date',
         'delivery_date' => 'date',
@@ -148,6 +150,27 @@ class PickupRequest extends Model
     public function isCancellable(): bool
     {
         return $this->status === 'pending' || $this->status === 'confirmed';
+    }
+
+    /**
+     * The code that goes on the bag so this load cannot be confused with
+     * another customer's.
+     *
+     * Short on purpose: a rider writes it on a tag with a marker, and a
+     * customer reads it back over the phone. Derived from the booking
+     * reference, which is already unique per day.
+     */
+    public function suggestedTagCode(): string
+    {
+        $tail = substr(preg_replace('/[^A-Z0-9]/', '', strtoupper((string) $this->reference_no)) ?: '', -6);
+
+        return 'CC-'.($tail ?: str_pad((string) $this->id, 6, '0', STR_PAD_LEFT));
+    }
+
+    /** What the branch and the customer both quote: the tag, or the booking. */
+    public function handoffCode(): string
+    {
+        return $this->tag_code ?: $this->reference_no;
     }
 
     public static function nextReference(): string

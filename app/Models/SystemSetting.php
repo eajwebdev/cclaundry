@@ -13,6 +13,7 @@ class SystemSetting extends Model
         'business_name',
         'business_logo',
         'business_email',
+        'facebook_url',
         'contact_number',
         'business_address',
         'receipt_header',

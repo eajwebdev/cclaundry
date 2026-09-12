@@ -80,9 +80,16 @@ class Customer extends Model implements AuthenticatableContract
             return $query->whereRaw('1 = 0');
         }
 
-        // Compare on digits only so 0917-123-4567 and +639171234567 both match.
+        // Compare with the separators people type stripped out, so 0917-123-4567
+        // and +63 917 123 4567 both match the stored number.
+        //
+        // Nested REPLACE rather than REGEXP_REPLACE: the latter is MySQL 8 only,
+        // so it threw "no such function" on SQLite (the test database) and on
+        // older MariaDB, taking the whole public booking down with it.
+        $digitsOnly = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', ''), '.', '')";
+
         return $query->whereRaw(
-            "REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '') IN (?, ?, ?)",
+            "{$digitsOnly} IN (?, ?, ?)",
             [$normalized, '63'.ltrim($normalized, '0'), ltrim($normalized, '0')]
         );
     }

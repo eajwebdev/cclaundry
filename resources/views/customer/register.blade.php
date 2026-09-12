@@ -5,7 +5,10 @@
 
 @php
     $businessName = $appBusinessName ?: config('app.name');
-    $pending = $pendingBooking ?? null;
+
+    // Set when the visitor just booked as a guest: the booking is already
+    // placed, so this page only offers to keep it somewhere they can manage it.
+    $recent = $recentBooking ?? null;
 @endphp
 
 @section('content')
@@ -15,52 +18,28 @@
         {{-- ─────────── What the account is for ─────────── --}}
         <div class="lg:pt-4">
             <div class="text-center lg:text-left">
-                <h1 class="cc-title">
-                    @if($pending)
-                        One step and your pickup is booked
-                    @else
-                        Create your account
-                    @endif
-                </h1>
+                <h1 class="cc-title">Create your account</h1>
                 <p class="cc-subtitle mx-auto mt-2 max-w-md lg:mx-0">
-                    @if($pending)
-                        We have kept everything you filled in. Set a password and we will place the booking straight away.
+                    @if($recent)
+                        Your pickup is booked already &mdash; this just puts it somewhere you can track,
+                        cancel and rebook it in one tap.
                     @else
                         It takes about thirty seconds, and it is what lets you book pickups, track them and rebook in one tap.
                     @endif
                 </p>
             </div>
 
-            {{-- The booking waiting to be placed --}}
-            @if($pending)
-                @php
-                    $slotLabels = $slots ?? [];
-                    $summary = [
-                        ['laundry', 'Service', data_get($offerings->firstWhere('key', data_get($pending, 'offering')), 'name', '--')],
-                        ['calendar-days', 'Pickup', trim(
-                            (data_get($pending, 'pickup_date') ? \Illuminate\Support\Carbon::parse(data_get($pending, 'pickup_date'))->format('M j, Y') : '--')
-                            .' · '.($slotLabels[data_get($pending, 'pickup_slot')] ?? '')
-                        , ' ·')],
-                        ['map-pin', 'Address', \Illuminate\Support\Str::limit((string) data_get($pending, 'pickup_address'), 70)],
-                        ['truck', 'Return', data_get($pending, 'delivery_preference') === 'deliver' ? 'Free delivery back to you' : 'Claim at branch'],
-                    ];
-                @endphp
-                <div class="cc-card mt-6 overflow-hidden">
-                    <div class="flex items-center gap-2.5 border-b border-cc-line bg-cc-soft/70 px-5 py-3">
-                        <span data-lucide="truck" class="h-4 w-4 text-cc-brown"></span>
-                        <span class="text-sm font-bold text-cc-deep">Your pending booking</span>
+            {{-- The booking they already have. Nothing here is waiting on them. --}}
+            @if($recent)
+                <div class="cc-card mt-6 flex items-start gap-3.5 p-5">
+                    <span class="cc-icon-tile h-11 w-11 shrink-0"><span data-lucide="check" class="h-5 w-5"></span></span>
+                    <div class="min-w-0">
+                        <p class="font-bold text-cc-deep">Booking {{ data_get($recent, 'reference_no') }} is placed</p>
+                        <p class="mt-1 text-sm leading-relaxed text-cc-muted">
+                            We will call {{ data_get($recent, 'contact_phone') }} to confirm before the rider heads over.
+                            You do not need an account for that to happen.
+                        </p>
                     </div>
-                    <ul class="divide-y divide-cc-line px-5">
-                        @foreach ($summary as [$icon, $label, $detail])
-                            <li class="flex items-start gap-3 py-3">
-                                <span data-lucide="{{ $icon }}" class="mt-0.5 h-4.5 w-4.5 shrink-0 text-cc-brown"></span>
-                                <div class="min-w-0">
-                                    <p class="text-xs font-semibold text-cc-muted">{{ $label }}</p>
-                                    <p class="mt-0.5 text-sm font-bold wrap-break-word text-cc-deep">{{ $detail ?: '--' }}</p>
-                                </div>
-                            </li>
-                        @endforeach
-                    </ul>
                 </div>
             @else
                 <ul class="mt-6 hidden space-y-3 lg:block">
@@ -95,7 +74,7 @@
                 <div>
                     <label for="name" class="cc-label">Full Name <span class="text-cc-brown">*</span></label>
                     <input id="name" type="text" name="name" required autocomplete="name" placeholder="e.g. Juan Dela Cruz"
-                           value="{{ old('name', data_get($pending, 'contact_name')) }}" class="cc-input mt-1.5">
+                           value="{{ old('name', data_get($recent, 'contact_name')) }}" class="cc-input mt-1.5">
                     @error('name') <p class="cc-error">{{ $message }}</p> @enderror
                 </div>
 
@@ -103,7 +82,7 @@
                     <div>
                         <label for="phone" class="cc-label">Mobile Number <span class="text-cc-brown">*</span></label>
                         <input id="phone" type="tel" name="phone" required inputmode="tel" autocomplete="tel" placeholder="09XX XXX XXXX"
-                               value="{{ old('phone', data_get($pending, 'contact_phone')) }}" class="cc-input mt-1.5">
+                               value="{{ old('phone', data_get($recent, 'contact_phone')) }}" class="cc-input mt-1.5">
                         <p class="cc-help mt-1">This is what you will sign in with.</p>
                         @error('phone') <p class="cc-error">{{ $message }}</p> @enderror
                     </div>
@@ -112,7 +91,7 @@
                         <label for="branch_id" class="cc-label">Home Branch <span class="text-cc-brown">*</span></label>
                         <select id="branch_id" name="branch_id" required class="cc-input mt-1.5">
                             @foreach ($branches as $branch)
-                                <option value="{{ $branch->id }}" @selected((string) old('branch_id', data_get($pending, 'branch_id')) === (string) $branch->id)>{{ $branch->name }}</option>
+                                <option value="{{ $branch->id }}" @selected((string) old('branch_id', data_get($recent, 'branch_id')) === (string) $branch->id)>{{ $branch->name }}</option>
                             @endforeach
                         </select>
                         @error('branch_id') <p class="cc-error">{{ $message }}</p> @enderror
@@ -122,14 +101,14 @@
                 <div>
                     <label for="email" class="cc-label">Email <span class="font-semibold text-cc-muted">(optional)</span></label>
                     <input id="email" type="email" name="email" inputmode="email" autocomplete="email" placeholder="you@example.com"
-                           value="{{ old('email', data_get($pending, 'contact_email')) }}" class="cc-input mt-1.5">
+                           value="{{ old('email', data_get($recent, 'contact_email')) }}" class="cc-input mt-1.5">
                     @error('email') <p class="cc-error">{{ $message }}</p> @enderror
                 </div>
 
                 <div>
                     <label for="address" class="cc-label">Default Pickup Address <span class="font-semibold text-cc-muted">(optional)</span></label>
                     <textarea id="address" name="address" rows="2" autocomplete="street-address" placeholder="House / Street / Barangay"
-                              class="cc-input mt-1.5">{{ old('address', data_get($pending, 'pickup_address')) }}</textarea>
+                              class="cc-input mt-1.5">{{ old('address', data_get($recent, 'pickup_address')) }}</textarea>
                     @error('address') <p class="cc-error">{{ $message }}</p> @enderror
                 </div>
 
@@ -167,8 +146,8 @@
                 @error('terms') <p class="cc-error">{{ $message }}</p> @enderror
 
                 <button type="submit" class="cc-btn w-full">
-                    <span data-lucide="{{ $pending ? 'check' : 'user' }}" class="h-4.5 w-4.5"></span>
-                    {{ $pending ? 'Create account & confirm booking' : 'Create my account' }}
+                    <span data-lucide="user" class="h-4.5 w-4.5"></span>
+                    Create my account
                 </button>
             </form>
 

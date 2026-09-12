@@ -10,6 +10,9 @@
 
     $details = [
         ['store', 'Branch', $pickupRequest->branch?->name ?? '--'],
+        ...($pickupRequest->tag_code
+            ? [['tag', 'Laundry tag', $pickupRequest->tag_code.' — the number on your bag']]
+            : []),
         ['calendar-days', 'Pickup', $pickupRequest->pickup_date->format('D, M j, Y').' · '.$pickupRequest->pickupSlotLabel()],
         ['truck', 'Return', $pickupRequest->wantsDelivery()
             ? 'Free delivery'.($pickupRequest->delivery_date ? ' on '.$pickupRequest->delivery_date->format('D, M j, Y') : ', date to be confirmed')

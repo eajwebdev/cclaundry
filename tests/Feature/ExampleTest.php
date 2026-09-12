@@ -31,13 +31,14 @@ class ExampleTest extends TestCase
     use RefreshDatabase;
 
     /**
-     * A basic test example.
+     * "/" is the customer's landing page now, open to everyone — booking a
+     * pickup never asks for a login. The staff dashboard is what is gated.
      */
-    public function test_guest_is_redirected_to_login(): void
+    public function test_guest_sees_the_public_site_and_the_dashboard_needs_a_login(): void
     {
-        $response = $this->get('/');
+        $this->get('/')->assertOk();
 
-        $response->assertRedirect('/login');
+        $this->get('/dashboard')->assertRedirect('/login');
     }
 
     public function test_authenticated_user_can_view_reports_pdf(): void

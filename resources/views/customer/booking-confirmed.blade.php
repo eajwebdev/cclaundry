@@ -8,6 +8,11 @@
     $status = $pickupRequest->status;
     $cancelled = $status === 'cancelled';
 
+    // Reachable without an account, so the account-only actions (the booking
+    // list, cancelling) are shown only to the customer who owns this one.
+    $viewer = auth('customer')->user();
+    $isOwner = $viewer && $viewer->id === $pickupRequest->customer_id;
+
     [$headline, $headlineIcon] = match ($status) {
         'cancelled' => ['Booking Cancelled', 'x'],
         'picked_up' => ['We Have Your Laundry', 'laundry'],
@@ -23,6 +28,12 @@
 
     $details = [
         ['laundry', 'Service', $pickupRequest->serviceTypeLabel()],
+        ...($pickupRequest->tag_code
+            ? [['tag', 'Laundry tag', $pickupRequest->tag_code.' — written on your bag']]
+            : []),
+        ['wallet', 'Payment', $pickupRequest->collected_amount !== null
+            ? '₱'.number_format((float) $pickupRequest->collected_amount, 2).' paid at pickup'
+            : 'Our rider collects payment when they pick up your laundry'],
         ['scale', 'Weight (estimated)', $kilos],
         ['store', 'Branch', $pickupRequest->branch?->name ?? '--'],
         ['map-pin', 'Pickup address', $pickupRequest->pickup_address.($pickupRequest->pickup_landmark ? ' (Landmark: '.$pickupRequest->pickup_landmark.')' : '')],
@@ -104,10 +115,33 @@
                     </p>
                 @endunless
 
-                <a href="{{ route('customer.bookings.index') }}" class="cc-btn-outline w-full">
-                    <span data-lucide="jobOrders" class="h-4.5 w-4.5"></span>
-                    View all my bookings
-                </a>
+                @if($isOwner)
+                    <a href="{{ route('customer.bookings.index') }}" class="cc-btn-outline w-full">
+                        <span data-lucide="jobOrders" class="h-4.5 w-4.5"></span>
+                        View all my bookings
+                    </a>
+                @elseif(! $cancelled)
+                    {{-- An offer, not a requirement: the booking above is already
+                         placed and the branch already has the number to call. --}}
+                    <div class="cc-soft px-4 py-4 text-center">
+                        <p class="text-sm font-bold text-cc-deep">Want to manage this yourself?</p>
+                        <p class="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-cc-muted">
+                            Create a free account with {{ $pickupRequest->contact_phone }} to track, cancel and rebook
+                            without typing your details again. This pickup stays booked either way.
+                        </p>
+                        <a href="{{ route('customer.register') }}" class="cc-btn cc-btn-sm mt-3">
+                            <span data-lucide="user" class="h-4 w-4"></span>
+                            Create an account
+                        </a>
+                    </div>
+
+                    <p class="text-center text-xs leading-relaxed text-cc-muted">
+                        Or just keep booking number
+                        <span class="font-mono font-bold text-cc-deep">{{ $pickupRequest->reference_no }}</span>:
+                        with your mobile number it is all you need to
+                        <a href="{{ route('landing') }}#track" class="font-bold text-cc-brown hover:underline">track your laundry</a>.
+                    </p>
+                @endif
 
                 <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-1 pt-1 text-sm font-bold">
                     <a href="{{ route('landing') }}#book" class="inline-flex min-h-11 items-center gap-1.5 text-cc-brown hover:underline">
@@ -115,7 +149,7 @@
                         Book another
                     </a>
 
-                    @if($pickupRequest->isCancellable())
+                    @if($isOwner && $pickupRequest->isCancellable())
                         <form method="POST" action="{{ route('customer.bookings.cancel', $pickupRequest) }}"
                               onsubmit="return confirm('Cancel booking {{ $pickupRequest->reference_no }}? This cannot be undone.');">
                             @csrf
