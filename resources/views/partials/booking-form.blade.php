@@ -26,7 +26,7 @@
     $stepFields = [
         1 => ['items'],
         2 => ['contact_name', 'contact_phone', 'contact_email', 'branch_id', 'pickup_address', 'pickup_landmark', 'pickup_latitude', 'pickup_longitude'],
-        3 => ['pickup_date', 'pickup_slot', 'delivery_preference', 'delivery_address', 'delivery_latitude', 'delivery_longitude', 'delivery_date', 'delivery_slot', 'notes'],
+        3 => ['pickup_date', 'pickup_slot', 'delivery_preference', 'delivery_address', 'delivery_latitude', 'delivery_longitude', 'delivery_date', 'delivery_slot', 'payment_method', 'notes'],
     ];
 
     // A complaint about one line arrives as "items.0.quantity", which belongs to
@@ -83,7 +83,7 @@
         ['user', 'Customer', 'form.contact_name', 2, null],
         ['phone', 'Phone', 'form.contact_phone', 2, null],
         ['map-pin', 'Pickup Address', 'addressLabel', 2, null],
-        ['laundry', 'What we&rsquo;re cleaning', 'serviceLine', 1, null],
+        ['laundry', "What we’re cleaning", 'serviceLine', 1, null],
         ['scale', 'Total weight (estimated)', 'kilosLabel', 1, 'kilosLabel'],
         ['calendar-days', 'Pickup Schedule', 'pickupLabel', 3, null],
         ['truck', 'Pickup & Delivery', 'returnLabel', 3, null],
@@ -93,6 +93,7 @@
         $reviewRows[] = ['store', 'Branch', 'branchLabel', 2, null];
     }
 
+    $reviewRows[] = ['wallet', 'Payment', 'paymentLabel', 3, null];
     $reviewRows[] = ['sticky-note', 'Special instructions', 'form.notes', 3, 'form.notes'];
 @endphp
 
@@ -140,6 +141,7 @@
                     pickup_date: @js((string) $value('pickup_date', $earliestPickupDate)),
                     pickup_slot: @js((string) $value('pickup_slot', array_key_first($slots))),
                     delivery_preference: @js((string) $value('delivery_preference', 'deliver')),
+                    payment_method: @js((string) $value('payment_method', 'cash')),
                     delivery_address: @js((string) $value('delivery_address', '')),
                     delivery_date: @js((string) $value('delivery_date', '')),
                     delivery_slot: @js((string) $value('delivery_slot', '')),
@@ -449,7 +451,7 @@
                     </ul>
 
                     <fieldset class="mt-7">
-                        <legend class="cc-label text-[15px]">How should we return it? <span class="text-cc-brown">*</span></legend>
+                        <legend class="cc-label text-[15px]">How would you like to receive your laundry? <span class="text-cc-brown">*</span></legend>
 
                         <div class="mt-3 grid grid-cols-2 gap-2.5">
                             @foreach ($deliveryPreferences as $prefKey => $prefLabel)
@@ -459,7 +461,7 @@
                                     <span class="cc-icon-tile h-10 w-10"><span data-lucide="{{ $prefKey === 'deliver' ? 'truck' : 'store' }}" class="h-5 w-5"></span></span>
                                     <span>
                                         <span class="block text-sm leading-snug font-bold text-cc-deep">{{ $prefLabel }}</span>
-                                        <span class="mt-0.5 block text-xs text-cc-muted">{{ $prefKey === 'deliver' ? 'Free, right to your door' : 'Pick it up yourself' }}</span>
+                                        <span class="mt-0.5 block text-xs text-cc-muted">{{ $prefKey === 'deliver' ? 'Payment will be collected by our rider upon pick up.' : 'Pick it up yourself.' }}</span>
                                     </span>
                                 </label>
                             @endforeach
@@ -469,7 +471,7 @@
                         <div x-show="form.delivery_preference === 'deliver'" x-cloak class="mt-4 space-y-4">
                             <label class="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-semibold text-cc-ink">
                                 <input type="checkbox" x-model="sameAddress" class="cc-checkbox">
-                                Deliver to the same address we collect from
+                                Deliver to the same address we collected from
                             </label>
 
                             <div x-show="! sameAddress" x-cloak class="space-y-4">
@@ -514,10 +516,28 @@
                         </div>
                     </fieldset>
 
+                    {{-- Asked here rather than at the door, so the rider sets off
+                         knowing whether to expect cash or a GCash transfer. --}}
+                    <fieldset class="mt-7">
+                        <legend class="cc-label text-[15px]">Payment Method <span class="text-cc-brown">*</span></legend>
+
+                        <div class="mt-3 grid grid-cols-2 gap-2.5">
+                            @foreach ($paymentMethods as $methodKey => $methodLabel)
+                                <label class="cc-option items-center gap-3 p-3.5"
+                                       :class="{ 'cc-option-active': form.payment_method === '{{ $methodKey }}' }">
+                                    <input type="radio" name="payment_method" value="{{ $methodKey }}" x-model="form.payment_method" class="sr-only">
+                                    <span class="cc-icon-tile h-10 w-10 shrink-0"><span data-lucide="{{ $methodKey === 'cash' ? 'wallet' : 'smartphone' }}" class="h-5 w-5"></span></span>
+                                    <span class="text-sm leading-snug font-bold text-cc-deep">{{ $methodLabel }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                        @error('payment_method')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.payment_method" x-cloak class="cc-error" x-text="errors.payment_method"></p>@enderror
+                    </fieldset>
+
                     <div class="mt-6">
                         <label for="notes" class="cc-label">Special Instructions <span class="font-semibold text-cc-muted">(optional)</span></label>
                         <textarea id="notes" name="notes" rows="3" x-model="form.notes"
-                                  placeholder="Separate the whites, call before entering the subdivision…"
+                                  placeholder="Separate whites, call before entering the subdivision…"
                                   class="cc-input mt-1.5"></textarea>
                         @error('notes') <p class="cc-error">{{ $message }}</p> @enderror
                     </div>
@@ -555,9 +575,9 @@
                         <div class="mt-4 flex items-start gap-3 rounded-2xl border border-cc-line bg-cc-surface px-4 py-3.5">
                             <span data-lucide="lock" class="mt-0.5 h-4 w-4 shrink-0 text-cc-brown"></span>
                             <p class="text-[13px] leading-relaxed text-cc-muted">
-                                <span class="font-bold text-cc-deep">One last step after this.</span>
-                                Bookings are tied to an account so you can track and cancel them. We&rsquo;ll ask you to set a
-                                password next. Everything you filled in here is kept.
+                                <span class="font-bold text-cc-deep">Your booking will be saved to your account</span>
+                                so you can easily track it. We&rsquo;ll ask you to set a password after you confirm, and
+                                everything you filled in here is kept.
                             </p>
                         </div>
                     @endunless
@@ -791,6 +811,10 @@
                 return this.formatDate(this.form.pickup_date) + ' • ' + (this.slots[this.form.pickup_slot] || '');
             },
 
+            get paymentLabel() {
+                return {{ Js::from(\App\Support\Booking::paymentMethods()) }}[this.form.payment_method] || '';
+            },
+
             get returnLabel() {
                 if (this.form.delivery_preference !== 'deliver') {
                     return 'Claim at ' + (this.branchLabel || 'the branch');
@@ -926,6 +950,7 @@
                         ['pickup_slot', 'Choose a collection time that has not passed yet.', () =>
                             filled(this.form.pickup_slot) && this.slotAvailable(this.form.pickup_slot)],
                         ['delivery_preference', 'Tell us how you want your laundry back.', () => filled(this.form.delivery_preference)],
+                        ['payment_method', 'Tell us how you would like to pay.', () => filled(this.form.payment_method)],
                         ['delivery_date', 'Delivery cannot be earlier than the pickup.', () =>
                             ! filled(this.form.delivery_date) || this.form.delivery_date >= this.form.pickup_date],
                     ],

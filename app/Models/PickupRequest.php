@@ -27,7 +27,7 @@ class PickupRequest extends Model
         'pickup_latitude', 'pickup_longitude',
         'delivery_preference', 'delivery_address', 'delivery_date', 'delivery_slot',
         'delivery_latitude', 'delivery_longitude',
-        'is_rush', 'notes', 'estimated_total',
+        'is_rush', 'payment_method', 'notes', 'estimated_total',
         'collected_amount', 'collected_payment_method',
         'status', 'job_order_id', 'handled_by',
         'rider_id', 'assigned_at', 'picked_up_at', 'delivered_at',
@@ -185,6 +185,13 @@ class PickupRequest extends Model
     public function deliverySlotLabel(): ?string
     {
         return $this->delivery_slot ? (self::PICKUP_SLOTS[$this->delivery_slot] ?? $this->delivery_slot) : null;
+    }
+
+    /** "Cash" or "GCash", falling back to whatever is stored if it is neither. */
+    public function paymentMethodLabel(): string
+    {
+        return \App\Support\Booking::paymentMethods()[$this->payment_method]
+            ?? (string) $this->payment_method;
     }
 
     public function wantsDelivery(): bool

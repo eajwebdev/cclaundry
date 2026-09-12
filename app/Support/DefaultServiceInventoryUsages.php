@@ -24,7 +24,8 @@ class DefaultServiceInventoryUsages
     public static function rules(): array
     {
         return [
-            'Uniform Steaming (per pair)' => ['Hanger' => 1],
+            'Uniform Steaming (Kids)' => ['Hanger' => 1],
+            'Uniform Steaming (Adult)' => ['Hanger' => 1],
             'Ariel Detergent' => ['Detergent Powder' => 0.10],
             'Tide Detergent' => ['Detergent Powder' => 0.10],
             'Downy Mystique Fabcon' => ['Fabric Conditioner' => 0.08],

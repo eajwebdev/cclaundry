@@ -281,11 +281,20 @@ class Booking
         );
     }
 
+    /** How the customer means to pay, chosen when they book. */
+    public static function paymentMethods(): array
+    {
+        return [
+            'cash' => 'Cash',
+            'gcash' => 'GCash',
+        ];
+    }
+
     public static function deliveryPreferences(): array
     {
         return [
-            'deliver' => 'Deliver it back to me',
-            'branch_pickup' => 'I will claim it at the branch',
+            'deliver' => 'Deliver my laundry to me',
+            'branch_pickup' => "I'll pick it up at the branch",
         ];
     }
 

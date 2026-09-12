@@ -150,6 +150,7 @@
                                         @if($pickupRequest->estimated_total)
                                             &middot; ~{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $pickupRequest->estimated_total, 2) }}
                                         @endif
+                                        &middot; paying by {{ $pickupRequest->paymentMethodLabel() }}
                                     </p>
                                 </div>
 

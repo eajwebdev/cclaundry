@@ -36,7 +36,7 @@
             : []),
         ['wallet', 'Payment', $pickupRequest->collected_amount !== null
             ? '₱'.number_format((float) $pickupRequest->collected_amount, 2).' paid at pickup'
-            : 'Our rider collects payment when they pick up your laundry'],
+            : $pickupRequest->paymentMethodLabel().', collected by our rider when they pick up your laundry'],
         ['scale', 'Weight (estimated)', $kilos],
         ['store', 'Branch', $pickupRequest->branch?->name ?? '--'],
         ['map-pin', 'Pickup address', $pickupRequest->pickup_address.($pickupRequest->pickup_landmark ? ' (Landmark: '.$pickupRequest->pickup_landmark.')' : '')],

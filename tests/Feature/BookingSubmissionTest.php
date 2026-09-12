@@ -86,6 +86,7 @@ class BookingSubmissionTest extends TestCase
             'pickup_date' => now()->addDays(2)->toDateString(),
             'pickup_slot' => array_key_first(Booking::slots()),
             'delivery_preference' => 'deliver',
+            'payment_method' => 'cash',
         ], $overrides);
     }
 
@@ -430,6 +431,27 @@ class BookingSubmissionTest extends TestCase
 
         $this->assertSame('2.00', $line->billable_quantity);
         $this->assertSame('120.00', $line->line_total);
+    }
+
+    /** The rider needs to know whether to expect cash or a transfer. */
+    public function test_the_chosen_payment_method_is_stored_with_the_booking(): void
+    {
+        $this->post(route('booking.store'), $this->payload([
+            'payment_method' => 'gcash',
+        ]))->assertSessionHasNoErrors();
+
+        $this->assertSame('gcash', PickupRequest::query()->firstOrFail()->payment_method);
+    }
+
+    public function test_a_booking_must_say_how_it_will_be_paid(): void
+    {
+        $payload = $this->payload();
+        unset($payload['payment_method']);
+
+        $this->post(route('booking.store'), $payload)->assertSessionHasErrors('payment_method');
+
+        $this->post(route('booking.store'), $this->payload(['payment_method' => 'bitcoin']))
+            ->assertSessionHasErrors('payment_method');
     }
 
     /** Someone who rings at breakfast wants the bag gone before lunch. */

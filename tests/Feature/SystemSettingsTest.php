@@ -271,7 +271,7 @@ class SystemSettingsTest extends TestCase
     {
         $this->get(route('login'))
             ->assertOk()
-            ->assertSee('Laundry operations login')
+            ->assertSee('Staff Login')
             ->assertSee('laundry-bubble')
             ->assertSee('--bubble-x')
             ->assertSee('window.appPrimaryColor')

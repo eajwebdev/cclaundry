@@ -3,14 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
-use App\Models\JobOrder;
-use App\Models\LaundryService;
 use App\Models\PickupRequest;
 use App\Models\SystemSetting;
 use App\Support\Booking;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
 
 class LandingController extends Controller
 {
@@ -32,6 +29,7 @@ class LandingController extends Controller
             'addons' => Booking::addonOfferings(),
             'slots' => Booking::slots(),
             'deliveryPreferences' => Booking::deliveryPreferences(),
+            'paymentMethods' => Booking::paymentMethods(),
             'earliestPickupDate' => Booking::earliestPickupDate(),
             'latestPickupDate' => Booking::latestPickupDate(),
             'customer' => $customer,
@@ -43,65 +41,7 @@ class LandingController extends Controller
                     ->orderBy('pickup_date')
                     ->get()
                 : collect(),
-            'stats' => $this->stats(),
         ]);
-    }
-
-    /**
-     * Real figures from the system, for the landing page. Only counts that
-     * actually mean something are returned: a brand new install should not
-     * advertise "0 orders completed".
-     */
-    private function stats(): array
-    {
-        $stats = [];
-
-        $branches = Booking::branches()->count();
-        if ($branches > 0) {
-            $stats[] = [
-                'value' => (string) $branches,
-                'label' => Str::plural('Branch', $branches).' serving you',
-                'icon' => 'branches',
-            ];
-        }
-
-        // Counts what the public price list actually shows, not every service.
-        $services = LaundryService::query()->where('is_active', true)->where('show_on_landing', true)->count();
-        if ($services > 0) {
-            $stats[] = [
-                'value' => (string) $services,
-                'label' => 'Services on the price list',
-                'icon' => 'services',
-            ];
-        }
-
-        $completed = JobOrder::query()->where('status', 'completed')->count();
-        if ($completed > 0) {
-            $stats[] = [
-                'value' => $this->compactNumber($completed),
-                'label' => 'Loads completed',
-                'icon' => 'packageCheck',
-            ];
-        }
-
-        $customers = Customer::query()->where('is_active', true)->count();
-        if ($customers > 0) {
-            $stats[] = [
-                'value' => $this->compactNumber($customers),
-                'label' => 'Customers served',
-                'icon' => 'customers',
-            ];
-        }
-
-        return $stats;
-    }
-
-    /** 1,240 reads better as 1.2k on a stat tile. */
-    private function compactNumber(int $value): string
-    {
-        return $value >= 1000
-            ? rtrim(rtrim(number_format($value / 1000, 1), '0'), '.').'k'
-            : number_format($value);
     }
 
     /**
@@ -121,8 +61,8 @@ class LandingController extends Controller
             ->first();
 
         $phoneMatches = $requestRecord
-            && \App\Models\Customer::normalizePhone($requestRecord->contact_phone)
-                === \App\Models\Customer::normalizePhone($validated['phone']);
+            && Customer::normalizePhone($requestRecord->contact_phone)
+                === Customer::normalizePhone($validated['phone']);
 
         if (! $phoneMatches) {
             return back()

@@ -63,12 +63,8 @@
         >
             <div class="mb-6 text-center">
                 <x-brand-mark class="mx-auto mb-4 h-16 w-16 shadow-sm" />
-                <div class="mb-3 inline-flex items-center gap-2 rounded-md border border-border bg-smoke px-2.5 py-1 text-xs font-medium text-primary dark:border-gray-800 dark:bg-gray-950">
-                    <span data-lucide="laundry" class="h-3.5 w-3.5"></span>
-                    Laundry operations login
-                </div>
-                <!-- <h1 class="text-xl font-semibold tracking-normal">{{ $appBusinessName }}</h1> -->
-                <p class="mt-1 text-sm text-muted">Fresh loads, clean records, and branch work in one place.</p>
+                <h1 class="text-xl font-semibold tracking-normal">Staff Login</h1>
+                <p class="mt-1 text-sm text-muted">Manage laundry orders, payments, and daily operations in one place.</p>
             </div>
 
             <form method="POST" action="{{ route('login.submit') }}" class="space-y-4" x-on:submit="loading = true">
@@ -124,26 +120,28 @@
                     @enderror
                 </div>
 
-                <div>
-                    <label for="branch_id" class="mb-1.5 block text-sm font-medium">
-                        Branch
-                        <span class="font-normal text-muted">(branch staff only)</span>
-                    </label>
-                    <select
-                        id="branch_id"
-                        name="branch_id"
-                        class="h-10 w-full rounded-md border border-border bg-white px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-gray-700 dark:bg-gray-950"
-                    >
-                        <option value="">Use my assigned branch</option>
-                        @foreach($branches as $branch)
-                            <option value="{{ $branch->id }}" @selected((int) old('branch_id') === (int) $branch->id)>{{ $branch->name }}</option>
-                        @endforeach
-                    </select>
-                    <p class="mt-1.5 text-xs text-muted">Working at another branch today? Pick it here. Admins keep access to all branches.</p>
-                    @error('branch_id')
-                        <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
-                    @enderror
-                </div>
+                @if($branches->count() > 1)
+                    <div>
+                        <label for="branch_id" class="mb-1.5 block text-sm font-medium">
+                            Branch
+                            <span class="font-normal text-muted">(branch staff only)</span>
+                        </label>
+                        <select
+                            id="branch_id"
+                            name="branch_id"
+                            class="h-10 w-full rounded-md border border-border bg-white px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-gray-700 dark:bg-gray-950"
+                        >
+                            <option value="">Use my assigned branch</option>
+                            @foreach($branches as $branch)
+                                <option value="{{ $branch->id }}" @selected((int) old('branch_id') === (int) $branch->id)>{{ $branch->name }}</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1.5 text-xs text-muted">Working at another branch today? Pick it here. Admins keep access to all branches.</p>
+                        @error('branch_id')
+                            <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+                @endif
 
                 <div class="flex items-center justify-between">
                     <label class="inline-flex cursor-pointer items-center gap-2 text-sm text-muted">
@@ -174,11 +172,6 @@
                     </span>
                 </button>
             </form>
-
-            <div class="mt-5 text-center">
-                <a href="{{ route('attendance.login') }}" class="text-sm font-medium text-primary">Employee attendance login</a>
-            </div>
-
         </div>
     </main>
 

@@ -3,7 +3,10 @@
 @section('page_title', 'Sign in')
 @section('back_url', route('landing'))
 
-@php($businessName = $appBusinessName ?: config('app.name'))
+@php
+    $businessName = $appBusinessName ?: config('app.name');
+    $houseName = preg_replace('/\s*laundry\s*$/i', '', $businessName) ?: $businessName;
+@endphp
 
 @section('content')
 <section class="px-4 pt-8 sm:pt-14">
@@ -21,7 +24,7 @@
                 <div>
                     <label for="login" class="cc-label">Mobile number or email</label>
                     <input id="login" type="text" name="login" required autofocus autocomplete="username"
-                           placeholder="09XX XXX XXXX" value="{{ old('login') }}" class="cc-input mt-1.5">
+                           placeholder="09XX XXX XXXX or email" value="{{ old('login') }}" class="cc-input mt-1.5">
                     @error('login') <p class="cc-error">{{ $message }}</p> @enderror
                 </div>
 
@@ -58,17 +61,17 @@
         </div>
 
         <p class="mt-5 text-center text-xs leading-relaxed text-cc-muted">
-            Booked at the counter before? Use
-            <a href="{{ route('customer.register') }}" class="font-bold text-cc-brown hover:underline">sign up</a>
-            with the same mobile number and we will link your history.
+            Booked at the counter before?
+            <a href="{{ route('customer.register') }}" class="font-bold text-cc-brown hover:underline">Sign up</a>
+            with the same mobile number and we&rsquo;ll link your laundry history.
         </p>
 
         {{-- This page is for customers only; staff accounts live behind /login. --}}
         <div class="mt-6 flex items-start gap-3 rounded-2xl border border-cc-line bg-cc-surface/80 px-4 py-3.5">
             <span data-lucide="lock" class="mt-0.5 h-4 w-4 shrink-0 text-cc-muted"></span>
             <p class="text-[13px] leading-relaxed text-cc-muted">
-                Work at {{ $businessName }}? This page is for customers. Staff and branch employees sign in to the
-                laundry system <a href="{{ route('login') }}" class="font-bold text-cc-brown hover:underline">here</a>.
+                Work at {{ $houseName }}? This page is for customers. Staff and branch employees can
+                <a href="{{ route('login') }}" class="font-bold text-cc-brown hover:underline">sign in here</a>.
             </p>
         </div>
     </div>

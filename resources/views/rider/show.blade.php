@@ -229,6 +229,13 @@
                              and what the customer handed over. Payment is taken
                              on pickup, so it is recorded with the collection. --}}
                         <div class="mb-3 space-y-2 rounded-xl border border-border p-3 dark:border-gray-800">
+                            {{-- What the customer said they would pay with, so the
+                                 rider knows before knocking. --}}
+                            <p class="flex items-center gap-2 text-xs font-semibold text-muted">
+                                <span data-lucide="{{ $job->payment_method === 'gcash' ? 'smartphone' : 'wallet' }}" class="h-3.5 w-3.5 text-primary"></span>
+                                Customer chose {{ $job->paymentMethodLabel() }}
+                            </p>
+
                             <div>
                                 <label for="tag_code" class="block text-xs font-semibold text-muted">Bag tag # <span class="text-primary">*</span></label>
                                 <input id="tag_code" name="tag_code" required maxlength="24" autocomplete="off"
@@ -250,9 +257,10 @@
                                     <label for="collected_payment_method" class="block text-xs font-semibold text-muted">Paid by</label>
                                     <select id="collected_payment_method" name="collected_payment_method"
                                             class="mt-1 h-11 w-full rounded-lg border border-border bg-white px-2 text-sm dark:border-gray-700 dark:bg-gray-950">
-                                        <option value="cash">Cash</option>
-                                        <option value="gcash">GCash</option>
-                                        <option value="unpaid">Not paid yet</option>
+                                        @foreach(\App\Support\Booking::paymentMethods() as $methodKey => $methodLabel)
+                                            <option value="{{ $methodKey }}" @selected(old('collected_payment_method', $job->payment_method) === $methodKey)>{{ $methodLabel }}</option>
+                                        @endforeach
+                                        <option value="unpaid" @selected(old('collected_payment_method') === 'unpaid')>Not paid yet</option>
                                     </select>
                                 </div>
                             </div>

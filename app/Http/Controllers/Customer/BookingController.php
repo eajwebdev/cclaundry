@@ -262,6 +262,7 @@ class BookingController extends Controller
                 'delivery_date' => $wantsDelivery ? ($data['delivery_date'] ?? null) : null,
                 'delivery_slot' => $wantsDelivery ? ($data['delivery_slot'] ?? null) : null,
                 'is_rush' => $isRush,
+                'payment_method' => $data['payment_method'],
                 'notes' => $data['notes'] ?? null,
                 'estimated_total' => Booking::estimate($lines, $isRush),
                 'status' => 'pending',
@@ -321,6 +322,7 @@ class BookingController extends Controller
                 }
             }],
             'delivery_preference' => ['required', Rule::in(array_keys(Booking::deliveryPreferences()))],
+            'payment_method' => ['required', Rule::in(array_keys(Booking::paymentMethods()))],
             'delivery_address' => ['nullable', 'string', 'max:500'],
             'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'],
@@ -338,6 +340,7 @@ class BookingController extends Controller
             'pickup_date.required' => 'Please choose a pickup date.',
             'pickup_slot.required' => 'Please choose the time that suits you.',
             'delivery_preference.required' => 'Please tell us how you want your laundry back.',
+            'payment_method.required' => 'Please tell us how you would like to pay.',
             'pickup_date.after_or_equal' => 'Please choose a pickup date from today onwards, and today only while a collection window is still open.',
             'delivery_date.after_or_equal' => 'Delivery cannot be scheduled before the pickup.',
             'branch_id.exists' => 'Please choose one of our active branches.',

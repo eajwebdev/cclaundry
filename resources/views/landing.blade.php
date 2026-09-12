@@ -1,7 +1,6 @@
 @extends('layouts.public')
 
 @section('page_title', 'Free pick-up & delivery in Kabankalan City')
-@section('overlay_header', '1')
 
 @php
     $businessName = $appBusinessName ?: config('app.name');
@@ -22,47 +21,126 @@
 @section('content')
 
 {{-- ══════════════════════════════ HERO ══════════════════════════════ --}}
-{{-- On phones the brand artwork is the whole screen: logo at the top, towels
-     and cotton at the bottom, and the call to action in the cream between.
-     Wider screens keep the same art as the hero background, anchored to its
-     towels and cotton, with the copy centred over a soft cream wash. --}}
-<section class="cc-hero relative -mt-16 lg:-mt-20">
-    <div class="relative mx-auto flex min-h-[max(100svh,40rem)] max-w-3xl flex-col items-center px-6 pt-[max(12rem,27svh)] pb-12 text-center md:min-h-[min(100svh,58rem)] md:justify-center md:px-8 md:pt-28 md:pb-44 lg:pt-32">
-        <p class="hidden text-xs font-bold tracking-[0.3em] text-cc-brown uppercase md:block">Kabankalan City &middot; Negros Occidental</p>
+{{-- `isolate` and the cream are what let this hero keep its plain field: the
+     site's artwork is a fixed layer at z-index -1, so without a stacking
+     context of its own the -z-10 wash below would fall behind that artwork
+     instead of covering it. --}}
+<section class="relative isolate overflow-hidden bg-cream dark:bg-[#191310]">
+    {{-- Soft cane/sage wash behind the fold --}}
+    <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10">
+        <div class="absolute -top-40 -right-32 h-[34rem] w-[34rem] rounded-full bg-primary/10 blur-3xl"></div>
+        <div class="absolute top-40 -left-40 h-[26rem] w-[26rem] rounded-full bg-accent/12 blur-3xl"></div>
+        <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent"></div>
+    </div>
 
-        <h1 class="font-script text-[clamp(2.1rem,9vw,2.8rem)] leading-[1.08] text-cc-deep md:mt-3 md:text-6xl lg:text-7xl">
-            Life&rsquo;s busy,<br>
-            we&rsquo;ll handle the laundry! <span class="text-cc-brown" aria-hidden="true">&#9829;</span>
-        </h1>
+    <div class="mx-auto grid max-w-7xl items-center gap-10 px-4 pt-10 pb-14 sm:gap-14 sm:px-6 sm:pt-14 sm:pb-20 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:px-8 lg:pt-20 lg:pb-28">
+        <div>
+            <span class="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/8 px-3.5 py-1.5 text-[11px] font-semibold tracking-[0.16em] text-primary uppercase">
+                <span class="relative flex h-1.5 w-1.5">
+                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"></span>
+                    <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary"></span>
+                </span>
+                Free pick up and delivery
+            </span>
 
-        <p class="mt-5 hidden max-w-lg text-base leading-relaxed text-cc-muted md:block">
-            Fresh, clean and neatly cared for, without adding another chore to your day.
-        </p>
+            <h1 class="mt-5 font-serif text-[2.4rem] leading-[1.05] font-medium tracking-tight text-primary-deep sm:mt-6 sm:text-6xl lg:text-[4.25rem] dark:text-cane">
+                Laundry day,<br>
+                <span class="relative inline-block">
+                    <span class="relative z-10">handled</span>
+                    <svg class="absolute -bottom-1 left-0 -z-0 h-3 w-full text-accent/45" viewBox="0 0 200 12" preserveAspectRatio="none" aria-hidden="true">
+                        <path d="M2 8 C 50 2, 150 2, 198 7" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/>
+                    </svg>
+                </span><span class="text-primary">.</span>
+            </h1>
 
-        <div class="cc-pill mt-6">
-            <span class="text-[13px] font-extrabold tracking-[0.12em] uppercase">Free pick-up &amp; delivery</span>
-            <span class="text-xs font-semibold text-cc-muted">Minimum 5 kg</span>
+            <p class="mt-4 max-w-lg text-[15px] leading-relaxed text-muted sm:mt-6 sm:text-[17px]">
+                Book a pickup in about a minute. We collect at your door, wash and fold with cotton-soft care,
+                and bring everything back the way it should be: fresh, folded and on time.
+            </p>
+
+            <div class="mt-7 flex flex-col gap-3 sm:mt-9 sm:flex-row sm:items-center">
+                <a href="#book"
+                   class="group inline-flex h-13 items-center justify-center gap-2.5 rounded-full bg-primary px-7 text-[15px] font-semibold text-white shadow-xl shadow-primary/25 transition hover:bg-primary-deep hover:shadow-2xl hover:shadow-primary/30">
+                    <span data-lucide="truck" class="h-4.5 w-4.5"></span>
+                    Book a free pickup
+                    <span data-lucide="arrow-right" class="h-4 w-4 transition-transform group-hover:translate-x-0.5"></span>
+                </a>
+                <a href="#track"
+                   class="inline-flex h-13 items-center justify-center gap-2.5 rounded-full border border-border bg-white/70 px-6 text-[15px] font-semibold text-primary-deep transition hover:border-primary/40 hover:bg-white dark:border-white/12 dark:bg-white/5 dark:text-cane">
+                    <span data-lucide="search" class="h-4 w-4"></span>
+                    Track my order
+                </a>
+            </div>
+
+            @if($openRequests->isNotEmpty())
+                <a href="{{ route('customer.bookings.index') }}"
+                   class="mt-5 inline-flex items-center gap-2 rounded-full border border-border bg-white/70 px-4 py-2 text-xs font-bold text-primary-deep dark:border-white/12 dark:bg-white/5 dark:text-cane">
+                    <span data-lucide="calendar" class="h-4 w-4 text-primary"></span>
+                    {{ $openRequests->count() }} upcoming {{ Str::plural('pickup', $openRequests->count()) }} &middot; View
+                </a>
+            @endif
+
+            @php
+                // The SMS promise only appears when SMS is actually enabled.
+                $heroStats = [
+                    ['24h', 'Standard turnaround'],
+                    ['Free', 'Pick up & delivery'],
+                ];
+
+                if ($settings?->sms_enabled) {
+                    $heroStats[] = ['SMS', 'Updates at every step'];
+                } else {
+                    $heroStats[] = [$branches->count(), \Illuminate\Support\Str::plural('Branch', $branches->count()).' near you'];
+                }
+            @endphp
+            <dl class="mt-9 grid max-w-lg grid-cols-3 gap-4 border-t border-border pt-6 sm:mt-12 sm:gap-6 sm:pt-8 dark:border-white/10">
+                @foreach ($heroStats as [$value, $label])
+                    <div>
+                        <dt class="font-serif text-xl font-semibold text-primary sm:text-2xl">{{ $value }}</dt>
+                        <dd class="mt-1 text-[12px] leading-snug text-muted sm:text-[13px]">{{ $label }}</dd>
+                    </div>
+                @endforeach
+            </dl>
         </div>
 
-        <div class="mt-6 flex w-full max-w-[20rem] flex-col gap-3 whitespace-nowrap md:w-auto md:max-w-none md:flex-row">
-            <a href="#book" class="cc-btn w-full md:w-auto md:px-7">
-                <span data-lucide="truck" class="h-5 w-5"></span>
-                Book a Pickup
-                <span data-lucide="arrow-right" class="h-4 w-4"></span>
-            </a>
-            <a href="#track" class="cc-btn-outline w-full md:w-auto md:px-7">
-                <span data-lucide="search" class="h-4.5 w-4.5"></span>
-                Track My Laundry
-            </a>
-        </div>
+        {{-- Hero visual: the mark, framed the way it is on the sign --}}
+        <div class="relative mx-auto w-full max-w-lg">
+            <div class="relative mx-auto aspect-square w-[14rem] sm:w-full">
+                <div class="absolute inset-0 rounded-full bg-gradient-to-br from-[#F6EFE5] to-[#EFE3D2] shadow-2xl shadow-primary/15 dark:from-[#241a13] dark:to-[#1c1510]"></div>
+                <div class="absolute inset-5 rounded-full border border-primary/25"></div>
+                <x-brand-mark class="absolute inset-0 m-auto h-[82%] w-[82%] shadow-lg shadow-primary/10" />
+            </div>
 
-        @if($openRequests->isNotEmpty())
-            <a href="{{ route('customer.bookings.index') }}"
-               class="mt-5 inline-flex items-center gap-2 rounded-full bg-cc-surface/90 px-4 py-2 text-xs font-bold text-cc-deep ring-1 ring-cc-line">
-                <span data-lucide="calendar" class="h-4 w-4 text-cc-brown"></span>
-                {{ $openRequests->count() }} upcoming {{ Str::plural('pickup', $openRequests->count()) }} &middot; View
-            </a>
-        @endif
+            {{-- Floating proof cards. They were `hidden sm:block`, so a phone lost
+                 them entirely; now they stack under the mark instead, and only
+                 take up their floating positions once there is room to float. --}}
+            <div class="mt-6 grid grid-cols-1 gap-2.5 sm:mt-0 sm:block">
+                <div class="rounded-2xl border border-border bg-white/95 px-4 py-3 shadow-xl shadow-dark/8 backdrop-blur sm:absolute sm:-top-2 sm:-left-4 dark:border-white/10 dark:bg-[#241a13]/95">
+                    <div class="flex items-center gap-3">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/15 text-accent-deep">
+                            <span data-lucide="leaf" class="h-4.5 w-4.5"></span>
+                        </span>
+                        <div>
+                            <p class="text-[13px] font-semibold">Gentle on fabric</p>
+                            <p class="text-[11px] text-muted">Skin-safe detergents</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rounded-2xl border border-border bg-white/95 px-4 py-3 shadow-xl shadow-dark/8 backdrop-blur sm:absolute sm:bottom-8 sm:-right-2 dark:border-white/10 dark:bg-[#241a13]/95">
+                    <div class="flex items-center gap-3">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/12 text-primary">
+                            <span data-lucide="packageCheck" class="h-4.5 w-4.5"></span>
+                        </span>
+                        <div>
+                            <p class="text-[13px] font-semibold">Folded, not crumpled</p>
+                            <p class="text-[11px] text-muted">Sorted per household</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
     </div>
 </section>
 
@@ -237,12 +315,8 @@
     {{-- Side by side from lg: at tablet width the half-card squeezed the four
          feature tiles into columns a few words wide. --}}
     <div class="cc-card mx-auto max-w-6xl overflow-hidden lg:grid lg:grid-cols-2">
-        <div class="cc-about-banner flex min-h-52 items-center justify-center px-6 py-10 md:min-h-72 lg:min-h-full"
-             style="--cc-about-img: url('{{ asset('about.jpg') }}')">
-            <p class="text-center font-script text-5xl leading-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.35)] sm:text-6xl">
-                Clean clothes.<br>A brighter day.
-            </p>
-        </div>
+        <div class="cc-about-banner min-h-52 md:min-h-72 lg:min-h-full"
+             style="--cc-about-img: url('{{ asset('about.jpg') }}')"></div>
 
         <div class="p-5 sm:p-8">
             <p class="text-xs font-bold tracking-[0.3em] text-cc-brown uppercase">About {{ $businessName }}</p>
@@ -323,27 +397,6 @@
                     </div>
                 @endforeach
             </div>
-
-            @if(count($stats))
-                @php
-                    // Written out in full: Tailwind scans source text, so a class
-                    // built by string interpolation is never generated.
-                    $statColumns = match (min(count($stats), 4)) {
-                        1 => 'sm:grid-cols-1',
-                        2 => 'sm:grid-cols-2',
-                        3 => 'sm:grid-cols-3',
-                        default => 'sm:grid-cols-4',
-                    };
-                @endphp
-                <dl class="mt-6 grid grid-cols-2 gap-2.5 border-t border-cc-line pt-5 {{ $statColumns }}">
-                    @foreach ($stats as $stat)
-                        <div class="text-center">
-                            <dt class="font-display text-3xl leading-none font-bold text-cc-brown">{{ $stat['value'] }}</dt>
-                            <dd class="mt-1 text-[11px] leading-snug font-semibold text-cc-muted">{{ $stat['label'] }}</dd>
-                        </div>
-                    @endforeach
-                </dl>
-            @endif
         </div>
     </div>
 </section>
