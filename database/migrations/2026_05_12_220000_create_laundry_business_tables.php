@@ -264,7 +264,7 @@ return new class extends Migration
                 $table->text('pickup_address');
                 $table->string('pickup_landmark')->nullable();
                 $table->date('pickup_date');
-                $table->string('pickup_slot')->default('morning');
+                $table->string('pickup_slot')->default('08_09');
 
                 // 'deliver' returns the laundry to the customer, 'branch_pickup'
                 // means they will collect it at the branch themselves.

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#05080F">
-  <title>Pay in one scan — {{ $branchName ?? $appBusinessName }}</title>
+  <title>Pay in one scan at {{ $branchName ?? $appBusinessName }}</title>
   <!-- Vite placeholder (no actual assets) -->
   <!-- Fonts & base styles -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -372,7 +372,7 @@
     <p class="eyebrow">QRPH &middot; Cashless payment</p>
     <h1>Pay in <em>one scan</em>.</h1>
     <p class="lede">
-      <span class="lede-long">Use any QRPH-enabled app — GCash, Maya, BPI, BDO, Metrobank, LandBank, UnionBank and more. No cash to count, no card to swipe.</span>
+      <span class="lede-long">Use any QRPH-enabled app: GCash, Maya, BPI, BDO, Metrobank, LandBank, UnionBank and more. No cash to count, no card to swipe.</span>
       <span class="lede-short">Works with GCash, Maya and any QRPH bank app.</span>
     </p>
     <div class="chips">

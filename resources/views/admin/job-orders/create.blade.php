@@ -5,7 +5,9 @@
     $pageTitle = $isEditing ? 'Edit Job Order' : (in_array(auth()->user()->role, ['branch_manager', 'cashier'], true) ? 'Cashier POS' : 'New Job Order');
     $initialState = [
         'isEditing' => $isEditing,
-        'initialItems' => $isEditing ? $initialItems : [],
+        // A new order opened from an online booking starts as what the customer
+        // said they were sending, for the cashier to check against the scale.
+        'initialItems' => $isEditing ? $initialItems : ($bookedItems ?? []),
         'selectedCustomerId' => (string) old('customer_id', $selectedCustomerId ?? ''),
         'processingBranchId' => (string) old('processing_branch_id', $isEditing ? ($jobOrder->processing_branch_id ?: $jobOrder->branch_id) : ''),
         'discount' => (float) old('discount', $isEditing ? $jobOrder->discount : 0),
@@ -20,7 +22,6 @@
 @section('content')
 <div
     x-data="posPage(@js($branches), @js($processingBranches), @js($services), @js($customers), @js($serviceCategories), @js($servicePresets), @js((float) ($appSettings?->vat_rate ?? 0)), @js((bool) ($appSettings?->vat_enabled ?? false)), @js($initialState))"
-    x-init="init()"
 >
     <form
         method="POST"
@@ -283,6 +284,20 @@
 
                 <!-- Cart Items -->
                 <div class="min-h-[6rem] flex-1 space-y-2 overflow-y-auto p-3">
+                    @if(! $isEditing && ($bookedRequest ?? null))
+                        {{-- The customer declared these amounts when they booked.
+                             Weighing the bag is what settles them. --}}
+                        <div class="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                            <p class="text-xs font-semibold text-primary">From booking {{ $bookedRequest->reference_no }}</p>
+                            <p class="mt-1 text-[11px] leading-relaxed text-muted">
+                                @if($bookedRequest->declaredKilos())
+                                    The customer declared {{ rtrim(rtrim(number_format((float) $bookedRequest->declaredKilos(), 2), '0'), '.') }} kg in total.
+                                @endif
+                                Weigh the bag and correct any line that does not match.
+                            </p>
+                        </div>
+                    @endif
+
                     <template x-for="(item, index) in items" :key="index">
                         <div class="rounded-lg border border-border bg-white p-3 transition hover:border-primary/30 dark:border-gray-800 dark:bg-gray-950">
                             <input type="hidden" :name="item.type === 'preset' ? `items[${index}][service_preset_id]` : `items[${index}][laundry_service_id]`" :value="item.id">
@@ -293,6 +308,11 @@
                                     <div class="flex items-start justify-between gap-2">
                                         <p class="truncate text-sm font-medium" x-text="item.name"></p>
                                     </div>
+                                    {{-- What the customer said this line was, next to what
+                                         the cashier has actually keyed in. --}}
+                                    <p x-show="item.booked" x-cloak class="mt-0.5 text-[10px] font-semibold"
+                                       :class="matchesBooking(item) ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'"
+                                       x-text="bookedNote(item)"></p>
                                     <p x-show="item.type === 'preset'" class="mt-0.5 truncate text-[10px] text-muted" x-text="item.summary"></p>
                                     <div class="mt-1 flex items-center gap-3">
                                         <div class="flex h-8 overflow-hidden rounded-md border border-border dark:border-gray-800">
@@ -706,6 +726,23 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
                 });
             }
             this.$nextTick(() => this.refreshIcons());
+        },
+        /** Does the keyed-in amount still agree with what the customer booked? */
+        matchesBooking(item) {
+            if (!item.booked) {
+                return true;
+            }
+
+            return Math.abs(Number(item.quantity || 0) - Number(item.booked.quantity || 0)) < 0.005;
+        },
+        bookedNote(item) {
+            if (!item.booked) {
+                return '';
+            }
+
+            return this.matchesBooking(item)
+                ? `Customer booked ${item.booked.label}, matches`
+                : `Customer booked ${item.booked.label}, you have ${Number(item.quantity || 0)}`;
         },
         presetTotal(preset) {
             return preset.items.reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.price || 0)), 0);

@@ -61,7 +61,7 @@
                     <td>{{ $order->job_order_number }}{{ $order->is_rush ? ' (Rush)' : '' }}</td>
                     <td>{{ $order->created_at?->format('M d, Y') }}</td>
                     <td>{{ $order->branch?->name }}</td>
-                    <td>{{ $order->items->map(fn ($i) => ($i->service?->name ?: $i->description).' x'.rtrim(rtrim(number_format((float) $i->quantity, 2), '0'), '.'))->implode(', ') ?: '—' }}</td>
+                    <td>{{ $order->items->map(fn ($i) => ($i->service?->name ?: $i->description).' x'.rtrim(rtrim(number_format((float) $i->quantity, 2), '0'), '.'))->implode(', ') ?: 'None' }}</td>
                     <td>{{ \Illuminate\Support\Str::of($order->status)->replace('_', ' ')->title() }}</td>
                     <td class="right">{{ number_format((float) $order->total, 2) }}</td>
                     <td class="right">{{ number_format((float) $order->paid_amount, 2) }}</td>
@@ -74,7 +74,7 @@
         @if($orders->isNotEmpty())
             <tfoot>
                 <tr>
-                    <td colspan="5">Total — {{ number_format($summary['orders']) }} job order{{ $summary['orders'] === 1 ? '' : 's' }}</td>
+                    <td colspan="5">Total: {{ number_format($summary['orders']) }} job order{{ $summary['orders'] === 1 ? '' : 's' }}</td>
                     <td class="right">{{ number_format((float) $summary['total'], 2) }}</td>
                     <td class="right">{{ number_format((float) $summary['paid'], 2) }}</td>
                     <td class="right">{{ number_format((float) $summary['balance'], 2) }}</td>

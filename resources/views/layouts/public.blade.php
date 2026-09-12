@@ -17,9 +17,7 @@
         [$landingUrl.'#book', 'truck', 'Book a Pickup'],
         [$landingUrl.'#track', 'search', 'Track My Laundry'],
         [$landingUrl.'#services', 'shirt', 'Our Services'],
-        [$landingUrl.'#rates', 'tag', 'Price List'],
-        [$landingUrl.'#branches', 'map-pin', 'Branches'],
-        [$landingUrl.'#faq', 'message-circle', 'FAQ'],
+        [$landingUrl.'#how', 'laundry', 'How It Works'],
         [$landingUrl.'#about', 'info', 'About & Contact'],
     ];
 
@@ -38,7 +36,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#F7EFE4">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="description" content="@yield('meta_description', $publicBusinessName . ' - free laundry pickup and delivery. Book online, we collect, wash, fold and bring it back.')">
+    <meta name="description" content="@yield('meta_description', $publicBusinessName . ' - Wash, Dry, Fold, Repeat. Free pick-up and delivery in Kabankalan City.')">
     <title>@yield('page_title', 'Laundry pickup & delivery') &middot; {{ $publicBusinessName }}</title>
     <link rel="icon" href="{{ $appBusinessLogo }}">
     <link rel="apple-touch-icon" href="{{ $appBusinessLogo }}">
@@ -107,10 +105,8 @@
             <nav class="hidden items-center gap-0.5 whitespace-nowrap lg:flex" aria-label="Main">
                 @foreach ([
                     [$landingUrl.'#services', 'Services', ''],
+                    [$landingUrl.'#how', 'How It Works', ''],
                     [$landingUrl.'#track', 'Track', ''],
-                    [$landingUrl.'#rates', 'Price List', ''],
-                    [$landingUrl.'#branches', 'Branches', 'hidden xl:inline-block'],
-                    [$landingUrl.'#faq', 'FAQ', 'hidden xl:inline-block'],
                     [$landingUrl.'#about', 'About', ''],
                 ] as [$href, $label, $visibility])
                     <a href="{{ $href }}" class="cc-nav-link {{ $visibility }}">{{ $label }}</a>
@@ -281,8 +277,9 @@
     <footer class="relative mt-16 px-4 pb-[max(9rem,26vh)] text-center sm:mt-20">
         <div class="cc-footer-glow mx-auto max-w-2xl px-4 py-8">
             <p class="font-script text-[2.1rem] leading-tight text-cc-deep sm:text-5xl">
-                Life&rsquo;s busy &mdash;<br class="sm:hidden"> we&rsquo;ll handle the laundry!
+                Life&rsquo;s busy,<br class="sm:hidden"> we&rsquo;ll handle the laundry!
             </p>
+            <p class="mt-2 text-[11px] font-bold tracking-[0.3em] text-cc-brown uppercase">Wash &bull; Dry &bull; Fold &bull; Repeat</p>
             <div class="mx-auto mt-3 flex max-w-[14rem] items-center gap-3 text-cc-brown" aria-hidden="true">
                 <span class="h-px flex-1 bg-cc-line"></span>
                 <span class="text-sm">&#9829;</span>
@@ -290,9 +287,9 @@
             </div>
 
             <nav class="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-bold text-cc-deep" aria-label="Footer">
+                <a href="{{ $landingUrl }}#services" class="hover:text-cc-brown">Services</a>
                 <a href="{{ $landingUrl }}#book" class="hover:text-cc-brown">Book a Pickup</a>
                 <a href="{{ $landingUrl }}#track" class="hover:text-cc-brown">Track My Laundry</a>
-                <a href="{{ $landingUrl }}#rates" class="hover:text-cc-brown">Price List</a>
                 @if($publicCustomer)
                     <a href="{{ route('customer.bookings.index') }}" class="hover:text-cc-brown">My bookings</a>
                 @else
@@ -315,7 +312,7 @@
                 @endif
                 <li class="flex items-center gap-2">
                     <span data-lucide="time" class="h-4 w-4 text-cc-brown"></span>
-                    Pickups daily, 8:00 AM &ndash; 7:00 PM
+                    Pickups daily, 8:00 AM - 7:00 PM
                 </li>
                 @if($appSettings?->facebook_url)
                     <li class="flex items-center gap-2">
@@ -328,7 +325,7 @@
             </ul>
 
             <p class="mt-6 text-xs text-cc-muted">
-                &copy; {{ now()->year }} {{ $publicBusinessName }}
+                &copy; {{ now()->year }} {{ $publicBusinessName }}. All rights reserved.
                 &middot;
                 <a href="{{ route('login') }}" class="font-semibold hover:text-cc-brown">Staff sign in</a>
             </p>

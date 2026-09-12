@@ -19,7 +19,7 @@
 {{-- Location sharing lives in the header so it is one tap from anywhere and
      always visible — a rider must never have to hunt for it, or wonder whether
      dispatch can see them. --}}
-<div x-data="riderTracker()" x-init="init()" class="contents">
+<div x-data="riderTracker()" class="contents">
 
     <header class="sticky top-0 z-40 h-15 border-b border-border bg-white/95 backdrop-blur dark:border-gray-800 dark:bg-[#241a13]/95">
         <div class="mx-auto flex h-15 max-w-2xl items-center gap-2 px-3">

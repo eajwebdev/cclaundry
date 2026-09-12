@@ -86,7 +86,7 @@ class RiderRoutingTest extends TestCase
             'pickup_latitude' => 9.9886,
             'pickup_longitude' => 122.8112,
             'pickup_date' => today(),
-            'pickup_slot' => 'morning',
+            'pickup_slot' => '08_09',
             'delivery_preference' => 'deliver',
             'status' => 'confirmed',
             'rider_id' => $rider->id,

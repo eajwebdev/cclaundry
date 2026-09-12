@@ -31,7 +31,7 @@
                 <span class="cc-icon-tile mx-auto h-14 w-14"><span data-lucide="truck" class="h-6 w-6"></span></span>
                 <p class="mt-5 font-bold text-cc-deep">No bookings yet</p>
                 <p class="cc-subtitle mx-auto mt-1.5 max-w-sm">
-                    Book your first pickup and we will collect from your door &mdash; no charge for the trip.
+                    Book your first pickup and we will collect from your door, no charge for the trip.
                 </p>
                 <a href="{{ route('landing') }}#book" class="cc-btn mt-6">
                     <span data-lucide="plus" class="h-4 w-4"></span>

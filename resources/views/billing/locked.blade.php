@@ -19,7 +19,7 @@
                 <div class="mt-5 rounded-lg border border-border bg-smoke p-4 text-left text-sm dark:border-gray-800 dark:bg-gray-950">
                     <div class="flex items-center justify-between">
                         <span class="text-muted">Branch</span>
-                        <span class="font-medium">{{ $branch->name ?? '—' }}</span>
+                        <span class="font-medium">{{ $branch->name ?? 'None' }}</span>
                     </div>
                     <div class="mt-2 flex items-center justify-between">
                         <span class="text-muted">Period</span>
@@ -27,7 +27,7 @@
                     </div>
                     <div class="mt-2 flex items-center justify-between">
                         <span class="text-muted">Due date</span>
-                        <span class="font-medium">{{ $record->due_date?->format('M d, Y') ?? '—' }}</span>
+                        <span class="font-medium">{{ $record->due_date?->format('M d, Y') ?? 'None' }}</span>
                     </div>
                     @if(($daysPastDue ?? 0) > 0)
                         <div class="mt-2 flex items-center justify-between">
@@ -48,7 +48,7 @@
                         Scan QR to Pay
                     </button>
                 </form>
-                <p class="mt-2 text-xs text-muted">Secured by PayMongo — scan with GCash, Maya, or any InstaPay bank app.</p>
+                <p class="mt-2 text-xs text-muted">Secured by PayMongo. Scan with GCash, Maya, or any InstaPay bank app.</p>
             @endif
 
             <form method="POST" action="{{ route('logout') }}" class="mt-4">

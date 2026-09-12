@@ -50,7 +50,7 @@
         <select name="customer_id" required class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
             <option value="">Select customer…</option>
             @foreach($customers as $c)
-                <option value="{{ $c->id }}" @selected($customer && (int) $customer->id === (int) $c->id)>{{ $c->name }}{{ $c->phone ? ' — '.$c->phone : '' }}</option>
+                <option value="{{ $c->id }}" @selected($customer && (int) $customer->id === (int) $c->id)>{{ $c->name }}{{ $c->phone ? ' ('.$c->phone.')' : '' }}</option>
             @endforeach
         </select>
 
@@ -113,7 +113,7 @@
                                 <td class="px-4 py-3 whitespace-nowrap">{{ $order->created_at?->format('M d, Y') }}</td>
                                 <td class="px-4 py-3">{{ $order->branch?->name }}</td>
                                 <td class="px-4 py-3">
-                                    <span class="text-xs text-muted">{{ $order->items->map(fn ($i) => ($i->service?->name ?: $i->description).' ×'.rtrim(rtrim(number_format((float) $i->quantity, 2), '0'), '.'))->implode(', ') ?: '—' }}</span>
+                                    <span class="text-xs text-muted">{{ $order->items->map(fn ($i) => ($i->service?->name ?: $i->description).' ×'.rtrim(rtrim(number_format((float) $i->quantity, 2), '0'), '.'))->implode(', ') ?: 'None' }}</span>
                                 </td>
                                 <td class="px-4 py-3">
                                     <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {{ $statusClass($order->status) }}">{{ \Illuminate\Support\Str::of($order->status)->replace('_', ' ')->title() }}</span>
@@ -131,7 +131,7 @@
                     @if($orders->isNotEmpty())
                         <tfoot class="border-t border-border bg-smoke text-sm font-semibold dark:border-gray-800 dark:bg-gray-950">
                             <tr>
-                                <td class="px-4 py-3" colspan="5">Total — {{ number_format($summary['orders']) }} job order{{ $summary['orders'] === 1 ? '' : 's' }}</td>
+                                <td class="px-4 py-3" colspan="5">Total: {{ number_format($summary['orders']) }} job order{{ $summary['orders'] === 1 ? '' : 's' }}</td>
                                 <td class="px-4 py-3 text-right">{{ $currency }} {{ number_format((float) $summary['total'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format((float) $summary['paid'], 2) }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format((float) $summary['balance'], 2) }}</td>

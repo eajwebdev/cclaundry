@@ -1,5 +1,4 @@
 import * as maplibregl from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
 // MapLibre 6 renders in a Web Worker it finds next to its own module file.
 // Vite pre-bundles MapLibre in dev and never emits that file in a build, so the
 // worker 404s silently and every map hangs on "Loading map…". Bundling the

@@ -16,7 +16,7 @@
 </head>
 
 <body class="h-dvh overflow-hidden bg-[#eef2ed] text-dark overscroll-none dark:bg-gray-950 dark:text-gray-100">
-    <main x-data="publicTimeClock()" x-init="init()" class="mx-auto flex h-dvh w-full max-w-6xl flex-col overflow-hidden bg-white dark:bg-gray-900 lg:my-3 lg:h-[calc(100dvh-1.5rem)] lg:rounded-2xl lg:border lg:border-border lg:shadow-xl dark:lg:border-gray-800">
+    <main x-data="publicTimeClock()" class="mx-auto flex h-dvh w-full max-w-6xl flex-col overflow-hidden bg-white dark:bg-gray-900 lg:my-3 lg:h-[calc(100dvh-1.5rem)] lg:rounded-2xl lg:border lg:border-border lg:shadow-xl dark:lg:border-gray-800">
         <header class="flex h-[4.25rem] shrink-0 items-center justify-between gap-3 border-b border-border px-3 dark:border-gray-800 sm:px-4">
             <div class="flex min-w-0 items-center gap-3">
                 <x-brand-mark class="h-10 w-10" />

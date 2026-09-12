@@ -26,7 +26,7 @@
                     Business reports
                 </div>
                 <h1 class="text-xl font-semibold tracking-tight sm:text-2xl">Reports</h1>
-                <p class="text-sm text-muted">Choose a branch and date range, then view below or export — all from this page.</p>
+                <p class="text-sm text-muted">Choose a branch and date range, then view below or export, all from this page.</p>
             </div>
 
             <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">

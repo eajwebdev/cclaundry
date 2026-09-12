@@ -173,7 +173,37 @@ class JobOrderController extends Controller
                 ->value('id');
         }
 
-        return view('admin.job-orders.create', compact('branches', 'processingBranches', 'customers', 'services', 'serviceCategories', 'servicePresets', 'branchId', 'selectedCustomerId'));
+        // Opened from an online booking: the cart starts as what the customer
+        // said they were sending, each line carrying the amount they entered so
+        // the cashier can check it against the scale rather than retype it.
+        $bookedRequest = $request->filled('pickup_request_id')
+            ? PickupRequest::query()
+                ->with('items')
+                ->whereKey($request->integer('pickup_request_id'))
+                ->where('branch_id', $branchId)
+                ->first()
+            : null;
+
+        $bookedItems = $bookedRequest
+            ? $bookedRequest->items
+                ->filter(fn ($item) => $item->laundry_service_id)
+                ->map(fn ($item) => [
+                    'id' => $item->laundry_service_id,
+                    'type' => 'service',
+                    'name' => $item->service_name,
+                    // Priced units, so a 12 kg load-priced line arrives as 2 loads.
+                    'quantity' => (float) $item->billable_quantity,
+                    'price' => (float) $item->service_price,
+                    'booked' => [
+                        'label' => $item->quantityLabel(),
+                        'quantity' => (float) $item->billable_quantity,
+                        'weighed' => $item->isWeighed(),
+                    ],
+                ])
+                ->values()
+            : collect();
+
+        return view('admin.job-orders.create', compact('branches', 'processingBranches', 'customers', 'services', 'serviceCategories', 'servicePresets', 'branchId', 'selectedCustomerId', 'bookedRequest', 'bookedItems'));
     }
 
     public function edit(Request $request, JobOrder $jobOrder)

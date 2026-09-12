@@ -33,7 +33,6 @@
         {{-- Live map. Polls rather than holding a socket open, so this needs no
              daemon and runs unchanged on shared hosting. --}}
         <section x-data="riderFleetMap({ endpoint: @js(route('admin.riders.locations', ['branch_id' => $selectedBranchId])) })"
-                 x-init="init()"
                  class="overflow-hidden rounded-xl border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <div class="flex items-center justify-between gap-3 border-b border-border px-4 py-3 dark:border-gray-800">
                 <div>

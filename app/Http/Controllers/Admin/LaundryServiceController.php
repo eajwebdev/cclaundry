@@ -202,6 +202,8 @@ class LaundryServiceController extends Controller
             'service_category_id' => ['nullable', 'exists:laundry_service_categories,id'],
             'pricing_type'        => ['required', Rule::in(['kilo', 'load', 'piece', 'custom'])],
             'price'               => ['required', 'numeric', 'min:0'],
+            // Only weighed services have one; anything else ignores it.
+            'minimum_kilos'       => ['nullable', 'numeric', 'min:0', 'max:9999'],
             'is_active'           => ['nullable', 'boolean'],
             'show_on_landing'     => ['nullable', 'boolean'],
             'landing_blurb'       => ['nullable', 'string', 'max:255'],

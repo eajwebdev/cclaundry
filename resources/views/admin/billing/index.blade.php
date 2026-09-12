@@ -116,7 +116,7 @@
 
         <section class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <h2 class="mb-1 text-base font-semibold">Generate First Billing Cycle</h2>
-            <p class="mb-3 text-xs text-muted">After the first cycle, the next due date and record auto-generate whenever a branch pays via PayMongo. End date and due date are optional — leave them blank to auto-derive a 1-month cycle due on the start date.</p>
+            <p class="mb-3 text-xs text-muted">After the first cycle, the next due date and record auto-generate whenever a branch pays via PayMongo. End date and due date are optional. Leave them blank to auto-derive a 1-month cycle due on the start date.</p>
             <form method="POST" action="{{ route('admin.billing.generate') }}" class="space-y-3" x-data="{ selected: [] }">
                 @csrf
                 <div class="grid gap-3 sm:grid-cols-3">
@@ -163,7 +163,7 @@
 
     <section class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
         <h2 class="mb-1 text-base font-semibold">Monthly Subscription Prices</h2>
-        <p class="mb-3 text-xs text-muted">Set each branch's fixed monthly price once. Auto-generated billing cycles and PayMongo charges use this amount — no need to re-enter it every period.</p>
+        <p class="mb-3 text-xs text-muted">Set each branch's fixed monthly price once. Auto-generated billing cycles and PayMongo charges use this amount, so there is no need to re-enter it every period.</p>
         <form method="POST" action="{{ route('admin.billing.prices.update') }}">
             @csrf
             @method('PUT')

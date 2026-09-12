@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scan to Pay — Subscription</title>
+    <title>Scan to Pay: Subscription</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="app-surface text-dark dark:text-gray-100">
@@ -22,7 +22,7 @@
             <div class="mt-4 rounded-lg border border-border bg-smoke p-4 text-left text-sm dark:border-gray-800 dark:bg-gray-950">
                 <div class="flex items-center justify-between">
                     <span class="text-muted">Branch</span>
-                    <span class="font-medium">{{ $branch->name ?? '—' }}</span>
+                    <span class="font-medium">{{ $branch->name ?? 'None' }}</span>
                 </div>
                 <div class="mt-2 flex items-center justify-between">
                     <span class="text-muted">Period</span>

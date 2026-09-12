@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class BookingController extends Controller
 {
@@ -83,7 +84,7 @@ class BookingController extends Controller
     public function confirmed(Request $request, string $reference)
     {
         $pickupRequest = PickupRequest::query()
-            ->with(['branch', 'jobOrder'])
+            ->with(['items', 'branch', 'jobOrder'])
             ->where('reference_no', $reference)
             ->firstOrFail();
 
@@ -111,7 +112,7 @@ class BookingController extends Controller
 
         return view('customer.booking-confirmed', [
             'settings' => SystemSetting::current(),
-            'pickupRequest' => $pickupRequest->load(['branch', 'jobOrder']),
+            'pickupRequest' => $pickupRequest->load(['items', 'branch', 'jobOrder']),
         ]);
     }
 
@@ -123,7 +124,7 @@ class BookingController extends Controller
             'settings' => SystemSetting::current(),
             'customer' => $customer,
             'requests' => PickupRequest::query()
-                ->with(['branch', 'jobOrder'])
+                ->with(['items', 'branch', 'jobOrder'])
                 ->where('customer_id', $customer->id)
                 ->latest()
                 ->paginate(10),
@@ -152,28 +153,91 @@ class BookingController extends Controller
         return back()->with('success', 'Booking '.$pickupRequest->reference_no.' has been cancelled.');
     }
 
+    /**
+     * The booking's lines, snapshotted: a later rename, reprice or preset edit
+     * must not rewrite what this customer actually agreed to.
+     *
+     * Add-ons are pushed to the end whatever order they were ticked in, so the
+     * bag reads the way the form did: the washing first, the extras with it.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function linesFor(array $data): array
+    {
+        $addonIds = Booking::addons((int) $data['branch_id'])->pluck('id')->all();
+        $lines = [];
+
+        foreach (array_values($data['items']) as $position => $item) {
+            $offering = Booking::resolveOffering($item['key']);
+
+            if (! $offering) {
+                continue;
+            }
+
+            $service = $offering['service'];
+            $preset = $offering['preset'];
+            $pricingType = $preset ? 'preset' : $service->pricing_type;
+            $price = $preset ? (float) $preset->totalPrice() : (float) $service->price;
+            $quantity = (float) $item['quantity'];
+            $isAddon = $service && in_array($service->id, $addonIds, true);
+
+            // An add-on is counted by the sachet, so a weight minimum on the
+            // service it rides along with must not reach it.
+            $minimumKilos = ! $isAddon && $service?->minimum_kilos !== null
+                ? (float) $service->minimum_kilos
+                : null;
+
+            $lines[] = [
+                'laundry_service_id' => $service?->id,
+                'service_preset_id' => $preset?->id,
+                'service_name' => $preset?->name ?: $service->name,
+                'service_price' => $price,
+                'pricing_type' => $pricingType,
+                'quantity' => $quantity,
+                // An add-on is counted by the sachet even if it were ever
+                // priced by weight, so it is never mistaken for laundry.
+                'unit' => $isAddon ? 'qty' : Booking::unitFor($pricingType),
+                'billable_quantity' => Booking::billableQuantity($pricingType, $quantity, $minimumKilos),
+                'line_total' => Booking::lineTotal($pricingType, $price, $quantity, $minimumKilos),
+                'is_addon' => $isAddon,
+                'sort_order' => $position,
+            ];
+        }
+
+        usort($lines, fn ($a, $b) => [$a['is_addon'], $a['sort_order']] <=> [$b['is_addon'], $b['sort_order']]);
+
+        return $lines;
+    }
+
     private function createFor(Customer $customer, array $data): PickupRequest
     {
         return DB::transaction(function () use ($customer, $data) {
             $wantsDelivery = ($data['delivery_preference'] ?? 'deliver') === 'deliver';
+            $isRush = (bool) ($data['is_rush'] ?? false);
 
-            // Snapshot what was booked: a later rename, reprice or preset edit
-            // must not rewrite what this customer actually agreed to.
-            $offering = Booking::resolveOffering($data['offering'] ?? null);
-            $service = $offering['service'] ?? null;
-            $preset = $offering['preset'] ?? null;
-            $booked = $preset ?: $service;
+            $lines = $this->linesFor($data);
+
+            // The washing, not the detergent: what the single-service columns
+            // below describe, for the screens and reports that read them.
+            $services = array_values(array_filter($lines, fn ($line) => ! $line['is_addon']));
+            $first = $services[0] ?? null;
+
+            // What the customer says the bag weighs, for the counter to check.
+            $kilos = array_sum(array_map(
+                fn ($line) => $line['unit'] === 'kg' ? $line['quantity'] : 0,
+                $lines
+            ));
 
             $pickupRequest = PickupRequest::create([
                 'reference_no' => PickupRequest::nextReference(),
                 'customer_id' => $customer->id,
                 'branch_id' => $data['branch_id'],
-                'laundry_service_id' => $service?->id,
-                'service_preset_id' => $preset?->id,
-                'service_name' => $preset?->name ?: $service?->name,
-                'service_price' => $preset ? $preset->totalPrice() : $service?->price,
-                'service_pricing_type' => $preset ? 'preset' : $service?->pricing_type,
-                'estimated_kilos' => $data['estimated_kilos'] ?? null,
+                'laundry_service_id' => $first['laundry_service_id'] ?? null,
+                'service_preset_id' => $first['service_preset_id'] ?? null,
+                'service_name' => $first['service_name'] ?? null,
+                'service_price' => $first['service_price'] ?? null,
+                'service_pricing_type' => $first['pricing_type'] ?? null,
+                'estimated_kilos' => $kilos > 0 ? round($kilos, 2) : null,
                 'contact_name' => $data['contact_name'],
                 'contact_phone' => $data['contact_phone'],
                 'contact_email' => $data['contact_email'] ?? $customer->email,
@@ -197,15 +261,15 @@ class BookingController extends Controller
                     : null,
                 'delivery_date' => $wantsDelivery ? ($data['delivery_date'] ?? null) : null,
                 'delivery_slot' => $wantsDelivery ? ($data['delivery_slot'] ?? null) : null,
-                'is_rush' => (bool) ($data['is_rush'] ?? false),
+                'is_rush' => $isRush,
                 'notes' => $data['notes'] ?? null,
-                'estimated_total' => Booking::estimate(
-                    $booked,
-                    isset($data['estimated_kilos']) ? (float) $data['estimated_kilos'] : null,
-                    (bool) ($data['is_rush'] ?? false)
-                ),
+                'estimated_total' => Booking::estimate($lines, $isRush),
                 'status' => 'pending',
             ]);
+
+            foreach ($lines as $line) {
+                $pickupRequest->items()->create($line);
+            }
 
             // Keep the customer record current with whatever they just told us,
             // so the counter is not working from stale contact details.
@@ -227,8 +291,11 @@ class BookingController extends Controller
     {
         $rules = [
             'branch_id' => ['required', 'integer', Rule::exists('branches', 'id')->where('is_active', true)],
-            'offering' => ['required', 'string', Rule::in(Booking::offeringKeys($request->integer('branch_id')))],
-            'estimated_kilos' => ['nullable', 'numeric', 'min:1', 'max:200'],
+            // One booking, as many services as the bag holds: a regular load
+            // and a comforter travel together, each with its own amount.
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.key' => ['required', 'string', Rule::in(Booking::bookableKeys($request->integer('branch_id')))],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.5', 'max:200'],
             'contact_name' => ['required', 'string', 'max:120'],
             // Length alone would accept "asdf". The branch has to be able to
             // ring this number back, so it must normalise to a real PH mobile.
@@ -246,14 +313,19 @@ class BookingController extends Controller
             'pickup_longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'pickup_landmark' => ['nullable', 'string', 'max:150'],
             'pickup_date' => ['required', 'date', 'after_or_equal:'.Booking::earliestPickupDate(), 'before_or_equal:'.Booking::latestPickupDate()],
-            'pickup_slot' => ['required', Rule::in(array_keys(Booking::slots()))],
+            // Same-day pickup is allowed, but not a window that has already
+            // closed: the van for it has gone.
+            'pickup_slot' => ['required', Rule::in(array_keys(Booking::slots())), function ($attribute, $value, $fail) use ($request) {
+                if ($request->input('pickup_date') === now()->toDateString() && Booking::slotHasPassed($value)) {
+                    $fail('That pickup time has already passed today. Please choose a later time, or tomorrow.');
+                }
+            }],
             'delivery_preference' => ['required', Rule::in(array_keys(Booking::deliveryPreferences()))],
             'delivery_address' => ['nullable', 'string', 'max:500'],
             'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'delivery_date' => ['nullable', 'date', 'after_or_equal:pickup_date', 'before_or_equal:'.Booking::latestPickupDate()],
             'delivery_slot' => ['nullable', Rule::in(array_keys(Booking::slots()))],
-            'is_rush' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];
 
@@ -266,17 +338,40 @@ class BookingController extends Controller
             'pickup_date.required' => 'Please choose a pickup date.',
             'pickup_slot.required' => 'Please choose the time that suits you.',
             'delivery_preference.required' => 'Please tell us how you want your laundry back.',
-            'pickup_date.after_or_equal' => 'The earliest pickup we can promise is tomorrow.',
+            'pickup_date.after_or_equal' => 'Please choose a pickup date from today onwards, and today only while a collection window is still open.',
             'delivery_date.after_or_equal' => 'Delivery cannot be scheduled before the pickup.',
             'branch_id.exists' => 'Please choose one of our active branches.',
-            'offering.in' => 'That service is not available at the branch you picked. Please choose another.',
-            'offering.required' => 'Please choose a service.',
+            'items.required' => 'Please choose what you would like us to clean.',
+            'items.min' => 'Please choose what you would like us to clean.',
+            'items.*.key.in' => 'That service is not available at the branch you picked. Please choose another.',
+            'items.*.quantity.required' => 'Please enter how much laundry for each service you picked.',
+            'items.*.quantity.numeric' => 'Please enter the amount as a number, like 8.',
+            'items.*.quantity.min' => 'Please enter an amount of at least 0.5 for each service you picked.',
+            'items.*.quantity.max' => 'That is more than we can take in one pickup. Please book up to 200 per service.',
         ];
 
         $validated = $request->validate($rules, $messages);
 
+        // Detergent and fabric conditioner go with a wash; on their own there
+        // is nothing to put them in.
+        $addonIds = Booking::addons((int) $validated['branch_id'])->pluck('id')->all();
+        $hasService = collect($validated['items'])->contains(function (array $item) use ($addonIds) {
+            $offering = Booking::resolveOffering($item['key']);
+
+            return $offering && ! in_array($offering['service']?->id, $addonIds, true);
+        });
+
+        if (! $hasService) {
+            throw ValidationException::withMessages([
+                'items' => 'Please choose a laundry service. Add-ons like detergent go with a wash.',
+            ]);
+        }
+
         $validated['contact_phone'] = Customer::normalizePhone($validated['contact_phone']);
-        $validated['is_rush'] = $request->boolean('is_rush');
+
+        // Rush is a counter decision now, not something the public form offers,
+        // so a posted flag cannot buy its way to the front of the queue.
+        $validated['is_rush'] = false;
 
         // One coordinate without the other is not a location. Drop the pair
         // rather than storing half a pin a rider would be sent to follow.

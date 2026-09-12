@@ -10,12 +10,13 @@ class LaundryService extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'branch_id', 'service_category_id', 'name', 'report_category', 'pricing_type', 'price', 'is_active',
-        'show_on_landing', 'landing_blurb', 'landing_icon', 'landing_sort_order',
+        'branch_id', 'service_category_id', 'name', 'report_category', 'pricing_type', 'price', 'minimum_kilos',
+        'is_active', 'show_on_landing', 'landing_blurb', 'landing_icon', 'landing_sort_order',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
+        'minimum_kilos' => 'decimal:2',
         'is_active' => 'boolean',
         'show_on_landing' => 'boolean',
         'landing_sort_order' => 'integer',

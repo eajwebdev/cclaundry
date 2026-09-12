@@ -18,7 +18,7 @@
     <div x-show="visibility === 'branch'" x-cloak>
         <label class="mb-1.5 block text-sm font-medium">Branch</label>
         <select name="branch_id" class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
-            <option value="">— Select Branch —</option>
+            <option value="">Select Branch</option>
             @foreach($branches as $branch)
                 <option value="{{ $branch->id }}" @selected(old('branch_id', $category->branch_id) == $branch->id)>{{ $branch->name }}</option>
             @endforeach

@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/*
+ * MapLibre's stylesheet, pulled into the base layer on purpose. Tailwind v4
+ * puts its utilities in a cascade layer, and unlayered CSS beats a layered
+ * rule whatever the source order -- so imported plain, MapLibre's
+ * `.maplibregl-map { position: relative }` silently overrode `absolute` on a
+ * map container and collapsed it to zero height. In `base` it sits below the
+ * utilities, where a class on the element wins as expected.
+ */
+@import "maplibre-gl/dist/maplibre-gl.css" layer(base);
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
@@ -540,9 +550,12 @@ textarea {
     background-image: var(--cc-bg-jpg);
 }
 
+/* The banner art is passed in as --cc-about-img so a page can supply its own
+   photo; it falls back to the shared site background when none is set. */
 .cc-about-banner {
     background-color: var(--cc-deep);
-    background-image: linear-gradient(180deg, rgba(74, 47, 31, 0.3), rgba(74, 47, 31, 0.78)), var(--cc-bg-jpg);
+    background-image: linear-gradient(180deg, rgba(74, 47, 31, 0.3), rgba(74, 47, 31, 0.78)),
+        var(--cc-about-img, var(--cc-bg-jpg));
     background-position: center 80%;
     background-repeat: no-repeat;
     background-size: cover;
@@ -558,7 +571,8 @@ textarea {
     }
 
     .cc-about-banner {
-        background-image: linear-gradient(180deg, rgba(74, 47, 31, 0.3), rgba(74, 47, 31, 0.78)), var(--cc-bg-set);
+        background-image: linear-gradient(180deg, rgba(74, 47, 31, 0.3), rgba(74, 47, 31, 0.78)),
+            var(--cc-about-img, var(--cc-bg-set));
     }
 }
 

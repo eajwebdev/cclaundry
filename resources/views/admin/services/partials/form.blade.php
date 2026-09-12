@@ -34,7 +34,7 @@
         <div>
             <label class="mb-1.5 block text-sm font-medium">Category</label>
             <select name="service_category_id" class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
-                <option value="">— No Category —</option>
+                <option value="">No Category</option>
                 @foreach($serviceCategories as $cat)
                     <option value="{{ $cat->id }}" @selected(old('service_category_id', $service->service_category_id) == $cat->id)>
                         {{ $cat->name }}{{ $cat->visibility === 'branch' ? ' (Branch only)' : '' }}
@@ -46,6 +46,14 @@
         <div>
             <label class="mb-1.5 block text-sm font-medium">Price</label>
             <input type="number" step="0.01" min="0" name="price" value="{{ old('price', $service->price ?? 0) }}" required class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+        </div>
+
+        <div>
+            <label class="mb-1.5 block text-sm font-medium">Minimum Kilos</label>
+            <input type="number" step="0.5" min="0" name="minimum_kilos" placeholder="No minimum"
+                   value="{{ old('minimum_kilos', $service->minimum_kilos) }}"
+                   class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+            <p class="mt-1 text-xs text-muted">Kilo-priced services only. A booking below this is charged at the minimum.</p>
         </div>
 
         <div>

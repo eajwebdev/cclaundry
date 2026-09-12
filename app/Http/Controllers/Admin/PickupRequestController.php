@@ -31,7 +31,7 @@ class PickupRequestController extends Controller
         ];
 
         $requests = (clone $base)
-            ->with(['customer', 'branch', 'jobOrder', 'handler', 'rider:id,name'])
+            ->with(['items', 'customer', 'branch', 'jobOrder', 'handler', 'rider:id,name'])
             ->when(in_array($request->status, PickupRequest::STATUSES, true),
                 fn ($query) => $query->where('status', $request->status))
             ->when($request->filled('search'), function ($query) use ($request) {

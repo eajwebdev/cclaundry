@@ -1,6 +1,6 @@
 @extends('layouts.public')
 
-@section('page_title', 'Laundry pickup & delivery, booked in a minute')
+@section('page_title', 'Free pick-up & delivery in Kabankalan City')
 @section('overlay_header', '1')
 
 @php
@@ -17,9 +17,6 @@
         default => null,
     };
 
-    // The headline rate on the home screen: the per-kilo service, if there is one.
-    $featured = $offerings->firstWhere('pricing_type', 'kilo') ?? $offerings->first();
-    $featuredUnit = $featured ? $unitShort($featured['pricing_type']) : null;
 @endphp
 
 @section('content')
@@ -31,20 +28,19 @@
      towels and cotton, with the copy centred over a soft cream wash. --}}
 <section class="cc-hero relative -mt-16 lg:-mt-20">
     <div class="relative mx-auto flex min-h-[max(100svh,40rem)] max-w-3xl flex-col items-center px-6 pt-[max(12rem,27svh)] pb-12 text-center md:min-h-[min(100svh,58rem)] md:justify-center md:px-8 md:pt-28 md:pb-44 lg:pt-32">
-        <p class="hidden text-xs font-bold tracking-[0.3em] text-cc-brown uppercase md:block">{{ $businessName }}</p>
+        <p class="hidden text-xs font-bold tracking-[0.3em] text-cc-brown uppercase md:block">Kabankalan City &middot; Negros Occidental</p>
 
         <h1 class="font-script text-[clamp(2.1rem,9vw,2.8rem)] leading-[1.08] text-cc-deep md:mt-3 md:text-6xl lg:text-7xl">
-            Life&rsquo;s busy &mdash;<br>
+            Life&rsquo;s busy,<br>
             we&rsquo;ll handle the laundry! <span class="text-cc-brown" aria-hidden="true">&#9829;</span>
         </h1>
 
         <p class="mt-5 hidden max-w-lg text-base leading-relaxed text-cc-muted md:block">
-            Book a pickup in about a minute. We collect at your door, wash, dry and fold with care,
-            and bring everything back fresh.
+            Fresh, clean and neatly cared for, without adding another chore to your day.
         </p>
 
         <div class="cc-pill mt-6">
-            <span class="text-[13px] font-extrabold tracking-[0.12em] uppercase">Free pickup &amp; delivery</span>
+            <span class="text-[13px] font-extrabold tracking-[0.12em] uppercase">Free pick-up &amp; delivery</span>
             <span class="text-xs font-semibold text-cc-muted">Minimum 5 kg</span>
         </div>
 
@@ -70,50 +66,16 @@
     </div>
 </section>
 
-{{-- ══════════════════════════════ RATE + WHAT WE HANDLE ══════════════════════════════ --}}
-<section class="relative px-4">
-    <div class="cc-card mx-auto max-w-md p-5 sm:p-6 md:grid md:max-w-6xl md:grid-cols-[auto_1fr] md:items-center md:gap-10 md:px-8">
-        @if($featured)
-            <a href="#book" @click="$dispatch('preselect-offering', '{{ $featured['key'] }}')"
-               class="flex items-center justify-center gap-4 border-b border-cc-line pb-5 md:justify-start md:border-r md:border-b-0 md:pr-10 md:pb-0">
-                <span class="cc-icon-tile h-16 w-16"><span data-lucide="laundry" class="h-8 w-8"></span></span>
-                <span class="text-left">
-                    <span class="block font-display text-[2.6rem] leading-none font-bold text-cc-deep">
-                        {{ $peso($featured['price']) }}@if($featuredUnit)<span class="text-2xl"> / {{ strtoupper($featuredUnit) }}</span>@endif
-                    </span>
-                    <span class="mt-1 block text-sm font-semibold text-cc-muted">
-                        {{ $featured['pricing_type'] === 'kilo' ? 'Wash • Dry • Fold' : $featured['name'] }}
-                    </span>
-                </span>
-            </a>
-        @endif
-
-        <div class="{{ $featured ? 'pt-5 md:pt-0' : '' }}">
-            <h2 class="text-center font-display text-xl font-bold text-cc-deep md:text-left">What We Handle</h2>
-            <ul class="mt-4 grid grid-cols-5 gap-1 text-center md:gap-4">
-                @foreach ([
-                    ['shirt', 'Everyday clothes'],
-                    ['bed-double', 'Bedsheets'],
-                    ['bed-single', 'Duvets'],
-                    ['layers', 'Towels'],
-                    ['steam', 'Steaming'],
-                ] as [$icon, $label])
-                    <li class="flex flex-col items-center gap-1.5">
-                        <span data-lucide="{{ $icon }}" class="h-8 w-8 text-cc-brown sm:h-9 sm:w-9"></span>
-                        <span class="text-[11px] leading-tight font-semibold text-cc-ink sm:text-xs">{{ $label }}</span>
-                    </li>
-                @endforeach
-            </ul>
-        </div>
-    </div>
-</section>
-
 {{-- ══════════════════════════════ SERVICES ══════════════════════════════ --}}
 <section id="services" class="scroll-mt-20 px-4 pt-16 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
     <div class="mx-auto max-w-6xl">
         <div class="text-center md:text-left">
-            <h2 class="cc-title">Our Services</h2>
-            <p class="cc-subtitle mt-1">Quality care for every fabric. Tap one to book it.</p>
+            <p class="text-xs font-bold tracking-[0.3em] text-cc-brown uppercase">What We Do</p>
+            <h2 class="cc-title mt-2">Wash &bull; Dry &bull; Fold &bull; Repeat</h2>
+            <p class="cc-subtitle mt-1">
+                Simple laundry care designed around your schedule. Choose your service, book a pickup,
+                and let us take care of the rest.
+            </p>
         </div>
 
         <div class="mt-6 grid gap-8 md:grid-cols-[0.95fr_1.05fr] md:items-start lg:gap-12">
@@ -140,7 +102,7 @@
             <div class="cc-card px-6 py-12 text-center">
                 <span class="cc-icon-tile mx-auto h-14 w-14"><span data-lucide="tag" class="h-6 w-6"></span></span>
                 <p class="mt-5 font-bold text-cc-deep">Our service list is being updated</p>
-                <p class="cc-subtitle mx-auto mt-1.5 max-w-sm">Please call the branch to book in the meantime &mdash; online booking will be back shortly.</p>
+                <p class="cc-subtitle mx-auto mt-1.5 max-w-sm">Please call the branch to book in the meantime. Online booking will be back shortly.</p>
             </div>
         @else
             {{-- Desktop: two columns of stacked cards, so the list stays about as
@@ -191,16 +153,15 @@
 <section id="how" class="scroll-mt-20 px-4 pt-16 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
     <div class="mx-auto max-w-6xl">
         <div class="text-center md:text-left">
-            <h2 class="cc-title">How It Works</h2>
-            <p class="cc-subtitle mt-1">Four easy steps, and laundry day is handled.</p>
+            <p class="text-xs font-bold tracking-[0.3em] text-cc-brown uppercase">Easy as 1-2-3</p>
+            <h2 class="cc-title mt-2">We make laundry easier for you.</h2>
         </div>
 
-        <ol class="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        <ol class="mt-6 grid gap-3 sm:grid-cols-3 lg:gap-4">
             @foreach ([
-                ['calendar', 'Book online', 'Tell us what you have, where and when. About a minute.'],
-                ['truck', 'We collect', 'Our rider arrives in your chosen window.'],
-                ['laundry', 'Wash & fold', 'Sorted, washed right, dried and folded by hand.'],
-                ['packageCheck', 'Back at your door', 'Delivered fresh, with a heads-up before we arrive.'],
+                ['calendar', 'Book', 'Tell us what you need, your pickup address, and your preferred date and time.'],
+                ['truck', 'We Pick Up', 'Have your laundry ready. Our team will pick it up and bring it to '.$businessName.'.'],
+                ['packageCheck', 'Fresh & Ready', 'We wash, dry, fold and care for your laundry, then arrange delivery back to you.'],
             ] as $index => [$icon, $title, $body])
                 <li class="cc-card relative p-4 sm:p-5">
                     <span class="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-full bg-cc-brown text-[11px] font-bold text-white">{{ $index + 1 }}</span>
@@ -271,178 +232,45 @@
     </div>
 </section>
 
-{{-- ══════════════════════════════ PRICE LIST ══════════════════════════════ --}}
-@if($priceList->isNotEmpty())
-<section id="rates" class="scroll-mt-20 px-4 pt-16 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
-    {{-- Desktop: categories side by side, once there is more than one. --}}
-    <div class="mx-auto max-w-3xl {{ $priceList->count() > 1 ? 'lg:max-w-6xl' : '' }}">
-        <div class="text-center">
-            <h2 class="font-script text-6xl leading-none text-cc-deep sm:text-7xl lg:text-8xl">Price List</h2>
-            <p class="cc-subtitle mx-auto mt-3 max-w-md">Your bag is weighed at the branch and priced from this list. The final total is confirmed before we start.</p>
-        </div>
-
-        <div class="mt-7 space-y-4 {{ $priceList->count() > 1 ? 'lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 lg:space-y-0' : '' }}">
-            @foreach ($priceList as $categoryName => $services)
-                <div class="cc-card overflow-hidden">
-                    <h3 class="border-b border-cc-line bg-cc-soft/60 px-5 py-3 font-display text-lg font-bold tracking-wide text-cc-deep uppercase">{{ $categoryName }}</h3>
-                    <ul class="divide-y divide-cc-line">
-                        @foreach ($services as $service)
-                            @php $unit = $unitShort($service->pricing_type); @endphp
-                            <li class="flex items-center justify-between gap-4 px-5 py-3.5">
-                                <div class="min-w-0">
-                                    <p class="text-sm font-bold text-cc-deep">{{ $service->name }}</p>
-                                    <p class="text-xs text-cc-muted">{{ ucfirst($service->priceUnitLabel()) }}</p>
-                                </div>
-                                <p class="shrink-0 font-display text-2xl leading-none font-bold whitespace-nowrap text-cc-brown">
-                                    {{ $peso($service->price) }}@if($unit)<span class="text-base">/{{ $unit }}</span>@endif
-                                </p>
-                            </li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endforeach
-
-            <div class="cc-soft flex items-center gap-4 px-5 py-4 lg:col-span-2 lg:justify-center">
-                <span data-lucide="truck" class="h-9 w-9 shrink-0 text-cc-brown"></span>
-                <div>
-                    <p class="font-display text-lg leading-tight font-bold tracking-wide text-cc-deep uppercase">Free pick up &amp; delivery</p>
-                    <p class="text-sm text-cc-muted">We make laundry easier for you.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-@endif
-
-{{-- ══════════════════════════════ BRANCHES ══════════════════════════════ --}}
-@if($branches->isNotEmpty())
-<section id="branches" class="scroll-mt-20 px-4 pt-16 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
-    <div class="mx-auto max-w-6xl">
-        <div class="text-center md:text-left">
-            <h2 class="cc-title">{{ $branches->count() > 1 ? 'Our Branches' : 'Our Branch' }}</h2>
-            <p class="cc-subtitle mt-1">Choose the branch nearest you and our rider comes from there.</p>
-        </div>
-
-        {{-- A lone branch gets one wide card past phone width, instead of a single
-             tile at the start of an otherwise empty row. --}}
-        @php $singleBranch = $branches->count() === 1; @endphp
-        <div class="mt-6 grid gap-3 {{ $singleBranch ? '' : 'sm:grid-cols-2 lg:grid-cols-3 lg:gap-4' }}">
-            @foreach ($branches as $branch)
-                <div class="cc-card p-5 {{ $singleBranch ? 'md:flex md:items-center md:justify-between md:gap-10 md:px-8 md:py-7' : '' }}">
-                    <div class="min-w-0">
-                        <div class="flex items-start justify-between gap-3 {{ $singleBranch ? 'md:items-center md:justify-start' : '' }}">
-                            <h3 class="font-display text-xl leading-tight font-bold text-cc-deep {{ $singleBranch ? 'md:text-2xl' : '' }}">{{ $branch->name }}</h3>
-                            <span class="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold tracking-wide text-emerald-700 uppercase ring-1 ring-emerald-200">Open</span>
-                        </div>
-
-                        <div class="{{ $singleBranch ? 'md:mt-3 md:flex md:flex-wrap md:gap-x-8 md:gap-y-2' : '' }}">
-                            @if($branch->address)
-                                <p class="mt-3 flex items-start gap-2 text-sm leading-relaxed text-cc-muted {{ $singleBranch ? 'md:mt-0' : '' }}">
-                                    <span data-lucide="map-pin" class="mt-0.5 h-4 w-4 shrink-0 text-cc-brown"></span>
-                                    {{ $branch->address }}
-                                </p>
-                            @endif
-
-                            @if($branch->contact_number)
-                                <p class="mt-2 flex items-center gap-2 text-sm text-cc-muted {{ $singleBranch ? 'md:mt-0' : '' }}">
-                                    <span data-lucide="phone" class="h-4 w-4 shrink-0 text-cc-brown"></span>
-                                    <a href="tel:{{ preg_replace('/\s+/', '', $branch->contact_number) }}" class="hover:text-cc-brown">{{ $branch->contact_number }}</a>
-                                </p>
-                            @endif
-
-                            @if($singleBranch)
-                                <p class="hidden items-center gap-2 text-sm text-cc-muted md:flex">
-                                    <span data-lucide="time" class="h-4 w-4 shrink-0 text-cc-brown"></span>
-                                    Pickups daily, 8:00 AM &ndash; 7:00 PM
-                                </p>
-                            @endif
-                        </div>
-                    </div>
-
-                    <a href="#book" @click="$dispatch('preselect-branch', {{ $branch->id }})"
-                       class="mt-4 inline-flex min-h-11 items-center gap-1.5 text-sm font-bold text-cc-brown hover:gap-2.5 {{ $singleBranch ? 'md:mt-0 md:min-h-12 md:shrink-0 md:rounded-full md:bg-cc-brown md:px-6 md:text-white md:shadow-[0_12px_24px_-14px_rgba(74,47,31,0.75)] md:hover:bg-cc-deep' : '' }}">
-                        Book from here
-                        <span data-lucide="arrow-right" class="h-4 w-4"></span>
-                    </a>
-                </div>
-            @endforeach
-        </div>
-    </div>
-</section>
-@endif
-
-{{-- ══════════════════════════════ FAQ ══════════════════════════════ --}}
-<section id="faq" class="scroll-mt-20 px-4 pt-16 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
-    <div class="mx-auto max-w-3xl lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-start lg:gap-14">
-        <div class="text-center lg:sticky lg:top-28 lg:text-left">
-            <h2 class="cc-title">Questions? We&rsquo;ve Got You</h2>
-            <p class="cc-subtitle mt-1">Everything people usually ask us.</p>
-
-            {{-- Desktop only: the column beside the answers has room for a way out. --}}
-            <div class="cc-soft mt-8 hidden p-6 lg:block">
-                <span class="cc-icon-tile h-11 w-11 bg-none bg-cc-surface"><span data-lucide="message-circle" class="h-5 w-5"></span></span>
-                <p class="mt-4 font-display text-xl font-bold text-cc-deep">Still wondering about something?</p>
-                <p class="mt-1 text-sm leading-relaxed text-cc-muted">
-                    @if($contactNumber)
-                        Call <a href="tel:{{ preg_replace('/\s+/', '', $contactNumber) }}" class="font-bold text-cc-brown hover:underline">{{ $contactNumber }}</a>
-                        and the branch team will sort it out with you.
-                    @else
-                        Our branch team is happy to help &mdash; just mention it in your booking notes.
-                    @endif
-                </p>
-                <a href="#book" class="cc-btn cc-btn-sm mt-5">
-                    <span data-lucide="truck" class="h-4 w-4"></span>
-                    Book a Pickup
-                </a>
-            </div>
-        </div>
-
-        <div x-data="{ open: 0 }" class="mt-6 space-y-2.5 lg:mt-0">
-            @foreach ([
-                ['Do I need an account to book?', 'You can fill in the whole booking first &mdash; we only ask you to create an account at the last step, and it takes a few seconds. The account is what lets you track the order, cancel it and rebook next time.'],
-                ['How much does pickup and delivery cost?', 'Nothing. Pickup and delivery are free for orders of 5 kg and above. You only pay for the laundry itself, confirmed once your bag is weighed.'],
-                ['When and how do I pay?', 'Our rider collects payment when they pick your laundry up, in cash or GCash &mdash; so please have it ready at the door. The amount follows the price list and the estimate you see while booking; anything left over or short is settled at the branch once your bag is weighed.'],
-                ['How do you keep my laundry from being mixed up with someone else&rsquo;s?', 'Your bag is tagged at pickup with a code the rider writes down &mdash; you will see it on your tracking page. That tag stays with your laundry through washing, drying and folding, so it is matched back to you by number rather than by memory.'],
-                ['When will my laundry come back?', 'Standard turnaround is 24 hours from pickup. Choose rush when booking and we prioritise your load for same-day handling where the schedule allows.'],
-                ['How is the price calculated?', 'Loads are priced by weight against our published price list. The estimate you see while booking is a guide; the exact total is confirmed once your bag is weighed at the branch.'],
-                ['Can I change or cancel a booking?', 'Yes. Open My bookings and cancel any request that has not been collected yet. To move a pickup to another day, cancel and rebook, or call the branch directly.'],
-                ['What if something is damaged or missing?', 'Tell the branch within 24 hours of delivery. Every booking is bagged and tagged on its own, so we can trace exactly where your item went.'],
-            ] as $index => [$question, $answer])
-                <div class="cc-card overflow-hidden" :class="open === {{ $index }} ? 'border-cc-tan!' : ''">
-                    <button type="button" @click="open = open === {{ $index }} ? null : {{ $index }}"
-                            class="flex min-h-14 w-full items-center justify-between gap-4 px-5 py-4 text-left"
-                            :aria-expanded="open === {{ $index }}">
-                        <span class="text-[15px] font-bold text-cc-deep">{{ $question }}</span>
-                        <span data-lucide="chevron-down" class="h-5 w-5 shrink-0 text-cc-brown transition-transform"
-                              :class="open === {{ $index }} ? 'rotate-180' : ''"></span>
-                    </button>
-                    <div x-show="open === {{ $index }}" x-cloak x-transition class="px-5 pb-5">
-                        <p class="text-sm leading-relaxed text-cc-muted">{!! $answer !!}</p>
-                    </div>
-                </div>
-            @endforeach
-        </div>
-    </div>
-</section>
-
 {{-- ══════════════════════════════ ABOUT & CONTACT ══════════════════════════════ --}}
 <section id="about" class="scroll-mt-20 px-4 pt-16 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
     {{-- Side by side from lg: at tablet width the half-card squeezed the four
          feature tiles into columns a few words wide. --}}
     <div class="cc-card mx-auto max-w-6xl overflow-hidden lg:grid lg:grid-cols-2">
-        <div class="cc-about-banner flex min-h-52 items-center justify-center px-6 py-10 md:min-h-72 lg:min-h-full">
+        <div class="cc-about-banner flex min-h-52 items-center justify-center px-6 py-10 md:min-h-72 lg:min-h-full"
+             style="--cc-about-img: url('{{ asset('about.jpg') }}')">
             <p class="text-center font-script text-5xl leading-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.35)] sm:text-6xl">
                 Clean clothes.<br>A brighter day.
             </p>
         </div>
 
         <div class="p-5 sm:p-8">
-            <h2 class="cc-title text-[1.75rem] sm:text-3xl">About Us</h2>
+            <p class="text-xs font-bold tracking-[0.3em] text-cc-brown uppercase">About {{ $businessName }}</p>
+            <h2 class="cc-title mt-2 text-[1.75rem] sm:text-3xl">Thoughtful laundry care, made local.</h2>
             <p class="mt-3 text-sm leading-relaxed text-cc-muted">
-                {{ $businessName }} is a local laundry service{{ $settings?->business_address ? ' in '.$settings->business_address : '' }},
-                dedicated to giving you fresh, clean and well-cared-for clothes. We&rsquo;re here to make your everyday
-                life easier &mdash; because you have better things to do.
+                {{ $businessName }} was created to make everyday laundry feel a little lighter. From the wash to the
+                fold, we believe your clothes deserve careful handling and your time deserves to be spent on what matters.
             </p>
+            <p class="mt-2.5 text-sm leading-relaxed text-cc-muted">
+                Rooted in {{ $settings?->business_address ?: 'Kabankalan City' }}, we&rsquo;re here to offer dependable
+                laundry care with the convenience of free pick-up and delivery.
+            </p>
+
+            {{-- Where the name comes from, in the shop's own words. --}}
+            <div class="cc-soft mt-5 px-4 py-4">
+                <p class="font-display text-lg leading-tight font-bold text-cc-deep">Why {{ $businessName }}?</p>
+                <p class="mt-2.5 text-sm leading-relaxed text-cc-muted">
+                    <span class="font-bold text-cc-deep">Cane</span> reflects the warmth and strength of homegrown
+                    sugarcane, a part of our local story.
+                </p>
+                <p class="mt-2 text-sm leading-relaxed text-cc-muted">
+                    <span class="font-bold text-cc-deep">Cotton</span> represents softness, freshness and the everyday
+                    fabrics we care for.
+                </p>
+                <p class="mt-2 text-sm leading-relaxed text-cc-muted">
+                    Together, they are our promise of laundry care that feels warm, simple and dependable.
+                </p>
+            </div>
 
             <ul class="mt-5 space-y-3 text-sm text-cc-ink">
                 @if($settings?->business_address)
@@ -465,7 +293,7 @@
                 @endif
                 <li class="flex items-center gap-3">
                     <span data-lucide="time" class="h-4.5 w-4.5 shrink-0 text-cc-brown"></span>
-                    Pickups daily, 8:00 AM &ndash; 7:00 PM
+                    Pickups daily, 8:00 AM - 7:00 PM
                 </li>
                 @if($settings?->facebook_url)
                     <li class="flex items-center gap-3">

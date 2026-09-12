@@ -8,7 +8,6 @@
 @include('partials.map-assets')
 
 <div x-data="bookingTracker({ endpoint: @js(route('track.location', $pickupRequest->reference_no)) })"
-     x-init="init()"
      x-show="tracking || stale"
      x-cloak
      class="mt-8 overflow-hidden rounded-2xl border border-border dark:border-white/10">
@@ -35,7 +34,7 @@
 
         <div x-show="stale" x-cloak
              class="absolute inset-x-0 bottom-0 bg-amber-50/95 px-4 py-2.5 text-center text-xs text-amber-800 backdrop-blur dark:bg-amber-500/15 dark:text-amber-200">
-            Your rider is on the way — their location will appear once they have signal.
+            Your rider is on the way. Their location will appear once they have signal.
         </div>
     </div>
 </div>

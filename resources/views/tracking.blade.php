@@ -4,14 +4,16 @@
 @section('back_url', route('landing') . '#track')
 
 @php
-    $kilos = $pickupRequest->estimated_kilos
-        ? rtrim(rtrim(number_format((float) $pickupRequest->estimated_kilos, 2), '0'), '.').' kg'
+    $declaredKilos = $pickupRequest->declaredKilos();
+    $kilos = $declaredKilos
+        ? rtrim(rtrim(number_format($declaredKilos, 2), '0'), '.').' kg'
         : 'Weight to be confirmed';
 
     $details = [
+        ['laundry', 'Booked', $pickupRequest->serviceSummary() ?: $pickupRequest->serviceTypeLabel()],
         ['store', 'Branch', $pickupRequest->branch?->name ?? '--'],
         ...($pickupRequest->tag_code
-            ? [['tag', 'Laundry tag', $pickupRequest->tag_code.' — the number on your bag']]
+            ? [['tag', 'Laundry tag', $pickupRequest->tag_code.', the number on your bag']]
             : []),
         ['calendar-days', 'Pickup', $pickupRequest->pickup_date->format('D, M j, Y').' · '.$pickupRequest->pickupSlotLabel()],
         ['truck', 'Return', $pickupRequest->wantsDelivery()

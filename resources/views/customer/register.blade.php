@@ -21,7 +21,7 @@
                 <h1 class="cc-title">Create your account</h1>
                 <p class="cc-subtitle mx-auto mt-2 max-w-md lg:mx-0">
                     @if($recent)
-                        Your pickup is booked already &mdash; this just puts it somewhere you can track,
+                        Your pickup is booked already. This just puts it somewhere you can track,
                         cancel and rebook it in one tap.
                     @else
                         It takes about thirty seconds, and it is what lets you book pickups, track them and rebook in one tap.

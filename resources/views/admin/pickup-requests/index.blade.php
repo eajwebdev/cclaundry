@@ -128,9 +128,25 @@
 
                                 <div>
                                     <p class="text-[11px] font-medium tracking-wide text-muted uppercase">Service</p>
-                                    <p class="mt-0.5 text-sm font-medium">{{ $pickupRequest->serviceTypeLabel() }}</p>
+                                    @if($pickupRequest->items->isNotEmpty())
+                                        {{-- Each line with the amount the customer entered: this is
+                                             what the counter holds against the scale. --}}
+                                        <ul class="mt-0.5 space-y-0.5">
+                                            @foreach ($pickupRequest->items as $item)
+                                                <li class="text-sm">
+                                                    <span class="font-medium">{{ $item->service_name }}</span>
+                                                    <span class="text-muted"> &middot; {{ $item->quantityLabel() }}</span>
+                                                    @if($item->is_addon)
+                                                        <span class="ml-1 rounded-full border border-border bg-smoke px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-muted uppercase dark:border-gray-800 dark:bg-gray-950">Add-on</span>
+                                                    @endif
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    @else
+                                        <p class="mt-0.5 text-sm font-medium">{{ $pickupRequest->serviceTypeLabel() }}</p>
+                                    @endif
                                     <p class="text-sm text-muted">
-                                        {{ $pickupRequest->estimated_kilos ? rtrim(rtrim(number_format((float) $pickupRequest->estimated_kilos, 2), '0'), '.').' kg est.' : 'Weight on pickup' }}
+                                        {{ $pickupRequest->declaredKilos() ? rtrim(rtrim(number_format((float) $pickupRequest->declaredKilos(), 2), '0'), '.').' kg declared' : 'Weight on pickup' }}
                                         @if($pickupRequest->estimated_total)
                                             &middot; ~{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $pickupRequest->estimated_total, 2) }}
                                         @endif
@@ -162,7 +178,7 @@
                                 <p class="mt-3 inline-flex flex-wrap items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
                                     <span data-lucide="wallet" class="h-3.5 w-3.5"></span>
                                     @if($pickupRequest->collected_payment_method === 'unpaid' || $pickupRequest->collected_amount === null)
-                                        Rider collected nothing yet &mdash; collect at the counter
+                                        Rider collected nothing yet, collect at the counter
                                     @else
                                         Rider collected {{ $appSettings?->currency ?? 'PHP' }}
                                         {{ number_format((float) $pickupRequest->collected_amount, 2) }}

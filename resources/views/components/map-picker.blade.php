@@ -31,7 +31,6 @@
         latitude: @js($hasPin ? (float) $latitude : null),
         longitude: @js($hasPin ? (float) $longitude : null),
     })"
-    x-init="init()"
     class="space-y-2"
 >
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -90,7 +89,7 @@
             <span x-show="!failed" class="h-6 w-6 animate-spin rounded-full border-2 border-primary/25 border-t-primary"></span>
             <span x-show="failed" x-cloak data-lucide="map-pin" class="h-6 w-6 text-primary"></span>
             <span x-text="failed
-                ? 'Map unavailable here — your address and barangay are enough.'
+                ? 'Map unavailable here. Your address and barangay are enough.'
                 : 'Loading map…'">Loading map…</span>
         </div>
     </div>
@@ -101,7 +100,7 @@
 
     <p x-show="outsideServiceArea" x-cloak
        class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-        That pin is outside our usual Kabankalan service area. You can still book — we will call to confirm we can reach you.
+        That pin is outside our usual Kabankalan service area. You can still book, and we will call to confirm we can reach you.
     </p>
 
     <input type="hidden" name="{{ $name }}_latitude" :value="latitude">

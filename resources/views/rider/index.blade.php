@@ -220,7 +220,7 @@
                                         @if($job->jobOrder)
                                             {{ $job->jobOrder->job_order_number }} &middot; {{ \App\Support\StatusBadge::label($job->jobOrder->status) }}
                                         @else
-                                            With the branch &mdash; not started yet
+                                            With the branch, not started yet
                                         @endif
                                     </p>
                                 @endif

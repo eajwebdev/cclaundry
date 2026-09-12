@@ -31,7 +31,7 @@ class RiderController extends Controller
         $toCollect = PickupRequest::query()
             ->where('rider_id', $rider->id)
             ->where('status', 'confirmed')
-            ->with(['customer:id,name,phone', 'branch:id,name,address'])
+            ->with(['items', 'customer:id,name,phone', 'branch:id,name,address'])
             ->orderBy('pickup_date')
             ->orderBy('id')
             ->get();
@@ -39,7 +39,7 @@ class RiderController extends Controller
         $toDeliver = PickupRequest::query()
             ->where('rider_id', $rider->id)
             ->where('status', 'picked_up')
-            ->with(['customer:id,name,phone', 'branch:id,name,address', 'jobOrder:id,job_order_number,status'])
+            ->with(['items', 'customer:id,name,phone', 'branch:id,name,address', 'jobOrder:id,job_order_number,status'])
             ->orderByRaw('CASE WHEN delivery_date IS NULL THEN 1 ELSE 0 END')
             ->orderBy('delivery_date')
             ->orderBy('id')
@@ -65,7 +65,7 @@ class RiderController extends Controller
             ->whereNull('rider_id')
             ->where('branch_id', $rider->branch_id)
             ->whereIn('status', ['pending', 'confirmed'])
-            ->with(['customer:id,name,phone', 'branch:id,name,address'])
+            ->with(['items', 'customer:id,name,phone', 'branch:id,name,address'])
             ->orderByDesc('is_rush')
             ->orderBy('pickup_date')
             ->orderBy('id')
@@ -95,7 +95,7 @@ class RiderController extends Controller
         // before deciding to take it.
         abort_unless($isMine || $this->isClaimableBy($pickupRequest, $rider), 403);
 
-        $pickupRequest->load(['customer:id,name,phone', 'branch:id,name,address']);
+        $pickupRequest->load(['items', 'customer:id,name,phone', 'branch:id,name,address']);
 
         return view('rider.show', [
             'job' => $pickupRequest,
@@ -132,7 +132,7 @@ class RiderController extends Controller
         if (! $claimed) {
             return redirect()
                 ->route('rider.index')
-                ->with('error', 'Another rider got there first — that run is taken.');
+                ->with('error', 'Another rider got there first, that run is taken.');
         }
 
         Activity::log($request, 'pickup_request_rider_claimed', $pickupRequest, [
@@ -142,7 +142,7 @@ class RiderController extends Controller
 
         return redirect()
             ->route('rider.jobs.show', $pickupRequest)
-            ->with('success', 'Confirmed. '.$pickupRequest->reference_no.' is yours — directions are ready.');
+            ->with('success', 'Confirmed. '.$pickupRequest->reference_no.' is yours, directions are ready.');
     }
 
     /**

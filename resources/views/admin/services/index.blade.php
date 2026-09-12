@@ -153,7 +153,7 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3">{{ $service->branch?->name ?? 'N/A' }}</td>
-                            <td class="px-4 py-3">{{ $service->serviceCategory?->name ?? '—' }}</td>
+                            <td class="px-4 py-3">{{ $service->serviceCategory?->name ?? 'None' }}</td>
                             <td class="px-4 py-3">{{ ucfirst($service->pricing_type) }}</td>
                             <td class="px-4 py-3">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $service->price, 2) }}</td>
                             <td class="px-4 py-3">

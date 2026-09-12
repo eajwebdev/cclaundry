@@ -12,9 +12,11 @@ class PickupRequest extends Model
     public const STATUSES = ['pending', 'confirmed', 'picked_up', 'completed', 'cancelled'];
 
     public const PICKUP_SLOTS = [
-        'morning' => '8:00 AM - 11:00 AM',
-        'afternoon' => '1:00 PM - 4:00 PM',
-        'evening' => '4:00 PM - 7:00 PM',
+        '08_09' => '8:00 AM - 9:00 AM',
+        '09_10' => '9:00 AM - 10:00 AM',
+        '10_11' => '10:00 AM - 11:00 AM',
+        '11_12' => '11:00 AM - 12:00 PM',
+        '13_14' => '1:00 PM - 2:00 PM',
     ];
 
     protected $fillable = [
@@ -53,6 +55,7 @@ class PickupRequest extends Model
 
     public function customer() { return $this->belongsTo(Customer::class); }
     public function branch() { return $this->belongsTo(Branch::class); }
+    public function items() { return $this->hasMany(PickupRequestItem::class)->orderBy('is_addon')->orderBy('sort_order'); }
     public function service() { return $this->belongsTo(LaundryService::class, 'laundry_service_id'); }
     public function preset() { return $this->belongsTo(ServicePreset::class, 'service_preset_id'); }
     public function jobOrder() { return $this->belongsTo(JobOrder::class); }
@@ -109,10 +112,57 @@ class PickupRequest extends Model
             && in_array($this->status, ['confirmed', 'picked_up'], true);
     }
 
+    /** The washing on this booking, without the detergent and fabcon extras. */
+    public function serviceItems()
+    {
+        return $this->items->where('is_addon', false);
+    }
+
+    public function addonItems()
+    {
+        return $this->items->where('is_addon', true);
+    }
+
+    /**
+     * Short enough for a list row: the first service, and how many others are
+     * on the booking with it.
+     */
     public function serviceTypeLabel(): string
     {
+        $services = $this->serviceItems();
+
+        if ($services->isNotEmpty()) {
+            $others = $services->count() - 1;
+
+            return $services->first()->service_name.($others > 0 ? ' +'.$others.' more' : '');
+        }
+
         return $this->service_name
             ?: ($this->preset?->name ?: $this->service?->name ?: 'Laundry service');
+    }
+
+    /**
+     * Everything on the booking spelled out with its amount, for the screens
+     * that have room: "Regular Laundry · 8 kg, Downy Mystique Fabcon · 2x".
+     */
+    public function serviceSummary(): string
+    {
+        return $this->items->map(fn (PickupRequestItem $item) => $item->label())->implode(', ');
+    }
+
+    /**
+     * What the customer says the bag weighs: every weighed line added up. This
+     * is the figure the counter holds against the scale.
+     */
+    public function declaredKilos(): ?float
+    {
+        $weighed = $this->items->where('unit', 'kg');
+
+        if ($weighed->isEmpty()) {
+            return $this->estimated_kilos !== null ? (float) $this->estimated_kilos : null;
+        }
+
+        return round((float) $weighed->sum(fn (PickupRequestItem $item) => (float) $item->quantity), 2);
     }
 
     /** How the snapshotted price reads, e.g. "per load". */

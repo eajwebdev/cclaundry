@@ -27,15 +27,17 @@ class LandingController extends Controller
             'settings' => SystemSetting::current(),
             'branches' => Booking::branches(),
             'offerings' => Booking::offerings(),
+            // Detergent and fabric conditioner: listed under the services on the
+            // booking form, chosen with a wash rather than instead of one.
+            'addons' => Booking::addonOfferings(),
             'slots' => Booking::slots(),
             'deliveryPreferences' => Booking::deliveryPreferences(),
-            'priceList' => Booking::priceList(),
             'earliestPickupDate' => Booking::earliestPickupDate(),
             'latestPickupDate' => Booking::latestPickupDate(),
-            'rushSurcharge' => Booking::RUSH_SURCHARGE,
             'customer' => $customer,
             'openRequests' => $customer
                 ? PickupRequest::query()
+                    ->with('items')
                     ->where('customer_id', $customer->id)
                     ->whereIn('status', ['pending', 'confirmed'])
                     ->orderBy('pickup_date')
@@ -114,7 +116,7 @@ class LandingController extends Controller
         ]);
 
         $requestRecord = PickupRequest::query()
-            ->with(['branch', 'jobOrder'])
+            ->with(['items', 'branch', 'jobOrder'])
             ->where('reference_no', trim($validated['reference_no']))
             ->first();
 

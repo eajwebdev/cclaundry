@@ -28,7 +28,7 @@
                 routeUrl: @js(route('rider.jobs.route', $job)),
                 rerouteAfterMetres: @js((int) config('maps.routing.reroute_after_metres')),
             })"
-        x-init="init(); $nextTick(() => window.renderLucideIcons?.())"
+        x-init="$nextTick(() => window.renderLucideIcons?.())"
     @else
         x-data="{ sheetOpen: false }"
     @endif
@@ -38,7 +38,7 @@
         <div x-ref="map" class="absolute inset-0 bg-cream dark:bg-[#1c1510]"></div>
     @else
         <div class="absolute inset-0 flex items-center justify-center bg-cream px-8 text-center text-sm text-muted dark:bg-[#1c1510]">
-            No map pin on this booking — follow the address below.
+            No map pin on this booking, follow the address below.
         </div>
     @endif
 
@@ -65,8 +65,8 @@
                     <template x-if="!current">
                         <p class="truncate text-sm font-medium text-muted"
                            x-text="loadingRoute ? 'Finding the best route…'
-                                 : (routeError ? 'No route available — follow the pin'
-                                 : (failed ? 'Map unavailable — use the address' : 'Waiting for GPS…'))"></p>
+                                 : (routeError ? 'No route available, follow the pin'
+                                 : (failed ? 'Map unavailable, use the address' : 'Waiting for GPS…'))"></p>
                     </template>
                 </div>
 
@@ -174,7 +174,17 @@
                 </div>
                 <div class="flex justify-between gap-3">
                     <span class="shrink-0 text-xs uppercase tracking-wide text-muted">Service</span>
-                    <span class="truncate text-xs">{{ $job->serviceTypeLabel() }}</span>
+                    @if($job->items->isNotEmpty())
+                        {{-- Spelled out: the rider is holding the bag the customer
+                             described, and can see it is all there. --}}
+                        <span class="min-w-0 text-right text-xs">
+                            @foreach ($job->items as $item)
+                                <span class="block">{{ $item->service_name }} &middot; {{ $item->quantityLabel() }}</span>
+                            @endforeach
+                        </span>
+                    @else
+                        <span class="truncate text-xs">{{ $job->serviceTypeLabel() }}</span>
+                    @endif
                 </div>
                 @if($job->pickup_landmark)
                     <div class="flex justify-between gap-3">
@@ -204,7 +214,7 @@
                     <button type="submit"
                             class="inline-flex h-14 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-primary text-base font-semibold text-white shadow-sm transition hover:opacity-90">
                         <span data-lucide="check" class="h-5 w-5"></span>
-                        Confirm pickup &mdash; take this run
+                        Confirm pickup and take this run
                     </button>
                 </form>
             @elseif(in_array($job->status, ['confirmed', 'picked_up'], true))

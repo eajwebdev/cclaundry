@@ -55,7 +55,7 @@
                                     </span>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-muted">{{ $category->branch?->name ?? '—' }}</td>
+                            <td class="px-4 py-3 text-muted">{{ $category->branch?->name ?? 'None' }}</td>
                             <td class="px-4 py-3 text-muted">{{ $category->services()->count() }}</td>
                             <td class="px-4 py-3">
                                 <span class="{{ $category->is_active ? 'inline-flex rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400' }}">

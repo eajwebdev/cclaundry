@@ -20,16 +20,19 @@
         default => ['Pickup Booked!', 'check'],
     };
 
-    $kilos = $pickupRequest->estimated_kilos
-        ? rtrim(rtrim(number_format((float) $pickupRequest->estimated_kilos, 2), '0'), '.').' kg'
+    // Every weighed line on the booking added up: what the rider's scale is
+    // checked against when the bag is collected.
+    $declaredKilos = $pickupRequest->declaredKilos();
+    $kilos = $declaredKilos
+        ? rtrim(rtrim(number_format($declaredKilos, 2), '0'), '.').' kg'
         : 'To be weighed';
 
     $money = fn ($amount) => '₱'.number_format((float) $amount, 2);
 
     $details = [
-        ['laundry', 'Service', $pickupRequest->serviceTypeLabel()],
+        ['laundry', 'Service', $pickupRequest->serviceSummary() ?: $pickupRequest->serviceTypeLabel()],
         ...($pickupRequest->tag_code
-            ? [['tag', 'Laundry tag', $pickupRequest->tag_code.' — written on your bag']]
+            ? [['tag', 'Laundry tag', $pickupRequest->tag_code.', written on your bag']]
             : []),
         ['wallet', 'Payment', $pickupRequest->collected_amount !== null
             ? '₱'.number_format((float) $pickupRequest->collected_amount, 2).' paid at pickup'
@@ -185,6 +188,27 @@
 
             <div class="cc-card p-5 sm:p-6">
                 <h2 class="font-display text-2xl font-bold text-cc-deep">Booking Details</h2>
+
+                {{-- What was booked, line by line, so the amounts the customer
+                     entered are the same ones the counter weighs against. --}}
+                @if($pickupRequest->items->isNotEmpty())
+                    <ul class="mt-3 divide-y divide-cc-line overflow-hidden rounded-2xl border border-cc-line">
+                        @foreach ($pickupRequest->items as $item)
+                            <li class="flex items-center justify-between gap-3 px-4 py-2.5">
+                                <span class="min-w-0">
+                                    <span class="block text-sm font-bold wrap-break-word text-cc-deep">
+                                        {{ $item->service_name }}
+                                        @if($item->is_addon)
+                                            <span class="ml-1 rounded-full bg-cc-soft px-1.5 py-0.5 align-middle text-[9px] font-bold tracking-wide text-cc-brown uppercase">Add-on</span>
+                                        @endif
+                                    </span>
+                                    <span class="block text-xs text-cc-muted">{{ $item->quantityLabel() }}</span>
+                                </span>
+                                <span class="shrink-0 text-sm font-bold whitespace-nowrap text-cc-brown">{{ $money($item->line_total) }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
 
                 <ul class="mt-2 divide-y divide-cc-line">
                     @foreach ($details as [$icon, $label, $detail])

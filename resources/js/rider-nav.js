@@ -17,6 +17,7 @@ export default function installRiderNav() {
         riderMarker: null,
         destinationMarker: null,
         viaMarkers: [],
+        routeHandlersBound: false,
 
         // ── route state ───────────────────────────────────────────────────
         routes: [],
@@ -114,7 +115,11 @@ export default function installRiderNav() {
                 .setLngLat([config.destination.longitude, config.destination.latitude])
                 .addTo(this.map);
 
-            this.map.on('load', () => {
+            // 'style.load', not 'load': setStyle() wipes every custom source
+            // and layer, and the style is swapped both by the theme toggle and
+            // by the raster fallback when the vector host is down. Bound to
+            // 'load' the route lines vanished for good after either one.
+            this.map.on('style.load', () => {
                 this.ready = true;
                 this.map.resize();
                 this.installRouteLayers();
@@ -149,6 +154,9 @@ export default function installRiderNav() {
          * than tearing layers down and rebuilding them on every recalculation.
          */
         installRouteLayers() {
+            // Re-runs after every style swap, which is what wiped the sources.
+            if (this.map.getSource('route-active')) return;
+
             const empty = { type: 'FeatureCollection', features: [] };
 
             this.map.addSource('route-alternatives', { type: 'geojson', data: empty });
@@ -183,6 +191,17 @@ export default function installRiderNav() {
                 layout: { 'line-join': 'round', 'line-cap': 'round' },
                 paint: { 'line-color': '#A07148', 'line-width': 6 },
             });
+
+            this.installRouteHandlers();
+        },
+
+        /**
+         * Bound to the map rather than the style, so unlike the layers above
+         * these outlive a style swap and must only ever be attached once.
+         */
+        installRouteHandlers() {
+            if (this.routeHandlersBound) return;
+            this.routeHandlersBound = true;
 
             // Tapping a grey line switches to it.
             this.map.on('click', 'route-alternatives', (event) => {

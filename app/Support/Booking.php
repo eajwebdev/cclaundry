@@ -36,25 +36,42 @@ class Booking
      */
     public const KILOS_PER_LOAD = 7;
 
+    /** Extras chosen with a load, never the load itself. */
+    public const ADDON_CATEGORY = 'Add-ons';
+
     /**
      * Services pinned to the landing page. Scoped to a branch when given, so a
      * customer only sees what the branch they picked actually offers.
      */
-    /** Extras chosen with a load, never the load itself. */
-    public const ADDON_CATEGORY = 'Add-ons';
-
     public static function services(?int $branchId = null): Collection
     {
-        return LaundryService::query()
-            ->onLanding()
+        return self::landingServices($branchId)
             // Detergent and fabric conditioner belong on the published price
             // list, but nobody books "Ariel" as their laundry service, so they
             // stay out of the booking form's service choices.
             ->whereDoesntHave('serviceCategory', fn ($query) => $query->where('name', self::ADDON_CATEGORY))
+            ->get();
+    }
+
+    /**
+     * The extras: detergent and fabric conditioner, chosen alongside a wash and
+     * counted by the sachet rather than weighed.
+     */
+    public static function addons(?int $branchId = null): Collection
+    {
+        return self::landingServices($branchId)
+            ->whereHas('serviceCategory', fn ($query) => $query->where('name', self::ADDON_CATEGORY))
+            ->get();
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Builder<LaundryService> */
+    private static function landingServices(?int $branchId)
+    {
+        return LaundryService::query()
+            ->onLanding()
             ->when($branchId, fn ($query) => $query->where(fn ($inner) => $inner
                 ->where('branch_id', $branchId)
-                ->orWhereNull('branch_id')))
-            ->get();
+                ->orWhereNull('branch_id')));
     }
 
     /**
@@ -88,6 +105,7 @@ class Booking
             'name' => $preset->name,
             'price' => $preset->totalPrice(),
             'pricing_type' => 'preset',
+            'minimum_kilos' => null,
             'unit' => 'per bundle',
             'icon' => $preset->landingIcon(),
             'blurb' => $preset->landing_blurb,
@@ -102,6 +120,7 @@ class Booking
             'name' => $service->name,
             'price' => (float) $service->price,
             'pricing_type' => $service->pricing_type,
+            'minimum_kilos' => $service->minimum_kilos !== null ? (float) $service->minimum_kilos : null,
             'unit' => $service->priceUnitLabel(),
             'icon' => $service->landingIcon(),
             'blurb' => $service->landing_blurb,
@@ -113,10 +132,82 @@ class Booking
         return $presets->values()->concat($services->values());
     }
 
+    /**
+     * The add-ons in the same uniform shape as the services above, so the form
+     * and the validator handle both with one set of rules.
+     */
+    public static function addonOfferings(?int $branchId = null): Collection
+    {
+        return self::addons($branchId)->map(fn (LaundryService $service) => [
+            'key' => 'service:'.$service->id,
+            'type' => 'service',
+            'id' => $service->id,
+            'name' => $service->name,
+            'price' => (float) $service->price,
+            'pricing_type' => $service->pricing_type,
+            // An add-on is counted by the sachet, so a weight minimum on it
+            // would never apply.
+            'minimum_kilos' => null,
+            'unit' => $service->priceUnitLabel(),
+            'icon' => $service->landingIcon(),
+            'blurb' => $service->landing_blurb,
+            'includes' => [],
+            'sort' => $service->landing_sort_order,
+        ])->values();
+    }
+
     /** Composite keys a booking may reference, for validation. */
     public static function offeringKeys(?int $branchId = null): array
     {
         return self::offerings($branchId)->pluck('key')->all();
+    }
+
+    /** Every key a booking line may name: the services and their add-ons. */
+    public static function bookableKeys(?int $branchId = null): array
+    {
+        return array_merge(
+            self::offeringKeys($branchId),
+            self::addonOfferings($branchId)->pluck('key')->all()
+        );
+    }
+
+    /**
+     * What the customer is asked to enter for a service, and what their number
+     * means once it is written down.
+     *
+     * Anything the branch weighs is asked for in kilos — including the
+     * load-priced linens, so that every washing line on a booking can be held
+     * against the scale at the counter in the same units. Steaming is counted
+     * in pairs and the add-ons by the sachet, where a weight would be nonsense.
+     */
+    public static function unitFor(?string $pricingType): string
+    {
+        return match ($pricingType) {
+            'kilo', 'load' => 'kg',
+            'piece' => 'pc',
+            default => 'qty',
+        };
+    }
+
+    /**
+     * The amount in the units the service is actually priced in: kilos stay
+     * kilos, but 12 kg of load-priced linens is two loads on the bill.
+     *
+     * A service sold by weight can also carry a minimum. Three kilos against
+     * a five-kilo minimum is charged as five, which is what the shop has
+     * always done at the counter and what the card promises on the way in.
+     */
+    public static function billableQuantity(?string $pricingType, float $quantity, ?float $minimumKilos = null): float
+    {
+        $quantity = max(0.01, $quantity);
+
+        if ($pricingType === 'load') {
+            return (float) max(1, (int) ceil($quantity / self::KILOS_PER_LOAD));
+        }
+
+        return $pricingType === 'kilo' && $minimumKilos !== null
+            ? max($quantity, $minimumKilos)
+            : $quantity;
     }
 
     /**
@@ -147,9 +238,47 @@ class Booking
         };
     }
 
+    /**
+     * When each pickup window closes -- the hour it ends -- so a booking made
+     * early can still be collected later the same day. Same-day is the common
+     * case: someone rings at breakfast and wants the bag gone before lunch.
+     */
+    public const SLOT_CUTOFFS = [
+        '08_09' => '09:00',
+        '09_10' => '10:00',
+        '10_11' => '11:00',
+        '11_12' => '12:00',
+        '13_14' => '14:00',
+    ];
+
     public static function slots(): array
     {
         return PickupRequest::PICKUP_SLOTS;
+    }
+
+    /** Has today's van for this window already gone? */
+    public static function slotHasPassed(string $slot): bool
+    {
+        $cutoff = self::SLOT_CUTOFFS[$slot] ?? null;
+
+        return $cutoff !== null && now()->format('H:i') >= $cutoff;
+    }
+
+    /**
+     * The windows still open on a given day. Every window on a future date;
+     * on today, only the ones that have not finished yet.
+     */
+    public static function slotsFor(?string $date = null): array
+    {
+        if ($date !== now()->toDateString()) {
+            return self::slots();
+        }
+
+        return array_filter(
+            self::slots(),
+            fn (string $slot) => ! self::slotHasPassed($slot),
+            ARRAY_FILTER_USE_KEY
+        );
     }
 
     public static function deliveryPreferences(): array
@@ -198,44 +327,62 @@ class Booking
     }
 
     /**
-     * A non-binding estimate shown while booking. The real total is set at the
-     * counter once the load is weighed, which is how walk-ins are priced too.
+     * What one line of a booking comes to: the service price times the amount
+     * in the units it is sold in.
      */
-    public static function estimate(LaundryService|ServicePreset|null $offering, ?float $kilos, bool $isRush): ?float
+    public static function lineTotal(?string $pricingType, float $price, float $quantity, ?float $minimumKilos = null): float
     {
-        if (! $offering) {
+        // A preset is a whole-bundle price, so the amount does not multiply it.
+        if ($pricingType === 'preset') {
+            return round($price, 2);
+        }
+
+        return round($price * self::billableQuantity($pricingType, $quantity, $minimumKilos), 2);
+    }
+
+    /**
+     * A non-binding estimate shown while booking: every line added up, plus the
+     * rush surcharge once for the whole booking. The real total is set at the
+     * counter once the bag is weighed, which is how walk-ins are priced too.
+     *
+     * @param  iterable<array{pricing_type?: ?string, price?: float, quantity?: float, line_total?: float}>  $lines
+     */
+    public static function estimate(iterable $lines, bool $isRush): ?float
+    {
+        $total = 0.0;
+        $counted = 0;
+
+        foreach ($lines as $line) {
+            // A line that has already been costed brings its own figure, so a
+            // minimum charge applied when it was built is not lost here.
+            $total += isset($line['line_total'])
+                ? (float) $line['line_total']
+                : self::lineTotal(
+                    $line['pricing_type'] ?? null,
+                    (float) ($line['price'] ?? 0),
+                    (float) ($line['quantity'] ?? 1),
+                    isset($line['minimum_kilos']) ? (float) $line['minimum_kilos'] : null
+                );
+            $counted++;
+        }
+
+        if ($counted === 0) {
             return null;
         }
-
-        // A preset is already a whole-bundle price, so the weight guess does
-        // not multiply it; the branch confirms once the bag is weighed.
-        if ($offering instanceof ServicePreset) {
-            $total = $offering->totalPrice();
-
-            return round($isRush ? $total + self::RUSH_SURCHARGE : $total, 2);
-        }
-
-        $service = $offering;
-        $price = (float) $service->price;
-
-        $total = match ($service->pricing_type) {
-            'kilo' => $price * max(1.0, (float) ($kilos ?: 1)),
-            'load' => $price * max(1, (int) ceil(((float) ($kilos ?: self::KILOS_PER_LOAD)) / self::KILOS_PER_LOAD)),
-            // Piece and custom pricing cannot be inferred from a weight guess,
-            // so we quote a single unit and let the branch confirm.
-            default => $price,
-        };
 
         return round($isRush ? $total + self::RUSH_SURCHARGE : $total, 2);
     }
 
     /**
-     * The earliest date a pickup can be booked. Anything requested today after
-     * the last van leaves would only disappoint, so bookings start tomorrow.
+     * The earliest date a pickup can be booked: today, while a window is still
+     * open, and tomorrow once the last van has gone — promising a collection
+     * that cannot happen only disappoints.
      */
     public static function earliestPickupDate(): string
     {
-        return now()->addDay()->toDateString();
+        return self::slotsFor(now()->toDateString()) !== []
+            ? now()->toDateString()
+            : now()->addDay()->toDateString();
     }
 
     public static function latestPickupDate(): string

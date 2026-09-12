@@ -16,7 +16,7 @@
     $defaultBranchId = $value('branch_id', $bookingCustomer?->branch_id ?: $branches->first()?->id);
     $multipleBranches = $branches->count() > 1;
 
-    $stepLabels = [1 => 'Service & weight', 2 => 'Your details', 3 => 'Pickup schedule', 4 => 'Review'];
+    $stepLabels = [1 => 'Your laundry', 2 => 'Your details', 3 => 'Pickup schedule', 4 => 'Review'];
 
     // Second line under each step in the desktop side panel.
     $stepHints = [1 => 'What and how much', 2 => 'Contact and address', 3 => 'Date, time and return', 4 => 'Check, then confirm'];
@@ -24,49 +24,67 @@
     // Which step holds the first thing the server complained about, so a bounced
     // submission reopens where the problem is instead of back at step one.
     $stepFields = [
-        1 => ['offering', 'estimated_kilos', 'is_rush'],
+        1 => ['items'],
         2 => ['contact_name', 'contact_phone', 'contact_email', 'branch_id', 'pickup_address', 'pickup_landmark', 'pickup_latitude', 'pickup_longitude'],
         3 => ['pickup_date', 'pickup_slot', 'delivery_preference', 'delivery_address', 'delivery_latitude', 'delivery_longitude', 'delivery_date', 'delivery_slot', 'notes'],
     ];
 
+    // A complaint about one line arrives as "items.0.quantity", which belongs to
+    // whichever step owns "items" rather than to no step at all.
+    $errorKeys = collect($errors->keys());
+    $stepHasError = fn (array $fields) => $errorKeys->contains(fn (string $key) => collect($fields)
+        ->contains(fn (string $field) => $key === $field || str_starts_with($key, $field.'.')));
+
     $initialStep = 1;
     foreach ($stepFields as $step => $fields) {
-        if ($errors->hasAny($fields)) {
+        if ($stepHasError($fields)) {
             $initialStep = $step;
             break;
         }
     }
 
-    // Quick picks for the weight question. Each stores the top of its range so
-    // the estimate leans towards what the customer will actually pay.
-    $weightOptions = [
-        ['label' => '5–8 kg', 'value' => '8'],
-        ['label' => '9–12 kg', 'value' => '12'],
-        ['label' => '13–16 kg', 'value' => '16'],
-        ['label' => '17+ kg', 'value' => '17'],
-    ];
+    // Whatever the server said about the chosen services, in one message.
+    $itemsError = $errors->first('items')
+        ?: $errorKeys->filter(fn (string $key) => str_starts_with($key, 'items.'))
+            ->map(fn (string $key) => $errors->first($key))
+            ->first();
 
-    // Mirrors App\Support\Booking::estimate so the live figure and the stored
-    // estimate cannot disagree.
-    $offeringMeta = $offerings->map(fn ($offering) => [
+    // Everything bookable in one shape for the script: the services, then the
+    // add-ons. `unitNoun` is what the customer is asked for — kilos for what we
+    // weigh, pairs for steaming, a plain count for a sachet of detergent.
+    $toMeta = fn (array $offering, bool $isAddon) => [
         'key' => $offering['key'],
         'label' => $offering['name'],
         'price' => $offering['price'],
         'pricingType' => $offering['pricing_type'],
+        'minimumKilos' => $isAddon ? null : ($offering['minimum_kilos'] ?? null),
         'unit' => $offering['unit'],
-    ])->values();
+        'unitNoun' => $isAddon ? 'qty' : \App\Support\Booking::unitFor($offering['pricing_type']),
+        'isAddon' => $isAddon,
+    ];
 
-    $defaultOffering = $value('offering', $offerings->first()['key'] ?? '');
+    // Mirrors App\Support\Booking::estimate so the live figure and the stored
+    // estimate cannot disagree.
+    $bookableMeta = $offerings->map(fn ($offering) => $toMeta($offering, false))
+        ->concat($addons->map(fn ($addon) => $toMeta($addon, true)))
+        ->values();
 
-    $peso = fn ($amount) => '₱'.number_format((float) $amount, fmod((float) $amount, 1) ? 2 : 0);
+    // What the visitor had already chosen, when a submission bounced back.
+    $initialLines = collect(old('items', []))
+        ->map(fn ($item) => [
+            'key' => (string) ($item['key'] ?? ''),
+            'quantity' => (string) ($item['quantity'] ?? ''),
+        ])
+        ->filter(fn (array $item) => $item['key'] !== '')
+        ->values();
 
     // The review screen: [icon, label, Alpine expression, step to edit, shown when].
     $reviewRows = [
         ['user', 'Customer', 'form.contact_name', 2, null],
         ['phone', 'Phone', 'form.contact_phone', 2, null],
         ['map-pin', 'Pickup Address', 'addressLabel', 2, null],
-        ['scale', 'Weight (estimated)', 'weightLabel', 1, null],
-        ['laundry', 'Service', 'serviceLine', 1, null],
+        ['laundry', 'What we&rsquo;re cleaning', 'serviceLine', 1, null],
+        ['scale', 'Total weight (estimated)', 'kilosLabel', 1, 'kilosLabel'],
         ['calendar-days', 'Pickup Schedule', 'pickupLabel', 3, null],
         ['truck', 'Pickup & Delivery', 'returnLabel', 3, null],
     ];
@@ -75,7 +93,6 @@
         $reviewRows[] = ['store', 'Branch', 'branchLabel', 2, null];
     }
 
-    $reviewRows[] = ['zap', 'Rush service', "'+' + money(rushSurcharge)", 1, 'form.is_rush'];
     $reviewRows[] = ['sticky-note', 'Special instructions', 'form.notes', 3, 'form.notes'];
 @endphp
 
@@ -103,19 +120,17 @@
             x-data="bookingForm({
                 step: {{ $initialStep }},
                 stepLabels: {{ Js::from($stepLabels) }},
-                offerings: {{ Js::from($offeringMeta) }},
-                weights: {{ Js::from($weightOptions) }},
-                rushSurcharge: {{ (int) $rushSurcharge }},
+                bookables: {{ Js::from($bookableMeta) }},
+                initialLines: {{ Js::from($initialLines) }},
                 branches: {{ Js::from($branches->map(fn ($b) => ['id' => $b->id, 'name' => $b->name])) }},
                 slots: {{ Js::from($slots) }},
+                slotCutoffs: {{ Js::from(\App\Support\Booking::SLOT_CUTOFFS) }},
+                today: @js(now()->toDateString()),
                 tokenUrl: @js(route('csrf.token')),
                 earliestPickupDate: @js($earliestPickupDate),
                 latestPickupDate: @js($latestPickupDate),
                 requiresBranch: {{ $multipleBranches ? 'true' : 'false' }},
                 initial: {
-                    offering: @js((string) $defaultOffering),
-                    estimated_kilos: @js((string) $value('estimated_kilos', '')),
-                    is_rush: {{ $value('is_rush') ? 'true' : 'false' }},
                     branch_id: @js((string) $defaultBranchId),
                     contact_name: @js((string) $value('contact_name', $bookingCustomer?->name ?? '')),
                     contact_phone: @js((string) $value('contact_phone', $bookingCustomer?->phone ?? '')),
@@ -123,7 +138,7 @@
                     pickup_address: @js((string) $value('pickup_address', $bookingCustomer?->address ?? '')),
                     pickup_landmark: @js((string) $value('pickup_landmark', '')),
                     pickup_date: @js((string) $value('pickup_date', $earliestPickupDate)),
-                    pickup_slot: @js((string) $value('pickup_slot', 'morning')),
+                    pickup_slot: @js((string) $value('pickup_slot', array_key_first($slots))),
                     delivery_preference: @js((string) $value('delivery_preference', 'deliver')),
                     delivery_address: @js((string) $value('delivery_address', '')),
                     delivery_date: @js((string) $value('delivery_date', '')),
@@ -144,9 +159,9 @@
             {{-- Phones get the progress bar inside the card. A wide screen has room
                  for the steps by name and a running summary that stays in view. --}}
             <aside class="hidden lg:sticky lg:top-28 lg:block">
-                <p class="text-xs font-bold tracking-[0.3em] text-cc-brown uppercase">Book a pickup</p>
-                <h2 class="cc-title mt-2">Laundry day, handled in a minute.</h2>
-                <p class="cc-subtitle mt-2">Four quick steps. Nothing is charged until your bag is weighed at the branch.</p>
+                <p class="text-xs font-bold tracking-[0.3em] text-cc-brown uppercase">Book a Service</p>
+                <h2 class="cc-title mt-2">Let us take laundry off your list.</h2>
+                <p class="cc-subtitle mt-2">Fill out the form and our team will confirm your pickup. Nothing is charged until your bag is weighed at the branch.</p>
 
                 <ol class="mt-7 space-y-1.5">
                     @foreach ($stepLabels as $n => $label)
@@ -172,8 +187,8 @@
                     <p class="text-xs font-bold tracking-[0.2em] text-cc-brown uppercase">Your booking so far</p>
                     <dl class="mt-3 space-y-3">
                         @foreach ([
-                            ['laundry', 'Service', "service ? service.label : ''"],
-                            ['scale', 'Weight', 'weightLabel'],
+                            ['laundry', 'Laundry', 'serviceLine'],
+                            ['scale', 'Total weight', 'kilosLabel'],
                             ['calendar-days', 'Pickup', 'pickupLabel'],
                             ['truck', 'Return', 'returnLabel'],
                         ] as [$icon, $label, $expression])
@@ -181,7 +196,7 @@
                                 <span data-lucide="{{ $icon }}" class="mt-0.5 h-4.5 w-4.5 shrink-0 text-cc-brown"></span>
                                 <div class="min-w-0">
                                     <dt class="text-[11px] font-semibold text-cc-muted">{{ $label }}</dt>
-                                    <dd class="text-sm font-bold wrap-break-word text-cc-deep" x-text="({{ $expression }}) || '—'"></dd>
+                                    <dd class="text-sm font-bold wrap-break-word text-cc-deep" x-text="({{ $expression }}) || 'Not set'"></dd>
                                 </div>
                             </div>
                         @endforeach
@@ -190,8 +205,7 @@
                     <div class="mt-4 flex items-end justify-between gap-3 border-t border-cc-line pt-4">
                         <span>
                             <span class="block text-sm font-bold text-cc-deep">Estimated total</span>
-                            <span class="block text-[11px] text-cc-muted"
-                                  x-text="form.is_rush ? 'Includes rush +' + money(rushSurcharge) : 'Confirmed after weighing'">Confirmed after weighing</span>
+                            <span class="block text-[11px] text-cc-muted">Confirmed after weighing</span>
                         </span>
                         <span class="font-display text-[2.2rem] leading-none font-bold text-cc-deep" x-text="money(estimate)"></span>
                     </div>
@@ -253,77 +267,49 @@
                         @endif
                     </p>
 
+                    {{-- What actually posts: one pair of hidden fields per chosen
+                         line. The boxes on the cards are Alpine-only, so nothing
+                         is submitted twice. --}}
+                    <template x-for="(line, index) in lines" :key="line.key">
+                        <span>
+                            <input type="hidden" :name="`items[${index}][key]`" :value="line.key">
+                            <input type="hidden" :name="`items[${index}][quantity]`" :value="line.quantity">
+                        </span>
+                    </template>
+
                     <fieldset class="mt-6">
-                        <legend class="cc-label text-[15px]">1. How much laundry do you have?</legend>
-                        <p class="cc-help mt-1">Choose an estimated weight &mdash; we&rsquo;ll confirm the exact weight upon pickup.</p>
-
-                        <div class="mt-3 flex flex-wrap gap-2">
-                            @foreach ($weightOptions as $option)
-                                <button type="button" @click="form.estimated_kilos = '{{ $option['value'] }}'"
-                                        class="cc-chip" :class="{ 'cc-chip-active': isWeight('{{ $option['value'] }}') }"
-                                        :aria-pressed="isWeight('{{ $option['value'] }}')">{{ $option['label'] }}</button>
-                            @endforeach
-                            <button type="button" @click="form.estimated_kilos = ''"
-                                    class="cc-chip" :class="{ 'cc-chip-active': ! hasWeight }"
-                                    :aria-pressed="! hasWeight">I&rsquo;m not sure</button>
-                        </div>
-
-                        <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-                            <label for="estimated_kilos" class="cc-help font-semibold">Or type the exact weight</label>
-                            <div class="relative w-32">
-                                <input id="estimated_kilos" type="number" name="estimated_kilos" inputmode="decimal"
-                                       step="0.5" min="1" max="200" x-model="form.estimated_kilos" placeholder="e.g. 7"
-                                       class="cc-input min-h-11 py-2 pr-10 @error('estimated_kilos') cc-input-invalid @enderror"
-                                       :class="errors.estimated_kilos && 'cc-input-invalid'">
-                                <span class="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-xs font-bold text-cc-muted">kg</span>
-                            </div>
-                        </div>
-                        @error('estimated_kilos')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.estimated_kilos" x-cloak class="cc-error" x-text="errors.estimated_kilos"></p>@enderror
-                    </fieldset>
-
-                    <fieldset class="mt-7">
-                        <legend class="cc-label text-[15px]">2. What would you like us to clean? <span class="text-cc-brown">*</span></legend>
-                        <p class="cc-help mt-1">Pick the closest match &mdash; we&rsquo;ll sort the rest when we weigh your bag.</p>
+                        <legend class="cc-label text-[15px]">1. What would you like us to clean? <span class="text-cc-brown">*</span></legend>
+                        <p class="cc-help mt-1">Tick everything you&rsquo;re sending. A regular load and a comforter can travel in one booking, and each one asks how much.</p>
 
                         <div class="mt-3 space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
                             @foreach ($offerings as $offering)
-                                <label class="cc-option" :class="{ 'cc-option-active': form.offering === '{{ $offering['key'] }}' }">
-                                    <input type="radio" name="offering" value="{{ $offering['key'] }}" x-model="form.offering" class="sr-only">
-                                    <span class="cc-check" aria-hidden="true"><span data-lucide="check" class="h-3.5 w-3.5"></span></span>
-                                    <span class="min-w-0 flex-1">
-                                        <span class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                                            <span class="text-[15px] font-bold text-cc-deep">
-                                                {{ $offering['name'] }}
-                                                @if($offering['type'] === 'preset')
-                                                    <span class="ml-1 rounded-full bg-cc-soft px-1.5 py-0.5 align-middle text-[9px] font-bold tracking-wide text-cc-brown uppercase">Bundle</span>
-                                                @endif
-                                            </span>
-                                            <span class="text-sm font-bold whitespace-nowrap text-cc-brown">
-                                                {{ $peso($offering['price']) }} <span class="font-semibold text-cc-muted">{{ $offering['unit'] }}</span>
-                                            </span>
-                                        </span>
-                                        @if($offering['includes'])
-                                            <span class="mt-0.5 block text-xs leading-relaxed text-cc-muted">{{ implode(' + ', $offering['includes']) }}</span>
-                                        @elseif($offering['blurb'])
-                                            <span class="mt-0.5 block text-xs leading-relaxed text-cc-muted">{{ $offering['blurb'] }}</span>
-                                        @endif
-                                    </span>
-                                </label>
+                                @include('partials.booking-offering', ['offering' => $offering, 'isAddon' => false])
                             @endforeach
                         </div>
-                        @error('offering')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.offering" x-cloak class="cc-error" x-text="errors.offering"></p>@enderror
+
+                        @if($itemsError)
+                            <p class="cc-error">{{ $itemsError }}</p>
+                        @else
+                            <p x-show="errors.items" x-cloak class="cc-error" x-text="errors.items"></p>
+                            <p x-show="errors.items_service" x-cloak class="cc-error" x-text="errors.items_service"></p>
+                            <p x-show="errors.items_quantity" x-cloak class="cc-error" x-text="errors.items_quantity"></p>
+                        @endif
                     </fieldset>
 
-                    <label class="cc-option mt-5" :class="{ 'cc-option-active': form.is_rush }">
-                        <input type="checkbox" name="is_rush" value="1" x-model="form.is_rush" class="cc-checkbox mt-0.5">
-                        <span class="min-w-0 flex-1">
-                            <span class="flex items-center gap-1.5 text-[15px] font-bold text-cc-deep">
-                                <span data-lucide="zap" class="h-4 w-4 text-cc-brown"></span>
-                                Need it sooner?
-                            </span>
-                            <span class="mt-0.5 block text-xs text-cc-muted">Rush service jumps the queue for same-day handling (+{{ $peso($rushSurcharge) }}).</span>
-                        </span>
-                    </label>
+                    @if($addons->isNotEmpty())
+                        {{-- Below the services, because they go with a wash rather
+                             than instead of one. --}}
+                        <fieldset class="mt-7">
+                            <legend class="cc-label text-[15px]">2. Detergent &amp; fabric conditioner <span class="font-semibold text-cc-muted">(optional)</span></legend>
+                            <p class="cc-help mt-1">Tagged as add-ons: they go with the load above. Choose how many you&rsquo;d like.</p>
+
+                            <div class="mt-3 space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
+                                @foreach ($addons as $addon)
+                                    @include('partials.booking-offering', ['offering' => $addon, 'isAddon' => true])
+                                @endforeach
+                            </div>
+                        </fieldset>
+                    @endif
 
                     <div class="cc-soft mt-5 flex items-center justify-between gap-3 px-4 py-3">
                         <span class="text-sm font-bold text-cc-muted">Estimated total</span>
@@ -373,7 +359,7 @@
                                         class="cc-input mt-1.5 @error('branch_id') cc-input-invalid @enderror"
                                         :class="errors.branch_id && 'cc-input-invalid'">
                                     @foreach ($branches as $branch)
-                                        <option value="{{ $branch->id }}">{{ $branch->name }}@if($branch->address) &mdash; {{ Str::limit($branch->address, 40) }}@endif</option>
+                                        <option value="{{ $branch->id }}">{{ $branch->name }}@if($branch->address) ({{ Str::limit($branch->address, 40) }})@endif</option>
                                     @endforeach
                                 </select>
                                 @error('branch_id')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.branch_id" x-cloak class="cc-error" x-text="errors.branch_id"></p>@enderror
@@ -432,9 +418,15 @@
                             <label for="pickup_slot" class="cc-label">Preferred Time <span class="text-cc-brown">*</span></label>
                             <select id="pickup_slot" name="pickup_slot" required x-model="form.pickup_slot" class="cc-input mt-1.5">
                                 @foreach ($slots as $slotKey => $slotLabel)
-                                    <option value="{{ $slotKey }}">{{ $slotLabel }}</option>
+                                    {{-- Hidden rather than merely disabled, so a window
+                                         whose van has gone is not offered at all. --}}
+                                    <option value="{{ $slotKey }}" x-show="slotAvailable(@js($slotKey))"
+                                            :disabled="! slotAvailable(@js($slotKey))">{{ $slotLabel }}</option>
                                 @endforeach
                             </select>
+                            <p class="cc-help mt-1" x-show="form.pickup_date === today" x-cloak>
+                                Booking for today. We&rsquo;ll collect in the next window that is still open.
+                            </p>
                             @error('pickup_slot')<p class="cc-error">{{ $message }}</p>@else<p x-show="errors.pickup_slot" x-cloak class="cc-error" x-text="errors.pickup_slot"></p>@enderror
                         </div>
                     </div>
@@ -542,7 +534,7 @@
                                 <span data-lucide="{{ $icon }}" class="mt-0.5 h-5 w-5 shrink-0 text-cc-brown"></span>
                                 <div class="min-w-0 flex-1">
                                     <p class="text-xs font-semibold text-cc-muted">{{ $label }}</p>
-                                    <p class="mt-0.5 text-sm font-bold wrap-break-word text-cc-deep" x-text="({{ $expression }}) || '—'"></p>
+                                    <p class="mt-0.5 text-sm font-bold wrap-break-word text-cc-deep" x-text="({{ $expression }}) || 'Not set'"></p>
                                 </div>
                                 <button type="button" @click="goTo({{ $editStep }})"
                                         class="-mr-2 shrink-0 rounded-full px-3 py-1.5 text-xs font-bold text-cc-brown transition hover:bg-cc-soft">Edit</button>
@@ -565,7 +557,7 @@
                             <p class="text-[13px] leading-relaxed text-cc-muted">
                                 <span class="font-bold text-cc-deep">One last step after this.</span>
                                 Bookings are tied to an account so you can track and cancel them. We&rsquo;ll ask you to set a
-                                password next &mdash; everything you filled in here is kept.
+                                password next. Everything you filled in here is kept.
                             </p>
                         </div>
                     @endunless
@@ -606,11 +598,15 @@
             step: config.step,
             stepLabels: config.stepLabels,
             totalSteps: Object.keys(config.stepLabels).length,
-            offerings: config.offerings,
-            weights: config.weights,
+            bookables: config.bookables,
+            // The keys ticked, in the order they were ticked.
+            picked: [],
+            // Every bookable key => the amount typed against it.
+            qty: {},
             branches: config.branches,
             slots: config.slots,
-            rushSurcharge: config.rushSurcharge,
+            slotCutoffs: config.slotCutoffs,
+            today: config.today,
             tokenUrl: config.tokenUrl,
             earliest: config.earliestPickupDate,
             latest: config.latestPickupDate,
@@ -624,39 +620,165 @@
             sameAddress: ! config.initial.delivery_address,
 
             init() {
+                // Every key starts present, so typing in a box is reactive from
+                // the first keystroke whether or not it was chosen before.
+                for (const item of this.bookables) this.qty[item.key] = '';
+
+                // What was chosen before a bounced submission handed the form back.
+                for (const line of config.initialLines) {
+                    if (! this.bookable(line.key)) continue;
+
+                    this.picked.push(line.key);
+                    this.qty[line.key] = line.quantity;
+                }
+
                 // Keep the hidden delivery field in step with the pickup address
                 // for as long as the customer wants one address.
                 this.$watch('sameAddress', (same) => {
                     if (same) this.form.delivery_address = '';
                 });
+
+                // Switching to today can leave a window selected whose van has
+                // already gone; move to the first one still open.
+                this.$watch('form.pickup_date', () => {
+                    if (! this.slotAvailable(this.form.pickup_slot)) {
+                        this.form.pickup_slot = this.openSlots[0] || '';
+                    }
+                });
             },
 
-            get service() {
-                return this.offerings.find((o) => o.key === this.form.offering) || this.offerings[0];
+            /** Same-day pickup, as long as that window has not closed yet. */
+            slotAvailable(slot) {
+                if (! slot || this.form.pickup_date !== this.today) return true;
+
+                const cutoff = this.slotCutoffs[slot];
+                if (! cutoff) return true;
+
+                const now = new Date();
+                const time = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+                return time < cutoff;
+            },
+
+            get openSlots() {
+                return Object.keys(this.slots).filter((slot) => this.slotAvailable(slot));
+            },
+
+            bookable(key) {
+                return this.bookables.find((item) => item.key === key);
+            },
+
+            isPicked(key) {
+                return this.picked.includes(key);
+            },
+
+            toggle(key) {
+                if (this.isPicked(key)) {
+                    this.picked = this.picked.filter((picked) => picked !== key);
+                    this.qty[key] = '';
+                    return;
+                }
+
+                this.picked.push(key);
+
+                // Straight into "how much", which is the whole point of ticking it.
+                this.$nextTick(() => {
+                    const field = this.$el.querySelector('#qty-' + key.replace(/[^a-z0-9]+/gi, '-'));
+                    if (field) field.focus();
+                });
+            },
+
+            hasAmount(key) {
+                const amount = parseFloat(this.qty[key]);
+
+                return amount >= 0.5 && amount <= 200;
+            },
+
+            /** What posts: the chosen keys with the amount typed against each. */
+            get lines() {
+                return this.picked
+                    .filter((key) => this.bookable(key))
+                    .map((key) => ({ key, quantity: String(this.qty[key] ?? '').trim() }));
+            },
+
+            /** Mirrors App\Support\Booking::billableQuantity. */
+            billableQuantity(item, amount) {
+                if (item.pricingType === 'load') {
+                    const perLoad = {{ (int) \App\Support\Booking::KILOS_PER_LOAD }};
+
+                    return Math.max(1, Math.ceil(amount / perLoad));
+                }
+
+                // Three kilos against a five-kilo minimum is charged as five.
+                if (item.pricingType === 'kilo' && item.minimumKilos) {
+                    return Math.max(amount, item.minimumKilos);
+                }
+
+                return amount;
+            },
+
+            /** Mirrors App\Support\Booking::lineTotal. */
+            lineTotal(item, amount) {
+                // A bundle is a whole-package price; the amount does not multiply it.
+                if (item.pricingType === 'preset') return item.price;
+
+                return item.price * this.billableQuantity(item, amount);
+            },
+
+            /** True once the amount typed is under the service's minimum. */
+            belowMinimum(key) {
+                const item = this.bookable(key);
+                const amount = parseFloat(this.qty[key]);
+
+                return !!(item && item.minimumKilos && amount > 0 && amount < item.minimumKilos);
+            },
+
+            minimumLabel(key) {
+                const item = this.bookable(key);
+
+                return item?.minimumKilos ? item.minimumKilos + ' kg' : '';
+            },
+
+            lineTotalFor(key) {
+                const item = this.bookable(key);
+                const amount = parseFloat(this.qty[key]);
+
+                return item && amount > 0 ? this.lineTotal(item, amount) : 0;
+            },
+
+            amountLabel(item, quantity) {
+                const amount = String(quantity ?? '').trim() || '?';
+
+                if (item.unitNoun === 'kg') return amount + ' kg';
+                if (item.unitNoun === 'pc') return amount + (amount === '1' ? ' pair' : ' pairs');
+
+                return amount + 'x';
             },
 
             get serviceLine() {
-                const service = this.service;
-                return service ? service.label + ' · ' + this.money(service.price) + ' ' + service.unit : '';
+                return this.lines
+                    .map((line) => {
+                        const item = this.bookable(line.key);
+
+                        return item.label + ' · ' + this.amountLabel(item, line.quantity);
+                    })
+                    .join(', ');
+            },
+
+            /** Everything we weigh, added up: what the branch checks on the scale. */
+            get kilosLabel() {
+                const total = this.lines.reduce((sum, line) => {
+                    const amount = parseFloat(line.quantity);
+
+                    return this.bookable(line.key).unitNoun === 'kg' && amount > 0 ? sum + amount : sum;
+                }, 0);
+
+                return total > 0 ? (Math.round(total * 100) / 100) + ' kg' : '';
             },
 
             get branchLabel() {
                 const branch = this.branches.find((b) => String(b.id) === String(this.form.branch_id));
                 return branch ? branch.name : '';
-            },
-
-            get hasWeight() {
-                return parseFloat(this.form.estimated_kilos) > 0;
-            },
-
-            isWeight(value) {
-                return this.hasWeight && parseFloat(this.form.estimated_kilos) === parseFloat(value);
-            },
-
-            get weightLabel() {
-                if (! this.hasWeight) return 'Not sure yet — we will weigh it';
-                const preset = this.weights.find((weight) => this.isWeight(weight.value));
-                return preset ? preset.label : parseFloat(this.form.estimated_kilos) + ' kg';
             },
 
             get addressLabel() {
@@ -682,27 +804,12 @@
 
             /** Mirrors App\Support\Booking::estimate so the two never disagree. */
             get estimate() {
-                const service = this.service;
-                if (! service) return 0;
+                const lines = this.lines;
+                if (! lines.length) return 0;
 
-                const kilos = parseFloat(this.form.estimated_kilos);
-                let total;
+                const total = lines.reduce((sum, line) => sum + this.lineTotalFor(line.key), 0);
 
-                // A bundle is a whole-package price; weight does not multiply it.
-                if (service.pricingType === 'preset') {
-                    total = service.price;
-                } else if (service.pricingType === 'kilo') {
-                    total = service.price * Math.max(1, kilos || 1);
-                } else if (service.pricingType === 'load') {
-                    const perLoad = {{ (int) \App\Support\Booking::KILOS_PER_LOAD }};
-                    total = service.price * Math.max(1, Math.ceil((kilos || perLoad) / perLoad));
-                } else {
-                    // Piece and custom pricing cannot be inferred from a weight
-                    // guess, so we quote one unit and the branch confirms.
-                    total = service.price;
-                }
-
-                return Math.round((this.form.is_rush ? total + this.rushSurcharge : total) * 100) / 100;
+                return Math.round(total * 100) / 100;
             },
 
             money(value) {
@@ -719,10 +826,12 @@
                 return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
             },
 
+            /** Tapping a service on the landing page adds it to the booking. */
             pick(offeringKey) {
-                if (this.offerings.some((o) => o.key === offeringKey)) {
-                    this.form.offering = offeringKey;
+                if (this.bookable(offeringKey) && ! this.isPicked(offeringKey)) {
+                    this.toggle(offeringKey);
                 }
+
                 this.step = 1;
             },
 
@@ -798,12 +907,11 @@
 
                 return {
                     1: [
-                        ['offering', 'Choose what you would like us to clean.', () => filled(this.form.offering)],
-                        ['estimated_kilos', 'Enter a weight between 1 and 200 kg, or tap “I’m not sure”.', () => {
-                            if (! filled(this.form.estimated_kilos)) return true;
-                            const kilos = parseFloat(this.form.estimated_kilos);
-                            return kilos >= 1 && kilos <= 200;
-                        }],
+                        ['items', 'Choose what you would like us to clean.', () => this.lines.length > 0],
+                        ['items_service', 'Add-ons go with a wash, so please choose a laundry service too.', () =>
+                            this.lines.length === 0 || this.lines.some((line) => ! this.bookable(line.key).isAddon)],
+                        ['items_quantity', 'Tell us how much for each one you picked, 8 for 8 kg say.', () =>
+                            this.lines.every((line) => this.hasAmount(line.key))],
                     ],
                     2: [
                         ['contact_name', 'Enter your full name so we know who to ask for.', () => filled(this.form.contact_name)],
@@ -815,7 +923,8 @@
                     3: [
                         ['pickup_date', 'Choose a pickup date from ' + this.formatDate(this.earliest) + ' onwards.', () =>
                             filled(this.form.pickup_date) && this.form.pickup_date >= this.earliest && this.form.pickup_date <= this.latest],
-                        ['pickup_slot', 'Choose the time that suits you.', () => filled(this.form.pickup_slot)],
+                        ['pickup_slot', 'Choose a collection time that has not passed yet.', () =>
+                            filled(this.form.pickup_slot) && this.slotAvailable(this.form.pickup_slot)],
                         ['delivery_preference', 'Tell us how you want your laundry back.', () => filled(this.form.delivery_preference)],
                         ['delivery_date', 'Delivery cannot be earlier than the pickup.', () =>
                             ! filled(this.form.delivery_date) || this.form.delivery_date >= this.form.pickup_date],
