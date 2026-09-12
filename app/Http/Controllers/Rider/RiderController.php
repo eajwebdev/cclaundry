@@ -7,6 +7,7 @@ use App\Models\PickupRequest;
 use App\Models\RiderLocationPing;
 use App\Support\Activity;
 use App\Support\Geocoder;
+use App\Support\RiderMapStages;
 use App\Support\Routing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -460,6 +461,145 @@ class RiderController extends Controller
     }
 
     /** Free to take: nobody on it, still open, and at this rider's own branch. */
+    /**
+     * Every run the rider has a reason to drive to, on one map.
+     *
+     * The list the console shows is grouped by what to do next; this is the
+     * same work seen from the road, so each entry carries the place it is at
+     * and how urgent it is rather than which list it came from.
+     */
+    public function map(Request $request)
+    {
+        return view('rider.map', [
+            'rider' => $request->user(),
+            'jobs' => $this->mapJobs($request->user()),
+        ]);
+    }
+
+    /** The same set as JSON, so the map can refresh without a reload. */
+    public function mapJobsFeed(Request $request)
+    {
+        return response()->json([
+            'jobs' => $this->mapJobs($request->user()),
+            'fetched_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * Stages, in the order a rider meets them:
+     *
+     *   available  someone must take this one; still at the customer
+     *   pickup     mine, not collected yet; go to the pickup address
+     *   in_cycle   collected and in the branch; nothing to drive to yet
+     *   delivery   washed and going back; go to the delivery address
+     *
+     * A booking with no pin is still returned, without coordinates, so the
+     * screen can say so instead of quietly dropping a job off the map.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function mapJobs($rider): array
+    {
+        $mine = PickupRequest::query()
+            ->where('rider_id', $rider->id)
+            ->whereIn('status', ['confirmed', 'picked_up']);
+
+        $claimable = PickupRequest::query()
+            ->whereNull('rider_id')
+            ->where('branch_id', $rider->branch_id)
+            ->whereIn('status', ['pending', 'confirmed']);
+
+        return $mine->union($claimable)
+            ->with(['customer:id,name,phone', 'branch:id,name', 'jobOrder:id,job_order_number,status'])
+            ->get()
+            ->map(function (PickupRequest $job) use ($rider) {
+                $isMine = (int) $job->rider_id === (int) $rider->id;
+                $stage = $this->mapStageFor($job, $isMine);
+
+                // Where the rider would actually drive for this stage. A run in
+                // the branch is pinned at the address it is going back to, so
+                // it reads as "later today, over there" rather than vanishing.
+                $coordinates = in_array($stage, [RiderMapStages::DELIVERY, RiderMapStages::IN_CYCLE], true)
+                    ? $this->deliveryCoordinates($job)
+                    : $this->pickupCoordinates($job);
+
+                return [
+                    'id' => $job->id,
+                    'reference' => $job->reference_no,
+                    'stage' => $stage,
+                    'is_mine' => $isMine,
+                    'is_rush' => (bool) $job->is_rush,
+                    'customer' => $job->customer?->name ?: $job->contact_name,
+                    'phone' => $job->contact_phone,
+                    'address' => in_array($stage, [RiderMapStages::DELIVERY, RiderMapStages::IN_CYCLE], true)
+                        ? ($job->delivery_address ?: $job->pickup_address)
+                        : $job->pickup_address,
+                    'landmark' => $job->pickup_landmark,
+                    'when' => $this->mapWhenLabel($job, $stage),
+                    'job_order_status' => $job->jobOrder?->status,
+                    'latitude' => $coordinates[0] ?? null,
+                    'longitude' => $coordinates[1] ?? null,
+                    'url' => route('rider.jobs.show', $job),
+                ];
+            })
+            ->sortBy(fn (array $job) => array_search($job['stage'], RiderMapStages::keys(), true))
+            ->values()
+            ->all();
+    }
+
+    private function mapStageFor(PickupRequest $job, bool $isMine): string
+    {
+        if (! $isMine) {
+            return RiderMapStages::AVAILABLE;
+        }
+
+        if ($job->status === 'confirmed') {
+            return RiderMapStages::PICKUP;
+        }
+
+        // Collected. It is only a delivery once the branch has finished it;
+        // until then it is on a machine and there is nowhere to drive.
+        $ready = in_array($job->jobOrder?->status, ['ready_for_delivery', 'ready_for_pickup', 'completed'], true);
+
+        return $ready && $job->wantsDelivery() ? RiderMapStages::DELIVERY : RiderMapStages::IN_CYCLE;
+    }
+
+    private function mapWhenLabel(PickupRequest $job, string $stage): ?string
+    {
+        $date = in_array($stage, [RiderMapStages::DELIVERY, RiderMapStages::IN_CYCLE], true)
+            ? $job->delivery_date
+            : $job->pickup_date;
+
+        if (! $date) {
+            return null;
+        }
+
+        return match (true) {
+            $date->isToday() => 'Today',
+            $date->isTomorrow() => 'Tomorrow',
+            $date->isPast() => 'Overdue',
+            default => $date->format('M j'),
+        };
+    }
+
+    /** @return array{0: float, 1: float}|null */
+    private function pickupCoordinates(PickupRequest $job): ?array
+    {
+        return $job->pickup_latitude !== null
+            ? [(float) $job->pickup_latitude, (float) $job->pickup_longitude]
+            : null;
+    }
+
+    /** @return array{0: float, 1: float}|null */
+    private function deliveryCoordinates(PickupRequest $job): ?array
+    {
+        if ($job->delivery_latitude !== null) {
+            return [(float) $job->delivery_latitude, (float) $job->delivery_longitude];
+        }
+
+        return $this->pickupCoordinates($job);
+    }
+
     private function isClaimableBy(PickupRequest $pickupRequest, $rider): bool
     {
         return $pickupRequest->rider_id === null

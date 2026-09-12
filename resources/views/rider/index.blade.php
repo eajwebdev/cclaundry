@@ -55,6 +55,13 @@
         </div>
     </div>
 
+    {{-- The whole day on one map, for picking the next stop by looking. --}}
+    <a href="{{ route('rider.map') }}"
+       class="flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-white shadow-sm transition hover:opacity-90">
+        <span data-lucide="map" class="h-4.5 w-4.5"></span>
+        See every run on the map
+    </a>
+
     {{-- ══ Up for grabs: confirming one of these assigns it to this rider ══ --}}
     @if($available->isNotEmpty())
         <div class="pt-1">

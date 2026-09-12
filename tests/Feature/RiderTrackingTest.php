@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\JobOrder;
 use App\Models\PickupRequest;
 use App\Models\RiderLocationPing;
 use App\Models\SystemSetting;
@@ -97,6 +98,117 @@ class RiderTrackingTest extends TestCase
             'delivery_preference' => 'deliver',
             'status' => 'confirmed',
         ], $overrides));
+    }
+
+    /** The run map is the same work, so it must obey the same boundaries. */
+    private function jobOrder(Branch $branch, string $status): JobOrder
+    {
+        $customer = Customer::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Ana Reyes',
+            'phone' => '09171234567',
+            'is_active' => true,
+        ]);
+
+        return JobOrder::query()->create([
+            'branch_id' => $branch->id,
+            'customer_id' => $customer->id,
+            'job_order_number' => 'JO-'.str()->random(8),
+            'status' => $status,
+            'transaction_type' => 'regular',
+            'subtotal' => 200,
+            'total' => 200,
+            'balance' => 0,
+        ]);
+    }
+
+    public function test_the_run_map_lists_only_the_riders_own_runs_and_claimable_ones(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $otherRider = $this->rider($branch);
+
+        $mine = $this->booking($branch, ['rider_id' => $rider->id]);
+        $theirs = $this->booking($branch, ['rider_id' => $otherRider->id]);
+        $claimable = $this->booking($branch, ['status' => 'pending']);
+        $otherBranch = $this->booking($this->secondBranch(), ['status' => 'pending']);
+
+        $references = collect($this->actingAs($rider)
+            ->getJson(route('rider.map.jobs'))
+            ->assertOk()
+            ->json('jobs'))
+            ->pluck('reference');
+
+        $this->assertTrue($references->contains($mine->reference_no));
+        $this->assertTrue($references->contains($claimable->reference_no));
+        $this->assertFalse($references->contains($theirs->reference_no));
+        $this->assertFalse($references->contains($otherBranch->reference_no));
+    }
+
+    /** Each run is pinned by what the rider would do about it next. */
+    public function test_the_run_map_sorts_each_run_into_the_stage_it_is_at(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+
+        $toCollect = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+        $claimable = $this->booking($branch, ['status' => 'pending']);
+
+        // Collected, but the branch has not finished it: nowhere to drive yet.
+        $washing = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'picked_up']);
+        $washing->jobOrder()->associate($this->jobOrder($branch, 'washing'))->save();
+
+        // Finished, so it becomes a delivery.
+        $ready = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'picked_up']);
+        $ready->jobOrder()->associate($this->jobOrder($branch, 'ready_for_delivery'))->save();
+
+        $stages = collect($this->actingAs($rider)
+            ->getJson(route('rider.map.jobs'))
+            ->assertOk()
+            ->json('jobs'))
+            ->pluck('stage', 'reference');
+
+        $this->assertSame('pickup', $stages[$toCollect->reference_no]);
+        $this->assertSame('available', $stages[$claimable->reference_no]);
+        $this->assertSame('in_cycle', $stages[$washing->reference_no]);
+        $this->assertSame('delivery', $stages[$ready->reference_no]);
+    }
+
+    /** A booking with no pin is still returned, so the screen can say so. */
+    public function test_the_run_map_still_returns_a_booking_with_no_coordinates(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+
+        $noPin = $this->booking($branch, [
+            'rider_id' => $rider->id,
+            'pickup_latitude' => null,
+            'pickup_longitude' => null,
+        ]);
+
+        $job = collect($this->actingAs($rider)
+            ->getJson(route('rider.map.jobs'))
+            ->assertOk()
+            ->json('jobs'))
+            ->firstWhere('reference', $noPin->reference_no);
+
+        $this->assertNotNull($job);
+        $this->assertNull($job['latitude']);
+        $this->assertNull($job['longitude']);
+    }
+
+    public function test_non_rider_staff_cannot_read_the_run_map(): void
+    {
+        $branch = $this->branch();
+
+        $cashier = User::factory()->create([
+            'role' => 'cashier',
+            'branch_id' => $branch->id,
+            'status' => 'active',
+            'access' => [],
+        ]);
+
+        $this->actingAs($cashier)->get(route('rider.map'))->assertForbidden();
     }
 
     public function test_rider_sees_their_own_runs_and_what_is_free_to_take(): void

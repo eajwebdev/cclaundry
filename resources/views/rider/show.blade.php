@@ -135,14 +135,21 @@
 
     {{-- ══ Bottom sheet: job detail and the action, always in reach ══ --}}
     <div class="absolute inset-x-0 bottom-0 z-30">
-        <div class="rounded-t-2xl bg-white shadow-[0_-8px_30px_rgba(43,32,24,0.18)] dark:bg-[#241a13]">
+        <div class="max-h-[84svh] overflow-y-auto overscroll-contain rounded-t-2xl bg-white shadow-[0_-8px_30px_rgba(43,32,24,0.18)] dark:bg-[#241a13]">
 
-            {{-- Collapsed by default: the rider needs the map, not the detail.
-                 Tapping the handle reveals notes, phone and branch. --}}
+            {{-- Collapsed by default, and collapsed means collapsed: only the
+                 customer and the one action a moving rider needs. Everything
+                 else waits behind the handle so the map stays on screen. The
+                 handle sticks to the top of the sheet while it scrolls. --}}
             <button type="button" @click="sheetOpen = !sheetOpen"
+                    :aria-expanded="sheetOpen ? 'true' : 'false'"
                     aria-label="Toggle booking detail"
-                    class="flex w-full touch-manipulation items-center justify-center px-4 pb-1.5 pt-2.5">
+                    class="sticky top-0 z-10 flex w-full touch-manipulation flex-col items-center gap-1 bg-white px-4 pb-1.5 pt-2.5 dark:bg-[#241a13]">
                 <span class="block h-1 w-10 rounded-full bg-border dark:bg-gray-700"></span>
+                <span class="flex items-center gap-1 text-[11px] font-semibold text-muted">
+                    <span data-lucide="chevron-up" class="h-3 w-3 transition-transform" :class="sheetOpen && 'rotate-180'"></span>
+                    <span x-text="sheetOpen ? 'Hide details' : 'Details'"></span>
+                </span>
             </button>
 
             <div class="flex items-center gap-3 px-4 pb-3">
@@ -219,7 +226,8 @@
                 </form>
             @elseif(in_array($job->status, ['confirmed', 'picked_up'], true))
                 <form method="POST" action="{{ route('rider.jobs.status', $job) }}"
-                      class="px-4">
+                      class="px-4"
+                      :class="! sheetOpen && 'pb-[calc(0.75rem+env(safe-area-inset-bottom))]'">
                     @csrf
                     @method('PATCH')
                     <input type="hidden" name="status" value="{{ $isCollected ? 'completed' : 'picked_up' }}">
@@ -227,8 +235,12 @@
                     @unless($isCollected)
                         {{-- Filled in at the door: the tag that goes on the bag,
                              and what the customer handed over. Payment is taken
-                             on pickup, so it is recorded with the collection. --}}
-                        <div class="mb-3 space-y-2 rounded-xl border border-border p-3 dark:border-gray-800">
+                             on pickup, so it is recorded with the collection.
+                             Hidden while the sheet is collapsed, and the action
+                             button below opens the sheet rather than submitting
+                             fields the rider cannot see. --}}
+                        <div x-show="sheetOpen" x-cloak x-transition
+                             class="mb-3 space-y-2 rounded-xl border border-border p-3 dark:border-gray-800">
                             {{-- What the customer said they would pay with, so the
                                  rider knows before knocking. --}}
                             <p class="flex items-center gap-2 text-xs font-semibold text-muted">
@@ -271,6 +283,10 @@
                                 const form = $el.closest('form');
                                 const tag = form.querySelector('[name=tag_code]');
 
+                                // Never confirm over a hidden form: open the sheet
+                                // so the tag and the amount are visible first.
+                                if (tag && ! sheetOpen) { sheetOpen = true; $nextTick(() => tag.focus()); return; }
+
                                 if (tag && ! tag.value.trim()) { tag.focus(); return; }
 
                                 Swal.fire({
@@ -294,7 +310,8 @@
                 {{-- The ways out, deliberately quieter than the action above:
                      hand the run back, or close it off with a reason the branch
                      can repeat to the customer. --}}
-                <div class="grid {{ $job->status === 'confirmed' ? 'grid-cols-2' : 'grid-cols-1' }} gap-2 px-4 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+                <div x-show="sheetOpen" x-cloak x-transition
+                     class="grid {{ $job->status === 'confirmed' ? 'grid-cols-2' : 'grid-cols-1' }} gap-2 px-4 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
                     @if($job->status === 'confirmed')
                         <form method="POST" action="{{ route('rider.jobs.release', $job) }}">
                             @csrf

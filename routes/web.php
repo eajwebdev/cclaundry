@@ -167,6 +167,13 @@ Route::middleware('attendance.employee')->group(function () {
 */
 Route::middleware(['auth', 'rider'])->prefix('rider')->name('rider.')->group(function () {
     Route::get('/', [RiderController::class, 'index'])->name('index');
+    // Every run on one map, so a rider can pick their next stop by looking
+    // rather than by reading down a list.
+    Route::get('/map', [RiderController::class, 'map'])->name('map');
+    Route::get('/map/jobs', [RiderController::class, 'mapJobsFeed'])
+        ->middleware('throttle:60,1')
+        ->name('map.jobs');
+
     Route::get('/jobs/{pickupRequest}', [RiderController::class, 'show'])->name('jobs.show');
     Route::patch('/jobs/{pickupRequest}/status', [RiderController::class, 'updateStatus'])->name('jobs.status');
 
