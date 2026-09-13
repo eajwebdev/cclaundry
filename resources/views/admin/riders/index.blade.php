@@ -203,11 +203,11 @@
                 }
 
                 const marker = new window.AppMaps.maplibregl.Marker({
-                    element: window.AppMaps.createDotMarker({ color: '#059669', pulse: true }),
-                    anchor: 'center',
+                    element: window.AppMaps.createRiderMarker({ title: rider.name }),
+                    anchor: 'bottom',
                 })
                     .setLngLat(position)
-                    .setPopup(new window.AppMaps.maplibregl.Popup({ offset: 14 }).setText(rider.name))
+                    .setPopup(new window.AppMaps.maplibregl.Popup({ offset: [0, -56] }).setText(rider.name))
                     .addTo(this.map);
 
                 this.markers.set(rider.id, marker);

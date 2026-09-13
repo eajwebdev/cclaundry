@@ -256,8 +256,8 @@ export default function installRiderNav() {
 
             if (!this.riderMarker) {
                 this.riderMarker = new window.AppMaps.maplibregl.Marker({
-                    element: window.AppMaps.createDotMarker({ color: '#059669', pulse: true }),
-                    anchor: 'center',
+                    element: window.AppMaps.createRiderMarker(),
+                    anchor: 'bottom',
                 })
                     .setLngLat(this.position)
                     .addTo(this.map);

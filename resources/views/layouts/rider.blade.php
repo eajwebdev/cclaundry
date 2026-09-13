@@ -21,7 +21,10 @@
      dispatch can see them. --}}
 <div x-data="riderTracker()" class="contents">
 
-    <header class="sticky top-0 z-40 h-15 border-b border-border bg-white/95 backdrop-blur dark:border-gray-800 dark:bg-[#241a13]/95">
+    {{-- Fixed height only on the full-screen map views, which size themselves
+         to the 60px bar. On the run list the header grows with its notice
+         lines, so they push the cards down instead of covering them. --}}
+    <header class="sticky top-0 z-40 @if(trim($__env->yieldContent('full_bleed'))) h-15 @endif border-b border-border bg-white/95 backdrop-blur dark:border-gray-800 dark:bg-[#241a13]/95">
         <div class="mx-auto flex h-15 max-w-2xl items-center gap-2 px-3">
             @if(trim($__env->yieldContent('full_bleed')))
                 <a href="{{ route('rider.index') }}" aria-label="All runs"

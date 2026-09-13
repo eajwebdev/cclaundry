@@ -95,9 +95,9 @@
 
                 const body = await response.json();
 
-                this.statusLine = body.accepted
-                    ? `Last sent ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                    : 'Waiting for a stronger GPS signal…';
+                // A good send says nothing: the Live switch already shows it,
+                // so the line only appears when something needs the rider.
+                this.statusLine = body.accepted ? '' : 'Waiting for a stronger GPS signal…';
             } catch {
                 // Riders lose signal constantly. The watch keeps running and the
                 // next fix will retry, so this is a status line, not an error.

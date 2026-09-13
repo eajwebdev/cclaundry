@@ -248,6 +248,53 @@ export function createDotMarker({ color = '#8a5a2b', pulse = false, icon = null 
     return el;
 }
 
+// Each pin carries its own gradient, so ids must not repeat: dispatch shows
+// many riders at once, and removing the first would strip the rest of colour.
+let riderMarkerCount = 0;
+
+/**
+ * The rider on the map: a Cane & Cotton pin with a delivery scooter in it,
+ * and a soft pulse on the ground under its tip. Place it with anchor
+ * 'bottom', since the tip, not the middle, is where the rider is.
+ */
+export function createRiderMarker({ title = null } = {}) {
+    const gradientId = `rider-pin-${++riderMarkerCount}`;
+    const el = document.createElement('div');
+    el.className = 'map-rider-marker';
+
+    if (title) {
+        el.title = title;
+    }
+
+    el.innerHTML = `
+        <span class="map-rider-marker__ground"></span>
+        <svg class="map-rider-marker__pin" viewBox="0 0 48 58" aria-hidden="true">
+            <defs>
+                <linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#C39163"/>
+                    <stop offset=".5" stop-color="#A07148"/>
+                    <stop offset="1" stop-color="#6B4A2E"/>
+                </linearGradient>
+            </defs>
+            <path d="M24 55.5c-2.6-4.6-7.4-8.3-12.4-12.6A21.5 21.5 0 1 1 36.4 42.9c-5 4.3-9.8 8-12.4 12.6z"
+                  fill="url(#${gradientId})" stroke="#FFFDF8" stroke-width="2.6" stroke-linejoin="round"/>
+            <circle cx="24" cy="23" r="16.6" fill="none" stroke="#EFC396" stroke-opacity=".75" stroke-width="1"/>
+        </svg>
+        <span class="map-rider-marker__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="2.2" y="5.2" width="7.4" height="6.2" rx="1.3" fill="currentColor" fill-opacity=".22"/>
+                <path d="M5.9 5.2v2.6"/>
+                <path d="M2.4 14.1h8.4l2.3 3.4h2.2"/>
+                <path d="M15.3 17.5l2-7.4-1.5-3.3h-2.1"/>
+                <path d="M17.3 10.1c2 .4 3.5 2 3.9 4"/>
+                <circle cx="5.6" cy="17.6" r="2.4"/>
+                <circle cx="18.6" cy="17.6" r="2.4"/>
+            </svg>
+        </span>`;
+
+    return el;
+}
+
 /**
  * Reverse-geocode a pin through our own server. The browser never talks to
  * Nominatim directly — see App\Support\Geocoder for why.
@@ -337,6 +384,7 @@ export { maplibregl };
 window.AppMaps = {
     createMap,
     createDotMarker,
+    createRiderMarker,
     reverseGeocode,
     searchAddress,
     glideMarker,

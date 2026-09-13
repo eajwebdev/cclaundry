@@ -466,6 +466,65 @@ textarea {
     100% { transform: scale(1.5); opacity: 0; }
 }
 
+/* The rider: a brand pin with a delivery scooter, tip on the rider's spot. */
+.map-rider-marker {
+    position: relative;
+    width: 3rem;
+    height: 3.625rem;
+}
+
+.map-rider-marker__pin {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    filter: drop-shadow(0 6px 8px rgba(43, 32, 24, 0.35));
+}
+
+.map-rider-marker__icon {
+    position: absolute;
+    top: 1.4375rem;
+    left: 50%;
+    width: 1.625rem;
+    height: 1.625rem;
+    transform: translate(-50%, -50%);
+    color: #FFF6EA;
+}
+
+.map-rider-marker__icon svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* A shadow where the pin touches the road, with a pulse so the eye finds a
+   moving rider among static pins. */
+.map-rider-marker__ground {
+    position: absolute;
+    bottom: -0.2rem;
+    left: 50%;
+    width: 1.1rem;
+    height: 0.45rem;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: rgba(43, 32, 24, 0.28);
+}
+
+.map-rider-marker__ground::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid #A07148;
+    animation: map-rider-ground 2s ease-out infinite;
+}
+
+@keyframes map-rider-ground {
+    0% { transform: scale(0.8); opacity: 0.9; }
+    100% { transform: scale(3); opacity: 0; }
+}
+
 /* MapLibre ships light-only chrome; tone it down in dark mode. */
 .dark .maplibregl-ctrl-group {
     background: #241a13;
@@ -488,7 +547,8 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .map-dot-marker--pulse::after {
+    .map-dot-marker--pulse::after,
+    .map-rider-marker__ground::after {
         animation: none;
     }
 }
