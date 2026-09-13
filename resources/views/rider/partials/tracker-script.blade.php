@@ -17,9 +17,11 @@
         activeJobId: @js($trackerJobId ?? null),
 
         init() {
-            // Resuming after a page change within a shift should not silently
-            // drop tracking, but it must never start without a tap either.
-            if (sessionStorage.getItem('rider-sharing') === '1') {
+            // Resuming a shift, not starting one: sharing still needs a tap the
+            // first time, but once given it survives closing the tab, a phone
+            // restart and a lost signal. Session storage lost it on every one
+            // of those and took the rider off dispatch's map without saying so.
+            if (localStorage.getItem('rider-sharing') === '1') {
                 this.start();
             }
 
@@ -43,7 +45,7 @@
             }
 
             this.sharing = true;
-            sessionStorage.setItem('rider-sharing', '1');
+            localStorage.setItem('rider-sharing', '1');
             this.statusLine = 'Getting your position…';
             this.beginWatch();
         },
@@ -115,7 +117,7 @@
 
         async stop() {
             this.sharing = false;
-            sessionStorage.removeItem('rider-sharing');
+            localStorage.removeItem('rider-sharing');
             this.statusLine = 'Turn this on when you start your run.';
 
             if (this.watchId !== null) {

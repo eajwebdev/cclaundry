@@ -73,6 +73,39 @@
         <p x-show="sharing && statusLine" x-cloak
            class="truncate bg-emerald-50 px-3 py-1 text-center text-[11px] text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
            x-text="statusLine"></p>
+
+        {{-- Anything the phone is holding onto. Says so plainly, because the
+             run list will keep showing work the rider has already done until
+             these land, and that gap is otherwise baffling. --}}
+        <p x-show="$store.outbox.count" x-cloak
+           class="truncate bg-amber-50 px-3 py-1 text-center text-[11px] font-semibold text-amber-900 dark:bg-amber-500/15 dark:text-amber-200">
+            <span x-text="$store.outbox.count"></span>
+            <span x-text="$store.outbox.count === 1 ? 'update waiting to send' : 'updates waiting to send'"></span>
+            &middot; <span x-text="$store.outbox.sending ? 'sending…' : 'will retry automatically'"></span>
+        </p>
+
+        {{-- A queued tap the server turned down after the rider moved on: a run
+             somebody else took first, a job that had already changed. It sent
+             in the background, so nobody saw a dialog; this is where it shows. --}}
+        <div x-show="$store.outbox.rejected.length" x-cloak
+             class="flex items-start gap-2 bg-red-50 px-3 py-1.5 text-[11px] text-red-900 dark:bg-red-500/15 dark:text-red-200">
+            <div class="min-w-0 flex-1">
+                <template x-for="(item, index) in $store.outbox.rejected" :key="index">
+                    <p class="truncate"><span class="font-semibold" x-text="item.describe"></span>: <span x-text="item.message"></span></p>
+                </template>
+            </div>
+            <button type="button" @click="$store.outbox.dismissRejected()"
+                    class="shrink-0 font-semibold underline">OK</button>
+        </div>
+
+        {{-- Sharing off with work in hand means dispatch and the customer are
+             both blind. Worth one line rather than a silent nothing. --}}
+        @if(! trim($__env->yieldContent('full_bleed')) && ($riderHasOpenRuns ?? false))
+            <button type="button" @click="start()" x-show="! sharing" x-cloak
+                    class="block w-full bg-amber-100 px-3 py-1.5 text-center text-[11px] font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-200">
+                Location sharing is off, so nobody can see where you are. Tap to turn it on.
+            </button>
+        @endif
     </header>
 
     @if(trim($__env->yieldContent('full_bleed')))

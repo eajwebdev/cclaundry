@@ -36,6 +36,10 @@ export default function installRiderOverview() {
         riderMarker: null,
         watchId: null,
 
+        // Real driving distance for the pin the rider is looking at.
+        roadLabel: null,
+        roadFor: null,
+
         init() {
             this.$nextTick(() => this.build());
 
@@ -199,6 +203,7 @@ export default function installRiderOverview() {
 
         select(id) {
             this.selectedId = id;
+            this.roadLabel = null;
             this.paintIcons();
 
             const job = this.selected;
@@ -206,10 +211,54 @@ export default function installRiderOverview() {
             if (job && job.latitude !== null && this.map) {
                 this.map.easeTo({ center: [job.longitude, job.latitude], zoom: 16, duration: 600 });
             }
+
+            this.loadRoadDistance(job);
+        },
+
+        /**
+         * Straight-line distance is a poor guide here: Kabankalan is split by
+         * the Ilog river, so a pin a kilometre away can be a long ride to the
+         * nearest crossing. Ask the router for the real thing, for the one pin
+         * the rider is actually weighing up, and keep the direct figure as the
+         * fallback when there is no answer.
+         */
+        async loadRoadDistance(job) {
+            if (!job || !this.position || job.latitude === null) return;
+
+            const asked = job.id;
+            this.roadFor = asked;
+
+            try {
+                const params = new URLSearchParams({
+                    latitude: String(this.position[1]),
+                    longitude: String(this.position[0]),
+                });
+
+                const response = await fetch(`${job.route_url}?${params}`, {
+                    headers: { Accept: 'application/json' },
+                });
+
+                if (!response.ok) return;
+
+                const body = await response.json();
+                const route = (body.routes ?? [])[0];
+
+                // The rider may have tapped something else while we waited.
+                if (!route || this.roadFor !== asked || this.selectedId !== asked) return;
+
+                const km = route.distance >= 1000
+                    ? `${(route.distance / 1000).toFixed(1)} km`
+                    : `${Math.round(route.distance)} m`;
+
+                this.roadLabel = `${km} · ${Math.max(1, Math.round(route.duration / 60))} min by road`;
+            } catch {
+                // No router, no signal: the direct distance still shows.
+            }
         },
 
         clearSelection() {
             this.selectedId = null;
+            this.roadLabel = null;
             this.paintIcons();
         },
 

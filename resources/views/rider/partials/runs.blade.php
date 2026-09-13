@@ -124,7 +124,15 @@
                         <div class="grid grid-cols-[1fr_auto] gap-2 border-t border-border p-3 dark:border-gray-800">
                             <form method="POST" action="{{ route('rider.jobs.claim', $job) }}">
                                 @csrf
+                                {{-- Kept and sent if the signal drops, like every
+                                     other action a rider takes on the road. --}}
                                 <button type="submit"
+                                        x-on:click.prevent="$store.outbox.perform({
+                                            url: $el.closest('form').action,
+                                            describe: @js('Take run · '.$job->reference_no),
+                                            fallback: @js(route('rider.index')),
+                                            fields: {},
+                                        })"
                                         class="inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-white shadow-sm transition hover:opacity-90">
                                     <span data-lucide="check" class="h-4 w-4"></span>
                                     Confirm pickup

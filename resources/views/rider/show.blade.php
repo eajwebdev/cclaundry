@@ -218,7 +218,15 @@
                 <form method="POST" action="{{ route('rider.jobs.claim', $job) }}"
                       class="px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
                     @csrf
+                    {{-- Through the outbox, so a claim made in a dead spot is kept
+                         and sent, not lost to a browser error page. --}}
                     <button type="submit"
+                            x-on:click.prevent="$store.outbox.perform({
+                                url: $el.closest('form').action,
+                                describe: @js('Take run · '.$job->reference_no),
+                                fallback: @js(route('rider.index')),
+                                fields: {},
+                            })"
                             class="inline-flex h-14 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-primary text-base font-semibold text-white shadow-sm transition hover:opacity-90">
                         <span data-lucide="check" class="h-5 w-5"></span>
                         Confirm pickup and take this run
@@ -298,7 +306,29 @@
                                     showCancelButton: true,
                                     confirmButtonColor: '#A07148',
                                     confirmButtonText: @js($isCollected ? 'Delivered' : 'Collected'),
-                                }).then((result) => { if (result.isConfirmed) form.submit(); });
+                                }).then(async (result) => {
+                                    if (! result.isConfirmed) return;
+
+                                    // Through the outbox rather than a plain post: at
+                                    // somebody's gate the signal is exactly what fails,
+                                    // and the tag the rider typed must not go with it.
+                                    const field = (name) => form.querySelector('[name=' + name + ']')?.value ?? null;
+
+                                    // A refusal (the tag is on another load, say)
+                                    // keeps the rider here with what they typed.
+                                    await $store.outbox.perform({
+                                        url: form.action,
+                                        describe: @js(($isCollected ? 'Delivery' : 'Collection').' · '.$job->reference_no),
+                                        fallback: @js(route('rider.index')),
+                                        fields: {
+                                            _method: 'PATCH',
+                                            status: @js($isCollected ? 'completed' : 'picked_up'),
+                                            tag_code: field('tag_code'),
+                                            collected_amount: field('collected_amount'),
+                                            collected_payment_method: field('collected_payment_method'),
+                                        },
+                                    });
+                                });
                             })()"
                             class="inline-flex h-14 w-full touch-manipulation items-center justify-center gap-2 rounded-xl text-base font-semibold text-white shadow-sm transition
                                 {{ $isCollected ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-primary hover:opacity-90' }}">
@@ -324,7 +354,16 @@
                                         showCancelButton: true,
                                         confirmButtonColor: '#A07148',
                                         confirmButtonText: 'Hand back',
-                                    }).then((result) => { if (result.isConfirmed) $el.closest('form').submit(); })"
+                                    }).then((result) => {
+                                        if (! result.isConfirmed) return;
+
+                                        $store.outbox.perform({
+                                            url: $el.closest('form').action,
+                                            describe: @js('Hand back · '.$job->reference_no),
+                                            fallback: @js(route('rider.index')),
+                                            fields: { _method: 'PATCH' },
+                                        });
+                                    })"
                                     class="inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-lg border border-border text-sm font-semibold dark:border-gray-800">
                                 <span data-lucide="undo-2" class="h-4 w-4"></span>
                                 Hand back
@@ -336,7 +375,6 @@
                         <form method="POST" action="{{ route('rider.jobs.cancel', $job) }}">
                             @csrf
                             @method('PATCH')
-                            <input type="hidden" name="reason" x-ref="cancelReason">
                             <button type="submit"
                                     x-on:click.prevent="Swal.fire({
                                         title: 'Cancel this booking?',
@@ -353,8 +391,13 @@
                                             &amp;&amp; 'Please say what happened.',
                                     }).then((result) => {
                                         if (! result.isConfirmed) return;
-                                        $refs.cancelReason.value = result.value;
-                                        $el.closest('form').submit();
+
+                                        $store.outbox.perform({
+                                            url: $el.closest('form').action,
+                                            describe: @js('Cancel · '.$job->reference_no),
+                                            fallback: @js(route('rider.index')),
+                                            fields: { _method: 'PATCH', reason: result.value },
+                                        });
                                     })"
                                     class="inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-lg border border-red-200 text-sm font-semibold text-red-700 dark:border-red-900/60 dark:text-red-300">
                                 <span data-lucide="x" class="h-4 w-4"></span>

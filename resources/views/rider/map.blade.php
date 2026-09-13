@@ -144,17 +144,22 @@
                         </template>
                         <template x-if="distanceTo(selected)">
                             <span class="rounded-full border border-border px-2 py-0.5 text-muted dark:border-gray-800"
-                                  x-text="distanceTo(selected) + ' away'"></span>
+                                  x-text="roadLabel ?? (distanceTo(selected) + ' direct')"></span>
                         </template>
                         <span class="font-mono text-[10px] text-muted" x-text="selected.reference"></span>
                     </div>
 
-                    {{-- Nothing to drive to yet, and saying so beats a rider
-                         turning up at a house where the laundry is not back. --}}
-                    <p x-show="selected.stage === 'in_cycle'" x-cloak
-                       class="mt-2.5 rounded-lg bg-smoke px-3 py-2 text-xs text-muted dark:bg-gray-950">
-                        Still at the branch. This pin is where it goes back to once it is finished.
-                    </p>
+                    {{-- Nothing to drive to yet, and saying exactly what is
+                         holding it beats a grey pin that never changes. --}}
+                    <template x-if="selected.holding_note">
+                        <p class="mt-2.5 rounded-lg bg-smoke px-3 py-2 text-xs text-muted dark:bg-gray-950">
+                            <span x-text="selected.holding_note"></span>
+                            <span class="mt-0.5 block">This pin is where it goes back to once it is finished.</span>
+                            <template x-if="selected.job_order_number">
+                                <span class="mt-0.5 block font-mono text-[10px]" x-text="selected.job_order_number"></span>
+                            </template>
+                        </p>
+                    </template>
 
                     <div class="mt-3 flex gap-2">
                         <a :href="selected.url"

@@ -28,7 +28,7 @@ class PickupRequest extends Model
         'delivery_preference', 'delivery_address', 'delivery_date', 'delivery_slot',
         'delivery_latitude', 'delivery_longitude',
         'is_rush', 'payment_method', 'notes', 'estimated_total',
-        'collected_amount', 'collected_payment_method',
+        'collected_amount', 'collected_payment_method', 'rider_action_token',
         'status', 'job_order_id', 'handled_by',
         'rider_id', 'assigned_at', 'picked_up_at', 'delivered_at',
         'confirmed_at', 'cancelled_at', 'cancellation_reason',

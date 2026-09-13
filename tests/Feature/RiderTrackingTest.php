@@ -100,6 +100,211 @@ class RiderTrackingTest extends TestCase
         ], $overrides));
     }
 
+    /**
+     * A phone in a dead spot resends what it could not confirm. The second
+     * attempt must read as done, not as an error, and must not double-apply.
+     */
+    public function test_a_resent_collection_is_accepted_as_already_done(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+
+        $payload = [
+            'status' => 'picked_up',
+            'tag_code' => 'CC-777',
+            'collected_amount' => 150,
+            'collected_payment_method' => 'cash',
+            'client_token' => 'the-same-tap',
+        ];
+
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.status', $job), $payload)
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+
+        $collectedAt = $job->fresh()->picked_up_at;
+
+        // The very same tap, sent again once the signal came back.
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.status', $job), $payload)
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+
+        $job->refresh();
+
+        $this->assertSame('picked_up', $job->status);
+        $this->assertSame('CC-777', $job->tag_code);
+        $this->assertSame('150.00', $job->collected_amount);
+        $this->assertEquals($collectedAt, $job->picked_up_at, 'the resend must not restamp the collection');
+    }
+
+    /**
+     * Once claimed the run is no longer claimable, so a resent claim would
+     * otherwise be refused as a 403. It has to read as the rider's own success.
+     */
+    public function test_a_resent_claim_is_accepted_as_already_done(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['status' => 'pending']);
+
+        $this->actingAs($rider)
+            ->postJson(route('rider.jobs.claim', $job), ['client_token' => 'claim-tap'])
+            ->assertOk()
+            ->assertJson(['ok' => true, 'redirect' => route('rider.jobs.show', $job)]);
+
+        $this->actingAs($rider)
+            ->postJson(route('rider.jobs.claim', $job), ['client_token' => 'claim-tap'])
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+
+        $this->assertSame($rider->id, $job->fresh()->rider_id);
+    }
+
+    /** After handing back, the rider no longer owns it; the resend must not 403. */
+    public function test_a_resent_hand_back_is_accepted_as_already_done(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.release', $job), ['client_token' => 'release-tap'])
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.release', $job), ['client_token' => 'release-tap'])
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+
+        $this->assertNull($job->fresh()->rider_id);
+    }
+
+    public function test_a_resent_cancellation_is_accepted_as_already_done(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+
+        $payload = ['reason' => 'Nobody home after three calls', 'client_token' => 'cancel-tap'];
+
+        $this->actingAs($rider)->patchJson(route('rider.jobs.cancel', $job), $payload)->assertOk();
+        $cancelledAt = $job->fresh()->cancelled_at;
+
+        $this->actingAs($rider)->patchJson(route('rider.jobs.cancel', $job), $payload)
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+
+        $this->assertEquals($cancelledAt, $job->fresh()->cancelled_at, 'the resend must not restamp it');
+    }
+
+    /**
+     * The early "already done" check runs before ownership, so it must only
+     * ever match the rider who made the tap. Another account presenting the
+     * same token is still stopped at the door.
+     */
+    public function test_another_rider_cannot_ride_on_someone_elses_action_token(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $intruder = $this->rider($branch);
+        $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.release', $job), ['client_token' => 'shared-token'])
+            ->assertOk();
+
+        // Now unclaimed. The intruder replays the token against the release.
+        $this->actingAs($intruder)
+            ->patchJson(route('rider.jobs.release', $job), ['client_token' => 'shared-token'])
+            ->assertForbidden();
+    }
+
+    /**
+     * The claim landed, the reply was lost, and then the branch gave the run
+     * to someone else. A resend must not tell the first rider "it is yours".
+     */
+    public function test_a_resent_claim_is_not_reported_as_done_once_the_run_was_reassigned(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $other = $this->rider($branch);
+        $job = $this->booking($branch, ['status' => 'pending']);
+
+        $this->actingAs($rider)
+            ->postJson(route('rider.jobs.claim', $job), ['client_token' => 'lost-reply'])
+            ->assertOk();
+
+        // Dispatch reassigns it while the first rider's phone is still offline.
+        $job->forceFill(['rider_id' => $other->id])->save();
+
+        $this->actingAs($rider)
+            ->postJson(route('rider.jobs.claim', $job), ['client_token' => 'lost-reply'])
+            ->assertForbidden();
+
+        $this->assertSame($other->id, $job->fresh()->rider_id);
+    }
+
+    /** Somebody else took it first: final, so the phone must not retry. */
+    public function test_a_lost_claim_race_is_a_refusal_the_phone_will_not_retry(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $quicker = $this->rider($branch);
+        $job = $this->booking($branch, ['status' => 'pending']);
+
+        $this->actingAs($quicker)->postJson(route('rider.jobs.claim', $job), ['client_token' => 'fast'])->assertOk();
+
+        // Still at the branch and still open, but no longer free: a 403, which
+        // the outbox drops rather than retrying.
+        $this->actingAs($rider)
+            ->postJson(route('rider.jobs.claim', $job), ['client_token' => 'slow'])
+            ->assertForbidden();
+
+        $this->assertSame($quicker->id, $job->fresh()->rider_id);
+    }
+
+    /** A different tap on a job that moved on is still refused. */
+    public function test_a_different_action_on_a_job_that_moved_on_is_refused(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+
+        $this->actingAs($rider)->patchJson(route('rider.jobs.status', $job), [
+            'status' => 'picked_up', 'tag_code' => 'CC-778', 'client_token' => 'first-tap',
+        ])->assertOk();
+
+        $this->actingAs($rider)->patchJson(route('rider.jobs.status', $job), [
+            'status' => 'picked_up', 'tag_code' => 'CC-779', 'client_token' => 'a-later-tap',
+        ])->assertStatus(422)->assertJson(['ok' => false]);
+
+        $this->assertSame('CC-778', $job->fresh()->tag_code);
+    }
+
+    /** A run stuck in the branch says what is holding it. */
+    public function test_a_collected_run_explains_why_it_is_not_a_delivery_yet(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+
+        $noJobOrder = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'picked_up']);
+
+        $washing = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'picked_up']);
+        $washing->jobOrder()->associate($this->jobOrder($branch, 'washing'))->save();
+
+        $notes = collect($this->actingAs($rider)
+            ->getJson(route('rider.map.jobs'))
+            ->assertOk()
+            ->json('jobs'))
+            ->pluck('holding_note', 'reference');
+
+        $this->assertStringContainsString('not opened a job order', $notes[$noJobOrder->reference_no]);
+        $this->assertStringContainsString('washing', $notes[$washing->reference_no]);
+    }
+
     /** The list refreshes itself, so the signature has to notice new work. */
     public function test_the_runs_feed_signature_changes_when_a_booking_appears(): void
     {

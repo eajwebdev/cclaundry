@@ -5,6 +5,7 @@ import Chart from 'chart.js/auto';
 import Alpine from 'alpinejs';
 import installRiderOverview from './rider-overview';
 import installRiderRuns from './rider-runs';
+import riderOutboxStore from './rider-outbox';
 import Swal from 'sweetalert2';
 import {
     Activity,
@@ -112,6 +113,10 @@ import {
 // map has to render its address list even when the map bundle never arrives.
 installRiderOverview();
 installRiderRuns();
+
+// The rider's queue of unsent taps. A store, not a component, because it has
+// to survive navigating between the run list and a job.
+Alpine.store('outbox', riderOutboxStore());
 
 window.Alpine = Alpine;
 window.Swal = Swal;
@@ -318,6 +323,26 @@ Alpine.store('theme', {
 Alpine.start();
 
 document.addEventListener('DOMContentLoaded', window.renderLucideIcons);
+
+/**
+ * A confirmation carried across a page change.
+ *
+ * The rider's collect and deliver actions post in the background and then
+ * navigate themselves, so there is no server redirect to hang a flash message
+ * on. The outgoing page leaves the message here and the next one says it.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    let message = null;
+
+    try {
+        message = sessionStorage.getItem('rider-flash');
+        if (message) sessionStorage.removeItem('rider-flash');
+    } catch {
+        // Storage unavailable; the action still happened, just quietly.
+    }
+
+    if (message) window.toast?.fire({ icon: 'success', title: message });
+});
 document.addEventListener('alpine:init', () => {
     queueMicrotask(window.renderLucideIcons);
 });

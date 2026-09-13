@@ -79,6 +79,8 @@ class RiderController extends Controller
 
         $data = [
             'rider' => $rider,
+            // Work in hand is what makes location sharing worth nagging about.
+            'riderHasOpenRuns' => $toCollect->isNotEmpty() || $toDeliver->isNotEmpty(),
             'toCollect' => $toCollect,
             'toDeliver' => $toDeliver,
             'recent' => $recent,
@@ -161,8 +163,30 @@ class RiderController extends Controller
     public function claim(Request $request, PickupRequest $pickupRequest)
     {
         $rider = $request->user();
+        $token = $this->validatedClientToken($request);
 
-        abort_unless($this->isClaimableBy($pickupRequest, $rider), 403);
+        $done = fn () => $this->riderActionDone(
+            $request,
+            'Confirmed. '.$pickupRequest->reference_no.' is yours, directions are ready.',
+            route('rider.jobs.show', $pickupRequest)
+        );
+
+        // Checked before "is it claimable": once this rider holds it, it no
+        // longer is, and the resend of their own tap would be refused. Only
+        // while they still hold it, though: if the branch has since handed it
+        // to someone else, "it is yours" would be a lie, so fall through.
+        if ($this->isRepeatedAction($request, $pickupRequest, $token)
+            && (int) $pickupRequest->rider_id === (int) $rider->id) {
+            return $done();
+        }
+
+        // A message, not a bare 403: a claim queued in a dead spot is refused
+        // in the background, and this is the sentence the rider reads later.
+        abort_unless(
+            $this->isClaimableBy($pickupRequest, $rider),
+            403,
+            'Someone else has this run now, so it was not added to yours.'
+        );
 
         $claimed = PickupRequest::query()
             ->whereKey($pickupRequest->getKey())
@@ -173,13 +197,12 @@ class RiderController extends Controller
                 'assigned_at' => now(),
                 'status' => 'confirmed',
                 'confirmed_at' => $pickupRequest->confirmed_at ?: now(),
+                'rider_action_token' => $this->boundActionToken($request, $token),
                 'updated_at' => now(),
             ]);
 
         if (! $claimed) {
-            return redirect()
-                ->route('rider.index')
-                ->with('error', 'Another rider got there first, that run is taken.');
+            return $this->riderActionRefused($request, 'Another rider got there first, that run is taken.', route('rider.index'));
         }
 
         Activity::log($request, 'pickup_request_rider_claimed', $pickupRequest, [
@@ -187,9 +210,7 @@ class RiderController extends Controller
             'rider_id' => $rider->id,
         ], $pickupRequest->branch_id);
 
-        return redirect()
-            ->route('rider.jobs.show', $pickupRequest)
-            ->with('success', 'Confirmed. '.$pickupRequest->reference_no.' is yours, directions are ready.');
+        return $done();
     }
 
     /**
@@ -198,22 +219,40 @@ class RiderController extends Controller
      */
     public function release(Request $request, PickupRequest $pickupRequest)
     {
+        $token = $this->validatedClientToken($request);
+
+        $done = fn () => $this->riderActionDone(
+            $request,
+            $pickupRequest->reference_no.' is back in the list for another rider.',
+            route('rider.index')
+        );
+
+        // Before the ownership check: after handing it back the rider no longer
+        // owns it, so their own resend would otherwise be a 403. If it has
+        // somehow come back to them, the hand-back is not in effect any more.
+        if ($this->isRepeatedAction($request, $pickupRequest, $token)
+            && (int) $pickupRequest->rider_id !== (int) $request->user()->id) {
+            return $done();
+        }
+
         $this->authorizeRiderJob($request, $pickupRequest);
 
         if ($pickupRequest->status !== 'confirmed') {
-            return back()->with('error', 'Only a run you have not collected yet can be handed back.');
+            return $this->riderActionRefused($request, 'Only a run you have not collected yet can be handed back.');
         }
 
-        $pickupRequest->update(['rider_id' => null, 'assigned_at' => null]);
+        $pickupRequest->update([
+            'rider_id' => null,
+            'assigned_at' => null,
+            'rider_action_token' => $this->boundActionToken($request, $token),
+        ]);
 
         Activity::log($request, 'pickup_request_rider_released', $pickupRequest, [
             'reference_no' => $pickupRequest->reference_no,
             'rider_id' => $request->user()->id,
         ], $pickupRequest->branch_id);
 
-        return redirect()
-            ->route('rider.index')
-            ->with('success', $pickupRequest->reference_no.' is back in the list for another rider.');
+        return $done();
     }
 
     /**
@@ -227,20 +266,30 @@ class RiderController extends Controller
 
         $validated = $request->validate([
             'reason' => ['required', 'string', 'max:200'],
+            'client_token' => ['nullable', 'string', 'max:40'],
         ], [
             'reason.required' => 'Please say what happened, so the branch can tell the customer.',
         ]);
 
+        $token = $validated['client_token'] ?? null;
+        $message = 'Booking '.$pickupRequest->reference_no.' cancelled. The branch can see why.';
+
+        if ($this->isRepeatedAction($request, $pickupRequest, $token)
+            && $pickupRequest->status === 'cancelled') {
+            return $this->riderActionDone($request, $message, route('rider.index'));
+        }
+
         // Once the laundry is in the rider's hands it is the branch's to sort
         // out, not something to close from a phone.
         if (! $pickupRequest->isCancellable()) {
-            return back()->with('error', 'That booking can no longer be cancelled here. Call the branch.');
+            return $this->riderActionRefused($request, 'That booking can no longer be cancelled here. Call the branch.');
         }
 
         $pickupRequest->update([
             'status' => 'cancelled',
             'cancelled_at' => now(),
             'cancellation_reason' => 'Rider: '.$validated['reason'],
+            'rider_action_token' => $this->boundActionToken($request, $token),
         ]);
 
         Activity::log($request, 'pickup_request_rider_cancelled', $pickupRequest, [
@@ -249,9 +298,7 @@ class RiderController extends Controller
             'reason' => $validated['reason'],
         ], $pickupRequest->branch_id);
 
-        return redirect()
-            ->route('rider.index')
-            ->with('success', 'Booking '.$pickupRequest->reference_no.' cancelled. The branch can see why.');
+        return $this->riderActionDone($request, $message, route('rider.index'));
     }
 
     /**
@@ -411,11 +458,23 @@ class RiderController extends Controller
             'tag_code' => ['required_if:status,picked_up', 'nullable', 'string', 'max:24'],
             'collected_amount' => ['nullable', 'numeric', 'min:0', 'max:100000'],
             'collected_payment_method' => ['nullable', Rule::in(['cash', 'gcash', 'unpaid'])],
+            // Sent by the phone so a resend from a dead spot can be recognised
+            // as the same tap rather than a second one.
+            'client_token' => ['nullable', 'string', 'max:40'],
         ], [
             'tag_code.required_if' => 'Write the tag number on the bag and enter it here, so this load cannot be mixed up with another.',
         ]);
 
         $target = $validated['status'];
+        $token = $validated['client_token'] ?? null;
+
+        // This exact tap already landed; the reply just never made it back to
+        // the phone. Answer as though it had, provided the run is still where
+        // that tap put it.
+        if ($this->isRepeatedAction($request, $pickupRequest, $token)
+            && $pickupRequest->status === $target) {
+            return $this->riderStatusResponse($request, $pickupRequest, $target, $pickupRequest->tag_code);
+        }
 
         // A rider can only move a job forward, and only from the stage it is
         // actually in. Anything else is a stale button on a phone that has been
@@ -427,7 +486,7 @@ class RiderController extends Controller
         };
 
         if (! in_array($target, $allowed, true)) {
-            return back()->with('error', 'That job has already moved on. Pull to refresh.');
+            return $this->riderStatusError($request, 'That job has already moved on. Pull to refresh.');
         }
 
         $tagCode = null;
@@ -445,13 +504,14 @@ class RiderController extends Controller
                 ->exists();
 
             if ($inUse) {
-                return back()->with('error', 'Tag '.$tagCode.' is already on another load. Use a different tag number.');
+                return $this->riderStatusError($request, 'Tag '.$tagCode.' is already on another load. Use a different tag number.');
             }
         }
 
-        DB::transaction(function () use ($request, $pickupRequest, $target, $tagCode, $validated) {
+        DB::transaction(function () use ($request, $pickupRequest, $target, $tagCode, $validated, $token) {
             $pickupRequest->update([
                 'status' => $target,
+                'rider_action_token' => $this->boundActionToken($request, $token),
                 'tag_code' => $tagCode ?: $pickupRequest->tag_code,
                 'picked_up_at' => $target === 'picked_up' ? now() : $pickupRequest->picked_up_at,
                 'delivered_at' => $target === 'completed' ? now() : null,
@@ -474,11 +534,59 @@ class RiderController extends Controller
             ], $pickupRequest->branch_id);
         });
 
+        return $this->riderStatusResponse($request, $pickupRequest, $target, $tagCode);
+    }
+
+    /**
+     * One reply for both callers: the phone posting in the background wants
+     * JSON it can tick off its queue with, a plain form wants the run list.
+     */
+    private function riderStatusResponse(Request $request, PickupRequest $pickupRequest, string $target, ?string $tagCode)
+    {
         $message = $target === 'picked_up'
-            ? 'Collected under tag '.$tagCode.'. Bring it to the branch.'
+            ? 'Collected under tag '.($tagCode ?: $pickupRequest->tag_code).'. Bring it to the branch.'
             : 'Delivered. Nice work.';
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'status' => $pickupRequest->fresh()->status,
+                'message' => $message,
+                'redirect' => route('rider.index'),
+            ]);
+        }
+
         return redirect()->route('rider.index')->with('success', $message);
+    }
+
+    /**
+     * A refusal the phone must not retry: the job moved on, or the tag is
+     * taken. Either way resending will never start working.
+     */
+    private function riderStatusError(Request $request, string $message)
+    {
+        return $this->riderActionRefused($request, $message);
+    }
+
+    /**
+     * A refusal the phone must not retry: the run moved on, somebody else
+     * took it, the tag is in use. Resending will never start working.
+     */
+    private function riderActionRefused(Request $request, string $message, ?string $redirect = null)
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => false, 'message' => $message], 422);
+        }
+
+        return ($redirect ? redirect($redirect) : back())->with('error', $message);
+    }
+
+    /** For the actions that take nothing else, just the phone's tap token. */
+    private function validatedClientToken(Request $request): ?string
+    {
+        return $request->validate([
+            'client_token' => ['nullable', 'string', 'max:40'],
+        ])['client_token'] ?? null;
     }
 
     /**
@@ -503,10 +611,50 @@ class RiderController extends Controller
 
     private function authorizeRiderJob(Request $request, PickupRequest $pickupRequest): void
     {
-        abort_unless((int) $pickupRequest->rider_id === (int) $request->user()->id, 403);
+        abort_unless(
+            (int) $pickupRequest->rider_id === (int) $request->user()->id,
+            403,
+            // Shared by reads (routing) and writes, so it says only what is true of both.
+            'This run is now with another rider.'
+        );
     }
 
-    /** Free to take: nobody on it, still open, and at this rider's own branch. */
+    /**
+     * The token as stored: prefixed with who sent it.
+     *
+     * Claiming and handing back change who owns the run, so a resend of either
+     * has to be recognised before the ownership check or it would be refused
+     * as somebody else's job. Binding the token to the rider keeps that early
+     * check from matching a token another account happens to send.
+     */
+    private function boundActionToken(Request $request, ?string $token): ?string
+    {
+        return filled($token) ? $request->user()->id.':'.$token : null;
+    }
+
+    /** This rider already sent this exact tap, and it was applied. */
+    private function isRepeatedAction(Request $request, PickupRequest $pickupRequest, ?string $token): bool
+    {
+        $bound = $this->boundActionToken($request, $token);
+
+        return $bound !== null
+            && $pickupRequest->rider_action_token !== null
+            && hash_equals($pickupRequest->rider_action_token, $bound);
+    }
+
+    /**
+     * One success reply for every rider action: JSON the phone can tick off
+     * its outbox with, or the usual redirect and flash for a plain form.
+     */
+    private function riderActionDone(Request $request, string $message, string $redirect)
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'message' => $message, 'redirect' => $redirect]);
+        }
+
+        return redirect($redirect)->with('success', $message);
+    }
+
     /**
      * Every run the rider has a reason to drive to, on one map.
      *
@@ -583,9 +731,12 @@ class RiderController extends Controller
                     'landmark' => $job->pickup_landmark,
                     'when' => $this->mapWhenLabel($job, $stage),
                     'job_order_status' => $job->jobOrder?->status,
+                    'job_order_number' => $job->jobOrder?->job_order_number,
+                    'holding_note' => $this->holdingNote($job, $stage),
                     'latitude' => $coordinates[0] ?? null,
                     'longitude' => $coordinates[1] ?? null,
                     'url' => route('rider.jobs.show', $job),
+                    'route_url' => route('rider.jobs.route', $job),
                 ];
             })
             ->sortBy(fn (array $job) => array_search($job['stage'], RiderMapStages::keys(), true))
@@ -608,6 +759,34 @@ class RiderController extends Controller
         $ready = in_array($job->jobOrder?->status, ['ready_for_delivery', 'ready_for_pickup', 'completed'], true);
 
         return $ready && $job->wantsDelivery() ? RiderMapStages::DELIVERY : RiderMapStages::IN_CYCLE;
+    }
+
+    /**
+     * Why a collected run is not a delivery yet.
+     *
+     * The stage depends on the branch moving the job order along, so when it
+     * has not, the rider is told what is actually holding it rather than being
+     * left with a grey pin that never changes. A run sitting for days is
+     * called out: that is the case nobody notices on their own.
+     */
+    private function holdingNote(PickupRequest $job, string $stage): ?string
+    {
+        if ($stage !== RiderMapStages::IN_CYCLE) {
+            return null;
+        }
+
+        $days = $job->picked_up_at?->diffInDays(now()) ?? 0;
+        $waited = $days >= 2 ? ' Collected '.$days.' days ago, worth asking about.' : '';
+
+        if (! $job->jobOrder) {
+            return 'The branch has not opened a job order for this yet.'.$waited;
+        }
+
+        if (! $job->wantsDelivery()) {
+            return 'The customer is claiming this at the branch, so there is no delivery run.';
+        }
+
+        return 'Still '.str_replace('_', ' ', $job->jobOrder->status).' at the branch.'.$waited;
     }
 
     private function mapWhenLabel(PickupRequest $job, string $stage): ?string
@@ -646,6 +825,7 @@ class RiderController extends Controller
         return $this->pickupCoordinates($job);
     }
 
+    /** Free to take: nobody on it, still open, and at this rider's own branch. */
     private function isClaimableBy(PickupRequest $pickupRequest, $rider): bool
     {
         return $pickupRequest->rider_id === null
