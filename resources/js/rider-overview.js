@@ -34,6 +34,7 @@ export default function installRiderOverview() {
 
         position: null,
         riderMarker: null,
+        heading: null,
         watchId: null,
 
         // Real driving distance for the pin the rider is looking at.
@@ -311,6 +312,7 @@ export default function installRiderOverview() {
                 (fix) => {
                     const first = this.position === null;
                     this.position = [fix.coords.longitude, fix.coords.latitude];
+                    this.heading = Number.isFinite(fix.coords.heading) ? fix.coords.heading : null;
                     this.drawRider();
                     if (first) this.fitAll();
                 },
@@ -324,8 +326,8 @@ export default function installRiderOverview() {
 
             if (!this.riderMarker) {
                 this.riderMarker = new window.AppMaps.maplibregl.Marker({
-                    element: window.AppMaps.createRiderMarker(),
-                    anchor: 'bottom',
+                    element: window.AppMaps.createRiderMarker({ heading: this.heading }),
+                    anchor: 'center',
                 })
                     .setLngLat(this.position)
                     .addTo(this.map);
@@ -333,7 +335,7 @@ export default function installRiderOverview() {
                 return;
             }
 
-            window.AppMaps.glideMarker(this.riderMarker, this.position, 700);
+            window.AppMaps.moveRiderMarker(this.riderMarker, this.position, { heading: this.heading, duration: 700 });
         },
     });
 }

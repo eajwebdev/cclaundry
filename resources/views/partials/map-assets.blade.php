@@ -26,6 +26,8 @@
                     'pollInterval' => config('maps.tracking.poll_interval_seconds'),
                     'staleAfter' => config('maps.tracking.stale_after_seconds'),
                 ],
+                // The rider's van, one picture per direction of travel.
+                'riderVan' => asset('images/rider-van'),
                 'endpoints' => [
                     'search' => route('map.geocode'),
                     'reverse' => route('map.reverse'),

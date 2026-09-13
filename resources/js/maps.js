@@ -248,51 +248,115 @@ export function createDotMarker({ color = '#8a5a2b', pulse = false, icon = null 
     return el;
 }
 
-// Each pin carries its own gradient, so ids must not repeat: dispatch shows
-// many riders at once, and removing the first would strip the rest of colour.
-let riderMarkerCount = 0;
+// The van's size on the map for each direction, in CSS pixels. Every picture is
+// drawn at the same scale, so a side view is simply longer than one from above.
+const VAN_SIZES = {
+    n: [28, 54], ne: [45, 52], e: [68, 38], se: [52, 54],
+    s: [34, 59], sw: [46, 56], w: [68, 37], nw: [50, 56],
+};
+
+// Clockwise from north, 45 degrees apart, matching a compass heading.
+const VAN_DIRECTIONS = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
+
+// Movement smaller than this between fixes is GPS drift, not driving, so it
+// must not spin the van around while the rider waits at a gate.
+const VAN_TURN_MIN_METRES = 8;
+
+let vansPreloaded = false;
+
+const vanUrl = (direction) => `${settings().riderVan ?? '/images/rider-van'}/van-${direction}.webp`;
 
 /**
- * The rider on the map: a Cane & Cotton pin with a delivery scooter in it,
- * and a soft pulse on the ground under its tip. Place it with anchor
- * 'bottom', since the tip, not the middle, is where the rider is.
+ * The rider on the map: the Cane & Cotton van, drawn facing the way it is
+ * driving. Place it with anchor 'center' and move it with moveRiderMarker().
  */
-export function createRiderMarker({ title = null } = {}) {
-    const gradientId = `rider-pin-${++riderMarkerCount}`;
+export function createRiderMarker({ title = null, heading = null } = {}) {
     const el = document.createElement('div');
-    el.className = 'map-rider-marker';
+    el.className = 'map-rider-van';
 
     if (title) {
         el.title = title;
     }
 
-    el.innerHTML = `
-        <span class="map-rider-marker__ground"></span>
-        <svg class="map-rider-marker__pin" viewBox="0 0 48 58" aria-hidden="true">
-            <defs>
-                <linearGradient id="${gradientId}" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stop-color="#C39163"/>
-                    <stop offset=".5" stop-color="#A07148"/>
-                    <stop offset="1" stop-color="#6B4A2E"/>
-                </linearGradient>
-            </defs>
-            <path d="M24 55.5c-2.6-4.6-7.4-8.3-12.4-12.6A21.5 21.5 0 1 1 36.4 42.9c-5 4.3-9.8 8-12.4 12.6z"
-                  fill="url(#${gradientId})" stroke="#FFFDF8" stroke-width="2.6" stroke-linejoin="round"/>
-            <circle cx="24" cy="23" r="16.6" fill="none" stroke="#EFC396" stroke-opacity=".75" stroke-width="1"/>
-        </svg>
-        <span class="map-rider-marker__icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="2.2" y="5.2" width="7.4" height="6.2" rx="1.3" fill="currentColor" fill-opacity=".22"/>
-                <path d="M5.9 5.2v2.6"/>
-                <path d="M2.4 14.1h8.4l2.3 3.4h2.2"/>
-                <path d="M15.3 17.5l2-7.4-1.5-3.3h-2.1"/>
-                <path d="M17.3 10.1c2 .4 3.5 2 3.9 4"/>
-                <circle cx="5.6" cy="17.6" r="2.4"/>
-                <circle cx="18.6" cy="17.6" r="2.4"/>
-            </svg>
-        </span>`;
+    const img = document.createElement('img');
+    img.alt = '';
+    img.draggable = false;
+    img.decoding = 'async';
+    el.appendChild(img);
+
+    // Load every direction up front so a turn swaps the picture at once
+    // instead of blanking the van while the next one downloads.
+    if (!vansPreloaded) {
+        VAN_DIRECTIONS.forEach((direction) => {
+            new Image().src = vanUrl(direction);
+        });
+        vansPreloaded = true;
+    }
+
+    // No heading yet: side on, which reads as a parked van.
+    faceVan(el, Number.isFinite(heading) ? heading : 90);
 
     return el;
+}
+
+function faceVan(el, heading) {
+    const normalised = ((heading % 360) + 360) % 360;
+    const direction = VAN_DIRECTIONS[Math.round(normalised / 45) % 8];
+
+    if (el.dataset.direction === direction) return;
+
+    const [width, height] = VAN_SIZES[direction];
+    el.dataset.direction = direction;
+    el.style.width = `${width}px`;
+    el.style.height = `${height}px`;
+    el.firstChild.src = vanUrl(direction);
+}
+
+/**
+ * Move the rider's van to a new fix and turn it to match.
+ *
+ * The way it actually travelled wins over the phone's compass heading, which
+ * is missing or erratic at low speed. With too little movement to tell, the
+ * reported heading is used, and failing that the van keeps facing as it was.
+ */
+export function moveRiderMarker(marker, target, { heading = null, duration = 900 } = {}) {
+    const from = marker.getLngLat();
+    const [toLng, toLat] = target;
+    const el = marker.getElement();
+
+    let facing = null;
+
+    if (metresBetween(from.lat, from.lng, toLat, toLng) >= VAN_TURN_MIN_METRES) {
+        facing = bearingBetween(from.lat, from.lng, toLat, toLng);
+    } else if (Number.isFinite(heading)) {
+        facing = heading;
+    }
+
+    if (facing !== null) {
+        // Headings are true north; keep the van right if the map is turned.
+        faceVan(el, facing - (marker._map?.getBearing?.() ?? 0));
+    }
+
+    glideMarker(marker, target, duration);
+}
+
+const toRadians = (degrees) => (degrees * Math.PI) / 180;
+
+function metresBetween(lat1, lng1, lat2, lng2) {
+    const dLat = toRadians(lat2 - lat1);
+    const dLng = toRadians(lng2 - lng1);
+    const a = Math.sin(dLat / 2) ** 2
+        + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLng / 2) ** 2;
+
+    return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function bearingBetween(lat1, lng1, lat2, lng2) {
+    const y = Math.sin(toRadians(lng2 - lng1)) * Math.cos(toRadians(lat2));
+    const x = Math.cos(toRadians(lat1)) * Math.sin(toRadians(lat2))
+        - Math.sin(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.cos(toRadians(lng2 - lng1));
+
+    return (Math.atan2(y, x) * 180) / Math.PI;
 }
 
 /**
@@ -385,6 +449,7 @@ window.AppMaps = {
     createMap,
     createDotMarker,
     createRiderMarker,
+    moveRiderMarker,
     reverseGeocode,
     searchAddress,
     glideMarker,

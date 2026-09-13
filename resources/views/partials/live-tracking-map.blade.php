@@ -142,15 +142,14 @@
             if (this.riderMarker) {
                 // Ease between polls so the rider reads as moving rather than
                 // teleporting every interval.
-                window.AppMaps.glideMarker(
-                    this.riderMarker,
-                    position,
-                    (window.mapConfig?.tracking?.pollInterval ?? 10) * 900
-                );
+                window.AppMaps.moveRiderMarker(this.riderMarker, position, {
+                    heading: rider.heading,
+                    duration: (window.mapConfig?.tracking?.pollInterval ?? 10) * 900,
+                });
             } else {
                 this.riderMarker = new window.AppMaps.maplibregl.Marker({
-                    element: window.AppMaps.createRiderMarker(),
-                    anchor: 'bottom',
+                    element: window.AppMaps.createRiderMarker({ heading: rider.heading }),
+                    anchor: 'center',
                 })
                     .setLngLat(position)
                     .addTo(this.map);

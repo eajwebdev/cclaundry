@@ -234,7 +234,7 @@ export default function installRiderNav() {
             const first = this.position === null;
 
             this.position = [longitude, latitude];
-            if (Number.isFinite(heading)) this.heading = heading;
+            this.heading = Number.isFinite(heading) ? heading : null;
 
             this.drawRider();
 
@@ -256,15 +256,15 @@ export default function installRiderNav() {
 
             if (!this.riderMarker) {
                 this.riderMarker = new window.AppMaps.maplibregl.Marker({
-                    element: window.AppMaps.createRiderMarker(),
-                    anchor: 'bottom',
+                    element: window.AppMaps.createRiderMarker({ heading: this.heading }),
+                    anchor: 'center',
                 })
                     .setLngLat(this.position)
                     .addTo(this.map);
                 return;
             }
 
-            window.AppMaps.glideMarker(this.riderMarker, this.position, 700);
+            window.AppMaps.moveRiderMarker(this.riderMarker, this.position, { heading: this.heading, duration: 700 });
         },
 
         /**

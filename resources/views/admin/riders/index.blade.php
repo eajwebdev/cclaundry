@@ -194,20 +194,19 @@
                 const existing = this.markers.get(rider.id);
 
                 if (existing) {
-                    window.AppMaps.glideMarker(
-                        existing,
-                        position,
-                        (window.mapConfig?.tracking?.pollInterval ?? 10) * 900
-                    );
+                    window.AppMaps.moveRiderMarker(existing, position, {
+                        heading: rider.heading,
+                        duration: (window.mapConfig?.tracking?.pollInterval ?? 10) * 900,
+                    });
                     return;
                 }
 
                 const marker = new window.AppMaps.maplibregl.Marker({
-                    element: window.AppMaps.createRiderMarker({ title: rider.name }),
-                    anchor: 'bottom',
+                    element: window.AppMaps.createRiderMarker({ title: rider.name, heading: rider.heading }),
+                    anchor: 'center',
                 })
                     .setLngLat(position)
-                    .setPopup(new window.AppMaps.maplibregl.Popup({ offset: [0, -56] }).setText(rider.name))
+                    .setPopup(new window.AppMaps.maplibregl.Popup({ offset: 34 }).setText(rider.name))
                     .addTo(this.map);
 
                 this.markers.set(rider.id, marker);
