@@ -25,7 +25,7 @@
         <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent"></div>
     </div>
 
-    <div class="mx-auto grid max-w-7xl items-center gap-10 px-4 pt-10 pb-14 sm:gap-14 sm:px-6 sm:pt-14 sm:pb-20 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:px-8 lg:pt-20 lg:pb-28">
+    <div class="mx-auto grid max-w-7xl items-center gap-6 px-4 pt-10 pb-14 sm:gap-14 sm:px-6 sm:pt-14 sm:pb-20 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:px-8 lg:pt-20 lg:pb-28">
         <div>
             <span class="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/8 px-3.5 py-1.5 text-[11px] font-semibold tracking-[0.16em] text-primary uppercase">
                 <span class="relative flex h-1.5 w-1.5">
@@ -81,11 +81,16 @@
 
                 if ($settings?->sms_enabled) {
                     $heroStats[] = ['SMS', 'Updates at every step'];
-                } else {
-                    $heroStats[] = [$branches->count(), \Illuminate\Support\Str::plural('Branch', $branches->count()).' near you'];
                 }
+
+                // No branch count here: with one shop, "1 Branch near you"
+                // reads as a chain that is not there. The row sizes itself to
+                // however many stats remain, so two do not leave a gap.
+                // Written out in full because Tailwind only builds classes it
+                // can read in the source.
+                $heroStatColumns = count($heroStats) >= 3 ? 'grid-cols-3' : 'grid-cols-2';
             @endphp
-            <dl class="mt-9 grid max-w-lg grid-cols-3 gap-4 border-t border-border pt-6 sm:mt-12 sm:gap-6 sm:pt-8 dark:border-white/10">
+            <dl class="mt-9 grid max-w-lg {{ $heroStatColumns }} gap-4 border-t border-border pt-6 sm:mt-12 sm:gap-6 sm:pt-8 dark:border-white/10">
                 @foreach ($heroStats as [$value, $label])
                     <div>
                         <dt class="font-serif text-xl font-semibold text-primary sm:text-2xl">{{ $value }}</dt>
@@ -95,38 +100,42 @@
             </dl>
         </div>
 
-        {{-- Hero visual: the mark, framed the way it is on the sign --}}
-        <div class="relative mx-auto w-full max-w-lg">
-            <div class="relative mx-auto aspect-square w-[14rem] sm:w-full">
+        {{-- Hero visual: the mark, framed the way it is on the sign.
+             On a phone it leads, with its cards floating over the corners, so
+             the first screen carries the same picture desktop shows beside the
+             headline instead of hiding it below the stats. Every phone value
+             is undone at sm, so tablet and desktop are untouched. --}}
+        <div class="relative order-first mx-auto w-full max-w-88 py-5 sm:order-0 sm:max-w-lg sm:py-0">
+            <div class="relative mx-auto aspect-square w-60 sm:w-full">
                 <div class="absolute inset-0 rounded-full bg-gradient-to-br from-[#F6EFE5] to-[#EFE3D2] shadow-2xl shadow-primary/15 dark:from-[#241a13] dark:to-[#1c1510]"></div>
                 <div class="absolute inset-5 rounded-full border border-primary/25"></div>
                 <x-brand-mark class="absolute inset-0 m-auto h-[82%] w-[82%] shadow-lg shadow-primary/10" />
             </div>
 
-            {{-- Floating proof cards. They were `hidden sm:block`, so a phone lost
-                 them entirely; now they stack under the mark instead, and only
-                 take up their floating positions once there is room to float. --}}
-            <div class="mt-6 grid grid-cols-1 gap-2.5 sm:mt-0 sm:block">
-                <div class="rounded-2xl border border-border bg-white/95 px-4 py-3 shadow-xl shadow-dark/8 backdrop-blur sm:absolute sm:-top-2 sm:-left-4 dark:border-white/10 dark:bg-[#241a13]/95">
-                    <div class="flex items-center gap-3">
-                        <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/15 text-accent-deep">
-                            <span data-lucide="leaf" class="h-4.5 w-4.5"></span>
+            {{-- Floating proof cards, over the mark's corners at every width.
+                 On a phone they sit in the space above and below the circle so
+                 they overlap only its rim, never the wordmark. --}}
+            <div>
+                <div class="absolute top-0 left-0 rounded-2xl border border-border bg-white/95 px-3 py-2 shadow-xl shadow-dark/8 backdrop-blur sm:-top-2 sm:-left-4 sm:px-4 sm:py-3 dark:border-white/10 dark:bg-[#241a13]/95">
+                    <div class="flex items-center gap-2 sm:gap-3">
+                        <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/15 text-accent-deep sm:h-9 sm:w-9">
+                            <span data-lucide="leaf" class="h-4 w-4 sm:h-4.5 sm:w-4.5"></span>
                         </span>
                         <div>
-                            <p class="text-[13px] font-semibold">Gentle on fabric</p>
-                            <p class="text-[11px] text-muted">Skin-safe detergents</p>
+                            <p class="text-[12px] font-semibold sm:text-[13px]">Gentle on fabric</p>
+                            <p class="text-[10px] text-muted sm:text-[11px]">Skin-safe detergents</p>
                         </div>
                     </div>
                 </div>
 
-                <div class="rounded-2xl border border-border bg-white/95 px-4 py-3 shadow-xl shadow-dark/8 backdrop-blur sm:absolute sm:bottom-8 sm:-right-2 dark:border-white/10 dark:bg-[#241a13]/95">
-                    <div class="flex items-center gap-3">
-                        <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/12 text-primary">
-                            <span data-lucide="packageCheck" class="h-4.5 w-4.5"></span>
+                <div class="absolute right-0 bottom-0 rounded-2xl border border-border bg-white/95 px-3 py-2 shadow-xl shadow-dark/8 backdrop-blur sm:bottom-8 sm:-right-2 sm:px-4 sm:py-3 dark:border-white/10 dark:bg-[#241a13]/95">
+                    <div class="flex items-center gap-2 sm:gap-3">
+                        <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/12 text-primary sm:h-9 sm:w-9">
+                            <span data-lucide="packageCheck" class="h-4 w-4 sm:h-4.5 sm:w-4.5"></span>
                         </span>
                         <div>
-                            <p class="text-[13px] font-semibold">Folded, not crumpled</p>
-                            <p class="text-[11px] text-muted">Sorted per household</p>
+                            <p class="text-[12px] font-semibold sm:text-[13px]">Folded, not crumpled</p>
+                            <p class="text-[10px] text-muted sm:text-[11px]">Sorted per household</p>
                         </div>
                     </div>
                 </div>

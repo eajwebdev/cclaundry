@@ -22,6 +22,8 @@ class DatabaseSeeder extends Seeder
             ServiceInventoryUsageSeeder::class,
             BranchSettingSeeder::class,
             SmsTemplateSeeder::class,
+            // Last: it bills the branches the seeders above created.
+            SubscriptionBillingSeeder::class,
         ]);
     }
 }

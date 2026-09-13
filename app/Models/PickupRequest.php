@@ -187,6 +187,40 @@ class PickupRequest extends Model
         return $this->delivery_slot ? (self::PICKUP_SLOTS[$this->delivery_slot] ?? $this->delivery_slot) : null;
     }
 
+    /**
+     * How the counter's job order payment should start, given what the rider
+     * recorded at the door. Null when the rider recorded nothing, which means
+     * the counter is collecting as it would for a walk-in.
+     *
+     * The job order form defaults to unpaid, so without this a load the rider
+     * was already paid for is saved as money still owed, and the customer can
+     * be asked to pay again on delivery.
+     *
+     * @return array{state: string, type: string, paid: float, method: ?string}|null
+     */
+    public function riderPaymentPrefill(): ?array
+    {
+        $method = $this->collected_payment_method;
+
+        if ($method === null) {
+            return null;
+        }
+
+        $amount = (float) ($this->collected_amount ?? 0);
+
+        if ($method === 'unpaid') {
+            return ['state' => 'unpaid', 'type' => 'unpaid', 'paid' => 0.0, 'method' => $method];
+        }
+
+        // A payment method with no amount is a form filled in a hurry. Do not
+        // guess a figure into the books: leave it owed and flag it.
+        if ($amount <= 0) {
+            return ['state' => 'no_amount', 'type' => 'unpaid', 'paid' => 0.0, 'method' => $method];
+        }
+
+        return ['state' => 'collected', 'type' => $method, 'paid' => $amount, 'method' => $method];
+    }
+
     /** "Cash" or "GCash", falling back to whatever is stored if it is neither. */
     public function paymentMethodLabel(): string
     {

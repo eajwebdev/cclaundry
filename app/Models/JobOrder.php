@@ -32,4 +32,29 @@ class JobOrder extends Model
     {
         return $this->cycles()->whereNull('ended_at')->update(['ended_at' => now()]);
     }
+
+    /** Washed and waiting for the customer: the only state that can be released. */
+    public function isReleasable(): bool
+    {
+        return in_array($this->status, ['ready_for_pickup', 'ready_for_delivery'], true);
+    }
+
+    /**
+     * Hand the laundry to the customer: stop any machine still running, then
+     * mark it completed and released.
+     *
+     * One implementation for the counter's Release button and for a rider
+     * marking a delivery done, so an order can never be closed two ways.
+     */
+    public function markReleased(?int $fallbackBranchId = null): void
+    {
+        $this->endActiveCycles();
+
+        $this->update([
+            'status' => 'completed',
+            'completed_at' => now(),
+            'released_at' => now(),
+            'release_branch_id' => $this->release_branch_id ?: ($this->current_branch_id ?: $fallbackBranchId),
+        ]);
+    }
 }

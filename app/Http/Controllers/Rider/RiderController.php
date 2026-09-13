@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Rider;
 
 use App\Http\Controllers\Controller;
+use App\Models\JobOrder;
 use App\Models\PickupRequest;
 use App\Models\RiderLocationPing;
 use App\Support\Activity;
 use App\Support\Geocoder;
 use App\Support\RiderMapStages;
 use App\Support\Routing;
+use App\Support\SmsNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -534,7 +536,46 @@ class RiderController extends Controller
             ], $pickupRequest->branch_id);
         });
 
+        $released = $target === 'completed' ? $this->releaseDeliveredJobOrder($request, $pickupRequest) : null;
+
+        // After the transaction, as the counter does: a text message is not
+        // something to roll back, so it only goes once the release has stuck.
+        if ($released) {
+            $released->loadMissing('customer');
+            SmsNotifier::jobOrderStatus($released);
+        }
+
         return $this->riderStatusResponse($request, $pickupRequest, $target, $tagCode);
+    }
+
+    /**
+     * The laundry is in the customer's hands, so its job order is done too.
+     *
+     * Only an order the branch has already finished is released, the same
+     * condition the counter's Release button checks. One still on a machine
+     * is left for the counter rather than jumped past its own stages; the
+     * rider is never blocked from recording a delivery they have made.
+     */
+    private function releaseDeliveredJobOrder(Request $request, PickupRequest $pickupRequest): ?JobOrder
+    {
+        $jobOrder = $pickupRequest->jobOrder()->first();
+
+        if (! $jobOrder || ! $jobOrder->isReleasable()) {
+            return null;
+        }
+
+        DB::transaction(function () use ($request, $pickupRequest, $jobOrder) {
+            $jobOrder->markReleased($pickupRequest->branch_id);
+
+            Activity::log($request, 'job_order_released', $jobOrder, [
+                'job_order_number' => $jobOrder->job_order_number,
+                'release_branch_id' => $jobOrder->release_branch_id,
+                'released_by' => 'rider',
+                'reference_no' => $pickupRequest->reference_no,
+            ], $jobOrder->release_branch_id);
+        });
+
+        return $jobOrder;
     }
 
     /**

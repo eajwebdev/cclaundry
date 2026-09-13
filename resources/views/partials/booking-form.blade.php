@@ -817,7 +817,9 @@
 
             get returnLabel() {
                 if (this.form.delivery_preference !== 'deliver') {
-                    return 'Claim at ' + (this.branchLabel || 'the branch');
+                    // Named only when there is a choice of branches. With one,
+                    // "Claim at Main Branch" hints at others that do not exist.
+                    return 'Claim at ' + ((this.requiresBranch && this.branchLabel) || 'the branch');
                 }
 
                 let label = 'Free delivery back to you';

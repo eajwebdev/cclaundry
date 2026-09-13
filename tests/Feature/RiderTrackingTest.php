@@ -222,6 +222,122 @@ class RiderTrackingTest extends TestCase
             ->assertForbidden();
     }
 
+    /** Delivered to the door means the job order is finished too. */
+    public function test_delivering_a_run_releases_its_finished_job_order(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'picked_up']);
+        $order = $this->jobOrder($branch, 'ready_for_delivery');
+        $job->jobOrder()->associate($order)->save();
+
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.status', $job), ['status' => 'completed', 'client_token' => 'drop-off'])
+            ->assertOk();
+
+        $order->refresh();
+
+        $this->assertSame('completed', $order->status);
+        $this->assertNotNull($order->released_at);
+        $this->assertNotNull($order->completed_at);
+        $this->assertSame('completed', $job->fresh()->status);
+    }
+
+    /**
+     * An order the branch never marked finished is not released past its own
+     * stages, and the rider's delivery is still recorded.
+     */
+    public function test_delivering_a_run_leaves_an_unfinished_job_order_for_the_counter(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'picked_up']);
+        $order = $this->jobOrder($branch, 'washing');
+        $job->jobOrder()->associate($order)->save();
+
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.status', $job), ['status' => 'completed', 'client_token' => 'early-drop'])
+            ->assertOk();
+
+        $this->assertSame('washing', $order->fresh()->status);
+        $this->assertNull($order->fresh()->released_at);
+        $this->assertSame('completed', $job->fresh()->status);
+    }
+
+    /** A resend of the delivery must not release, or log, a second time. */
+    public function test_a_resent_delivery_does_not_release_twice(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'picked_up']);
+        $order = $this->jobOrder($branch, 'ready_for_delivery');
+        $job->jobOrder()->associate($order)->save();
+
+        $payload = ['status' => 'completed', 'client_token' => 'drop-once'];
+
+        $this->actingAs($rider)->patchJson(route('rider.jobs.status', $job), $payload)->assertOk();
+        $releasedAt = $order->fresh()->released_at;
+
+        $this->actingAs($rider)->patchJson(route('rider.jobs.status', $job), $payload)->assertOk();
+
+        $this->assertEquals($releasedAt, $order->fresh()->released_at);
+        $this->assertSame(1, \App\Models\ActivityLog::query()
+            ->where('action', 'job_order_released')
+            ->where('subject_id', $order->id)
+            ->count());
+    }
+
+    /**
+     * What the rider took at the door carries into the job order, so the
+     * counter does not save it as owed and charge the customer again.
+     */
+    public function test_converting_a_collected_booking_starts_payment_at_what_the_rider_took(): void
+    {
+        $prefill = fn (array $collected) => (new PickupRequest($collected))->riderPaymentPrefill();
+
+        $this->assertNull($prefill([]), 'nothing recorded: the counter collects as usual');
+
+        $this->assertSame(
+            ['state' => 'collected', 'type' => 'gcash', 'paid' => 195.0, 'method' => 'gcash'],
+            $prefill(['collected_payment_method' => 'gcash', 'collected_amount' => 195])
+        );
+
+        $this->assertSame(
+            ['state' => 'unpaid', 'type' => 'unpaid', 'paid' => 0.0, 'method' => 'unpaid'],
+            $prefill(['collected_payment_method' => 'unpaid'])
+        );
+
+        // A method with no figure is not guessed into the books.
+        $this->assertSame('unpaid', $prefill(['collected_payment_method' => 'cash', 'collected_amount' => null])['type']);
+    }
+
+    public function test_the_job_order_screen_shows_what_the_rider_collected(): void
+    {
+        $this->completeSystemSettings();
+        $this->activeTrial();
+
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, [
+            'rider_id' => $rider->id,
+            'status' => 'picked_up',
+            'collected_amount' => 150,
+            'collected_payment_method' => 'cash',
+        ]);
+
+        $admin = User::factory()->create(['role' => 'super_admin', 'status' => 'active', 'access' => []]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.job-orders.create', [
+                'branch_id' => $branch->id,
+                'customer_id' => $job->customer_id,
+                'pickup_request_id' => $job->id,
+            ]))
+            ->assertOk()
+            ->assertSee($rider->name.' collected PHP 150.00 (Cash) at pickup', false)
+            ->assertSee('so the customer is not charged twice', false);
+    }
+
     /**
      * The claim landed, the reply was lost, and then the branch gave the run
      * to someone else. A resend must not tell the first rider "it is yours".

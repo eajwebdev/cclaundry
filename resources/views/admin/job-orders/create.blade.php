@@ -2,6 +2,12 @@
 
 @php
     $isEditing = isset($jobOrder);
+
+    // What the rider took at the door, when this order comes from a booking
+    // they collected. Starts the payment there so the load is not saved as
+    // money still owed and charged a second time on delivery.
+    $riderPayment = (! $isEditing && ($bookedRequest ?? null)) ? $bookedRequest->riderPaymentPrefill() : null;
+
     $pageTitle = $isEditing ? 'Edit Job Order' : (in_array(auth()->user()->role, ['branch_manager', 'cashier'], true) ? 'Cashier POS' : 'New Job Order');
     $initialState = [
         'isEditing' => $isEditing,
@@ -11,8 +17,8 @@
         'selectedCustomerId' => (string) old('customer_id', $selectedCustomerId ?? ''),
         'processingBranchId' => (string) old('processing_branch_id', $isEditing ? ($jobOrder->processing_branch_id ?: $jobOrder->branch_id) : ''),
         'discount' => (float) old('discount', $isEditing ? $jobOrder->discount : 0),
-        'paid' => (float) ($isEditing ? $jobOrder->payments->sum('amount') : old('paid_amount', 0)),
-        'paymentType' => old('payment_type', $isEditing ? 'unpaid' : 'unpaid'),
+        'paid' => (float) ($isEditing ? $jobOrder->payments->sum('amount') : old('paid_amount', $riderPayment['paid'] ?? 0)),
+        'paymentType' => old('payment_type', $isEditing ? 'unpaid' : ($riderPayment['type'] ?? 'unpaid')),
     ];
 @endphp
 
@@ -296,6 +302,39 @@
                                 Weigh the bag and correct any line that does not match.
                             </p>
                         </div>
+
+                        @if($riderPayment)
+                            @php
+                                $collectedBy = $bookedRequest->rider?->name ?? 'The rider';
+                                $methodName = \App\Support\Booking::paymentMethods()[$riderPayment['method']] ?? ucfirst((string) $riderPayment['method']);
+                                $money = ($appSettings?->currency ?? 'PHP').' '.number_format((float) $riderPayment['paid'], 2);
+                            @endphp
+                            <div @class([
+                                'mt-2 rounded-lg border p-3',
+                                'border-emerald-300 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10' => $riderPayment['state'] === 'collected',
+                                'border-amber-300 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10' => $riderPayment['state'] !== 'collected',
+                            ])>
+                                <p class="flex items-center gap-1.5 text-xs font-semibold">
+                                    <span data-lucide="wallet" class="h-3.5 w-3.5"></span>
+                                    @if($riderPayment['state'] === 'collected')
+                                        {{ $collectedBy }} collected {{ $money }} ({{ $methodName }}) at pickup
+                                    @elseif($riderPayment['state'] === 'unpaid')
+                                        {{ $collectedBy }} collected nothing at pickup
+                                    @else
+                                        {{ $collectedBy }} marked {{ $methodName }} but entered no amount
+                                    @endif
+                                </p>
+                                <p class="mt-1 text-[11px] leading-relaxed text-muted">
+                                    @if($riderPayment['state'] === 'collected')
+                                        Payment below is set to match, so the customer is not charged twice. Change it if that is wrong.
+                                    @elseif($riderPayment['state'] === 'unpaid')
+                                        Payment below is left unpaid; it is still due.
+                                    @else
+                                        Payment below is left unpaid. Check with the rider before recording what was paid.
+                                    @endif
+                                </p>
+                            </div>
+                        @endif
                     @endif
 
                     <template x-for="(item, index) in items" :key="index">
@@ -740,9 +779,11 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
                 return '';
             }
 
+            const minimum = item.booked.minimum ? ` (charged at the ${item.booked.minimum} kg minimum)` : '';
+
             return this.matchesBooking(item)
-                ? `Customer booked ${item.booked.label}, matches`
-                : `Customer booked ${item.booked.label}, you have ${Number(item.quantity || 0)}`;
+                ? `Customer booked ${item.booked.label}${minimum}, matches`
+                : `Customer booked ${item.booked.label}${minimum}, you have ${Number(item.quantity || 0)}`;
         },
         presetTotal(preset) {
             return preset.items.reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.price || 0)), 0);

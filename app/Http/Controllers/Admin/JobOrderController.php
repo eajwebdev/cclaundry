@@ -178,7 +178,7 @@ class JobOrderController extends Controller
         // the cashier can check it against the scale rather than retype it.
         $bookedRequest = $request->filled('pickup_request_id')
             ? PickupRequest::query()
-                ->with('items')
+                ->with(['items', 'rider:id,name'])
                 ->whereKey($request->integer('pickup_request_id'))
                 ->where('branch_id', $branchId)
                 ->first()
@@ -198,6 +198,13 @@ class JobOrderController extends Controller
                         'label' => $item->quantityLabel(),
                         'quantity' => (float) $item->billable_quantity,
                         'weighed' => $item->isWeighed(),
+                        // Declared less than the service's minimum, so the line
+                        // is priced at the minimum. Said out loud, or a cashier
+                        // weighing a 3 kg bag reads "5" as a mistake.
+                        'minimum' => $item->pricing_type === 'kilo'
+                            && (float) $item->billable_quantity > (float) $item->quantity
+                            ? (float) $item->billable_quantity
+                            : null,
                     ],
                 ])
                 ->values()
@@ -744,17 +751,10 @@ class JobOrderController extends Controller
     {
         $this->authorizeJobOrderRelease($request, $jobOrder);
 
-        abort_unless(in_array($jobOrder->status, ['ready_for_pickup', 'ready_for_delivery'], true), 422);
+        abort_unless($jobOrder->isReleasable(), 422);
         abort_unless((int) ($jobOrder->release_branch_id ?: $jobOrder->current_branch_id ?: $jobOrder->branch_id) === (int) $request->user()->branch_id || $request->user()->canManageAllBranches(), 403);
 
-        $jobOrder->endActiveCycles();
-
-        $jobOrder->update([
-            'status' => 'completed',
-            'completed_at' => now(),
-            'released_at' => now(),
-            'release_branch_id' => $jobOrder->release_branch_id ?: ($jobOrder->current_branch_id ?: $request->user()->branch_id),
-        ]);
+        $jobOrder->markReleased($request->user()->branch_id);
 
         Activity::log($request, 'job_order_released', $jobOrder, [
             'job_order_number' => $jobOrder->job_order_number,
