@@ -139,16 +139,23 @@
 
             const position = [rider.longitude, rider.latitude];
 
+            // With no heading from the phone (a rider standing still sends
+            // none), face the van towards the customer rather than any old way.
+            const destination = this.destinationMarker?.getLngLat();
+            const heading = Number.isFinite(rider.heading)
+                ? rider.heading
+                : (destination ? window.AppMaps.bearing(position, [destination.lng, destination.lat]) : null);
+
             if (this.riderMarker) {
                 // Ease between polls so the rider reads as moving rather than
                 // teleporting every interval.
                 window.AppMaps.moveRiderMarker(this.riderMarker, position, {
-                    heading: rider.heading,
+                    heading,
                     duration: (window.mapConfig?.tracking?.pollInterval ?? 10) * 900,
                 });
             } else {
                 this.riderMarker = new window.AppMaps.maplibregl.Marker({
-                    element: window.AppMaps.createRiderMarker({ heading: rider.heading }),
+                    element: window.AppMaps.createRiderMarker({ heading }),
                     anchor: 'center',
                 })
                     .setLngLat(position)

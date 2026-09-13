@@ -256,7 +256,7 @@ export default function installRiderNav() {
 
             if (!this.riderMarker) {
                 this.riderMarker = new window.AppMaps.maplibregl.Marker({
-                    element: window.AppMaps.createRiderMarker({ heading: this.heading }),
+                    element: window.AppMaps.createRiderMarker({ heading: this.facing() }),
                     anchor: 'center',
                 })
                     .setLngLat(this.position)
@@ -264,7 +264,56 @@ export default function installRiderNav() {
                 return;
             }
 
-            window.AppMaps.moveRiderMarker(this.riderMarker, this.position, { heading: this.heading, duration: 700 });
+            window.AppMaps.moveRiderMarker(this.riderMarker, this.position, { heading: this.facing(), duration: 700 });
+        },
+
+        /**
+         * Which way the van should face when the rider is not moving enough to
+         * tell (driving is read from the movement itself): along the road the
+         * route takes from here, else the phone's own compass heading.
+         */
+        facing() {
+            return this.routeBearing() ?? this.heading;
+        },
+
+        /** Direction of the active route just ahead of the rider, or null when off it. */
+        routeBearing() {
+            const line = this.current?.geometry?.coordinates;
+
+            if (!line || line.length < 2 || !this.position || !window.AppMaps?.bearing) return null;
+
+            let nearest = 0;
+            let nearestDistance = Infinity;
+
+            line.forEach((point, index) => {
+                const d = window.AppMaps.distance(this.position, point);
+
+                if (d < nearestDistance) {
+                    nearestDistance = d;
+                    nearest = index;
+                }
+            });
+
+            if (nearestDistance > config.rerouteAfterMetres) return null;
+
+            // Look a little way down the road, so a kink in the line right at
+            // the rider does not decide which way the van points.
+            for (let i = nearest + 1; i < line.length; i++) {
+                if (window.AppMaps.distance(line[nearest], line[i]) >= 20) {
+                    return window.AppMaps.bearing(line[nearest], line[i]);
+                }
+            }
+
+            return window.AppMaps.bearing(line[nearest], line[line.length - 1]);
+        },
+
+        /** A new route arrived: face the van down it before the rider sets off. */
+        faceAlongRoute() {
+            const facing = this.routeBearing();
+
+            if (this.riderMarker && facing !== null) {
+                window.AppMaps.turnRiderMarker(this.riderMarker, facing);
+            }
         },
 
         /**
@@ -318,6 +367,7 @@ export default function installRiderNav() {
                     this.activeRoute = 0;
                     this.routeError = this.routes.length === 0;
                     this.drawRoutes();
+                    this.faceAlongRoute();
 
                     if (fit) this.fitRoute();
                 } else {
@@ -361,6 +411,7 @@ export default function installRiderNav() {
 
             this.activeRoute = index;
             this.drawRoutes();
+            this.faceAlongRoute();
         },
 
         fitRoute() {
@@ -372,7 +423,9 @@ export default function installRiderNav() {
             line.forEach((point) => bounds.extend(point));
 
             this.following = false;
-            this.map.fitBounds(bounds, { padding: { top: 70, bottom: 260, left: 40, right: 40 } });
+            // Top clears the next-turn card, so the van at the start of the
+            // line is not tucked underneath it.
+            this.map.fitBounds(bounds, { padding: { top: 130, bottom: 260, left: 40, right: 40 } });
         },
 
         // ── rider-chosen detour ──────────────────────────────────────────

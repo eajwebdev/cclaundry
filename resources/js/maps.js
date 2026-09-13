@@ -250,9 +250,10 @@ export function createDotMarker({ color = '#8a5a2b', pulse = false, icon = null 
 
 // The van's size on the map for each direction, in CSS pixels. Every picture is
 // drawn at the same scale, so a side view is simply longer than one from above.
+// Sized to sit on a street at a glance without hiding the roads around it.
 const VAN_SIZES = {
-    n: [28, 54], ne: [45, 52], e: [68, 38], se: [52, 54],
-    s: [34, 59], sw: [46, 56], w: [68, 37], nw: [50, 56],
+    n: [17, 32], ne: [27, 31], e: [41, 23], se: [31, 32],
+    s: [20, 35], sw: [28, 34], w: [41, 22], nw: [30, 34],
 };
 
 // Clockwise from north, 45 degrees apart, matching a compass heading.
@@ -333,11 +334,28 @@ export function moveRiderMarker(marker, target, { heading = null, duration = 900
     }
 
     if (facing !== null) {
-        // Headings are true north; keep the van right if the map is turned.
-        faceVan(el, facing - (marker._map?.getBearing?.() ?? 0));
+        turnRiderMarker(marker, facing);
     }
 
     glideMarker(marker, target, duration);
+}
+
+/** Point the van at a compass heading without moving it. */
+export function turnRiderMarker(marker, heading) {
+    if (!Number.isFinite(heading)) return;
+
+    // Headings are true north; keep the van right if the map is turned.
+    faceVan(marker.getElement(), heading - (marker._map?.getBearing?.() ?? 0));
+}
+
+/** Compass bearing from one [lng, lat] to another, in degrees. */
+export function bearing(from, to) {
+    return bearingBetween(from[1], from[0], to[1], to[0]);
+}
+
+/** Distance between two [lng, lat] points, in metres. */
+export function distance(from, to) {
+    return metresBetween(from[1], from[0], to[1], to[0]);
 }
 
 const toRadians = (degrees) => (degrees * Math.PI) / 180;
@@ -450,6 +468,9 @@ window.AppMaps = {
     createDotMarker,
     createRiderMarker,
     moveRiderMarker,
+    turnRiderMarker,
+    bearing,
+    distance,
     reverseGeocode,
     searchAddress,
     glideMarker,
