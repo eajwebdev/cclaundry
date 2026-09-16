@@ -214,10 +214,12 @@
                 @endforeach
             </div>
 
-            <p class="mt-5 flex items-center justify-center gap-2 text-sm font-semibold text-cc-muted md:justify-start">
-                <span class="cc-icon-tile h-7 w-7"><span data-lucide="scale" class="h-3.5 w-3.5"></span></span>
-                Minimum 5 kg per pickup
-            </p>
+            @if(filled($settings?->booking_minimum_kilos))
+                <p class="mt-5 flex items-center justify-center gap-2 text-sm font-semibold text-cc-muted md:justify-start">
+                    <span class="cc-icon-tile h-7 w-7"><span data-lucide="scale" class="h-3.5 w-3.5"></span></span>
+                    Minimum {{ rtrim(rtrim(number_format((float) $settings->booking_minimum_kilos, 2), '0'), '.') }} kg per pickup
+                </p>
+            @endif
         @endif
             </div>
         </div>
@@ -362,10 +364,25 @@
                         <a href="mailto:{{ $settings->business_email }}" class="font-semibold break-all hover:text-cc-brown">{{ $settings->business_email }}</a>
                     </li>
                 @endif
-                <li class="flex items-center gap-3">
-                    <span data-lucide="time" class="h-4.5 w-4.5 shrink-0 text-cc-brown"></span>
-                    Pickups daily, 8:00 AM - 7:00 PM
-                </li>
+                @if($pickupHours)
+                    <li class="flex items-center gap-3">
+                        <span data-lucide="time" class="h-4.5 w-4.5 shrink-0 text-cc-brown"></span>
+                        {{-- The span the pickup windows cover, from Settings. --}}
+                        Pickups daily, {{ $pickupHours }}
+                    </li>
+                @endif
+                {{-- Opening hours: desktop only, so the phone layout is unchanged. --}}
+                @foreach($branchHours as $hours)
+                    <li class="hidden items-start gap-3 lg:flex">
+                        <span data-lucide="store" class="mt-0.5 h-4.5 w-4.5 shrink-0 text-cc-brown"></span>
+                        <span>
+                            <span class="block font-semibold">{{ $branchHours->count() > 1 ? $hours['branch'].' hours' : 'Store hours' }}</span>
+                            @foreach($hours['lines'] as $line)
+                                <span class="block text-cc-muted">{{ $line }}</span>
+                            @endforeach
+                        </span>
+                    </li>
+                @endforeach
                 @if($settings?->facebook_url)
                     <li class="flex items-center gap-3">
                         <span data-lucide="message-circle" class="h-4.5 w-4.5 shrink-0 text-cc-brown"></span>

@@ -101,7 +101,7 @@ class DefaultLaundryServices
         foreach ($categories as $index => $name) {
             LaundryServiceCategory::updateOrCreate(
                 ['name' => $name],
-                ['visibility' => 'all', 'sort_order' => $index + 1, 'is_active' => true]
+                ['visibility' => 'all', 'is_addon' => $name === Booking::ADDON_CATEGORY, 'sort_order' => $index + 1, 'is_active' => true]
             );
         }
     }

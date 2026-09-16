@@ -261,6 +261,7 @@ Route::middleware(['auth', 'settings.completed', 'system.maintenance', 'billing.
         });
         Route::middleware('menu.access:pickup_requests')->group(function () {
             Route::get('/pickup-requests', [PickupRequestController::class, 'index'])->name('pickup-requests.index');
+            Route::get('/pickup-requests/feed', [PickupRequestController::class, 'feed'])->name('pickup-requests.feed');
             Route::patch('/pickup-requests/{pickupRequest}/status', [PickupRequestController::class, 'updateStatus'])->name('pickup-requests.status');
             Route::get('/pickup-requests/{pickupRequest}/convert', [PickupRequestController::class, 'convert'])->name('pickup-requests.convert');
         });

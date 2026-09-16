@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BranchSetting;
 use App\Models\Customer;
 use App\Models\PickupRequest;
 use App\Models\SystemSetting;
@@ -27,7 +28,21 @@ class LandingController extends Controller
             // Detergent and fabric conditioner: listed under the services on the
             // booking form, chosen with a wash rather than instead of one.
             'addons' => Booking::addonOfferings(),
-            'slots' => Booking::slots(),
+            // Each branch runs its own pickup windows; the form swaps them when
+            // the customer picks a branch.
+            'slotsByBranch' => Booking::slotsByBranch(),
+            'pickupHours' => Booking::pickupHoursLabel(),
+            // Opening hours per branch, from Settings > Branch.
+            'branchHours' => BranchSetting::query()
+                ->whereIn('branch_id', Booking::branches()->pluck('id'))
+                ->with('branch:id,name')
+                ->get()
+                ->map(fn (BranchSetting $setting) => [
+                    'branch' => $setting->branch?->name,
+                    'lines' => Booking::openingHoursLines($setting->operating_hours),
+                ])
+                ->filter(fn (array $branch) => $branch['lines'] !== [])
+                ->values(),
             'deliveryPreferences' => Booking::deliveryPreferences(),
             'paymentMethods' => Booking::paymentMethods(),
             'earliestPickupDate' => Booking::earliestPickupDate(),

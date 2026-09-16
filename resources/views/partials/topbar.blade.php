@@ -16,6 +16,10 @@
         </div>
 
         <div class="flex items-center gap-2">
+            @if(auth()->user()->hasMenuAccess('pickup_requests'))
+                @include('partials.booking-alerts')
+            @endif
+
             @php($billingNotices = collect($billingNotifications ?? []))
             <div x-data="{ open: false }" class="relative">
                 <button

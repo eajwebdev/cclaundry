@@ -139,12 +139,14 @@ class JobOrderController extends Controller
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get(['id', 'name', 'visibility', 'branch_id']);
-        $servicePresets = ServicePreset::with(['items.service:id,branch_id,name,service_category_id,pricing_type,price'])
+        $servicePresets = ServicePreset::with(['items.service:id,branch_id,name,service_category_id,pricing_type,price,is_active'])
             ->where('is_active', true)
             ->when(! in_array($user->role, ['super_admin', 'admin'], true), fn ($q) => $q->where('branch_id', $user->branch_id))
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
+            // A preset with an inactive or deleted service would ring up without it.
+            ->filter(fn (ServicePreset $preset) => $preset->unavailableServiceNames() === [])
             ->map(fn ($preset) => [
                 'id' => $preset->id,
                 'branch_id' => $preset->branch_id,
@@ -258,12 +260,14 @@ class JobOrderController extends Controller
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get(['id', 'name', 'visibility', 'branch_id']);
-        $servicePresets = ServicePreset::with(['items.service:id,branch_id,name,service_category_id,pricing_type,price'])
+        $servicePresets = ServicePreset::with(['items.service:id,branch_id,name,service_category_id,pricing_type,price,is_active'])
             ->where('is_active', true)
             ->where('branch_id', $branchId)
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
+            // A preset with an inactive or deleted service would ring up without it.
+            ->filter(fn (ServicePreset $preset) => $preset->unavailableServiceNames() === [])
             ->map(fn ($preset) => [
                 'id' => $preset->id,
                 'branch_id' => $preset->branch_id,
@@ -346,7 +350,7 @@ class JobOrderController extends Controller
             ]);
         }
 
-        $validated['items'] = $this->expandPresetCartItems($validated['items'], (int) $validated['branch_id']);
+        $validated['items'] = $this->expandPresetCartItems($validated['items'], (int) $validated['branch_id'], rejectUnavailable: true);
 
         $serviceIds = collect($validated['items'])->pluck('laundry_service_id')->unique()->values();
         $selectedServices = LaundryService::query()
@@ -1082,7 +1086,13 @@ class JobOrderController extends Controller
         return $productionInventory;
     }
 
-    private function expandPresetCartItems(array $items, int $branchId): array
+    /**
+     * @param  bool  $rejectUnavailable  A new sale refuses a preset with an inactive
+     *                                   service. Editing an existing order does not, so an
+     *                                   order sold before the service was switched off
+     *                                   can still be corrected.
+     */
+    private function expandPresetCartItems(array $items, int $branchId, bool $rejectUnavailable = false): array
     {
         $presetIds = collect($items)
             ->pluck('service_preset_id')
@@ -1108,6 +1118,12 @@ class JobOrderController extends Controller
                 if (! $preset) {
                     throw ValidationException::withMessages([
                         'items' => 'All presets must belong to the selected branch.',
+                    ]);
+                }
+
+                if ($rejectUnavailable && ($unavailable = $preset->unavailableServiceNames()) !== []) {
+                    throw ValidationException::withMessages([
+                        'items' => $preset->name.' includes '.implode(', ', $unavailable).', which is inactive or removed. Update the preset under Laundry Services first.',
                     ]);
                 }
 

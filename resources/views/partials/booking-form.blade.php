@@ -16,6 +16,17 @@
     $defaultBranchId = $value('branch_id', $bookingCustomer?->branch_id ?: $branches->first()?->id);
     $multipleBranches = $branches->count() > 1;
 
+    // Each branch runs its own pickup windows. The form starts on the default
+    // branch's and swaps them when the customer picks another branch.
+    $slots = $slotsByBranch[(int) $defaultBranchId] ?? \App\Support\Booking::slots();
+    $slotCutoffs = collect($slotsByBranch)
+        ->reduce(fn (array $cutoffs, array $branchSlots) => $cutoffs + \App\Support\Booking::slotCutoffs($branchSlots), \App\Support\Booking::slotCutoffs($slots));
+
+    // The weight promises, from Settings. Blank hides the line.
+    $kilos = fn ($amount) => rtrim(rtrim(number_format((float) $amount, 2), '0'), '.');
+    $minimumKilos = filled($settings?->booking_minimum_kilos) ? $kilos($settings->booking_minimum_kilos) : null;
+    $freeDeliveryKilos = filled($settings?->free_delivery_minimum_kilos) ? $kilos($settings->free_delivery_minimum_kilos) : null;
+
     $stepLabels = [1 => 'Your laundry', 2 => 'Your details', 3 => 'Pickup schedule', 4 => 'Review'];
 
     // Second line under each step in the desktop side panel.
@@ -58,6 +69,7 @@
         'price' => $offering['price'],
         'pricingType' => $offering['pricing_type'],
         'minimumKilos' => $isAddon ? null : ($offering['minimum_kilos'] ?? null),
+        'kilosPerLoad' => $offering['kilos_per_load'] ?? null,
         'unit' => $offering['unit'],
         'unitNoun' => $isAddon ? 'qty' : \App\Support\Booking::unitFor($offering['pricing_type']),
         'isAddon' => $isAddon,
@@ -125,7 +137,8 @@
                 initialLines: {{ Js::from($initialLines) }},
                 branches: {{ Js::from($branches->map(fn ($b) => ['id' => $b->id, 'name' => $b->name])) }},
                 slots: {{ Js::from($slots) }},
-                slotCutoffs: {{ Js::from(\App\Support\Booking::SLOT_CUTOFFS) }},
+                slotsByBranch: {{ Js::from((object) $slotsByBranch) }},
+                slotCutoffs: {{ Js::from((object) $slotCutoffs) }},
                 today: @js(now()->toDateString()),
                 tokenUrl: @js(route('csrf.token')),
                 earliestPickupDate: @js($earliestPickupDate),
@@ -214,10 +227,12 @@
                 </div>
 
                 <ul class="mt-5 space-y-2 px-1 text-xs font-semibold text-cc-muted">
-                    <li class="flex items-center gap-2">
-                        <span data-lucide="truck" class="h-4 w-4 shrink-0 text-cc-brown"></span>
-                        Free pickup &amp; delivery from 5 kg
-                    </li>
+                    @if($freeDeliveryKilos)
+                        <li class="flex items-center gap-2">
+                            <span data-lucide="truck" class="h-4 w-4 shrink-0 text-cc-brown"></span>
+                            Free pickup &amp; delivery from {{ $freeDeliveryKilos }} kg
+                        </li>
+                    @endif
                     <li class="flex items-center gap-2">
                         <span data-lucide="shieldCheck" class="h-4 w-4 shrink-0 text-cc-brown"></span>
                         No payment needed to book
@@ -419,12 +434,12 @@
                         <div>
                             <label for="pickup_slot" class="cc-label">Preferred Time <span class="text-cc-brown">*</span></label>
                             <select id="pickup_slot" name="pickup_slot" required x-model="form.pickup_slot" class="cc-input mt-1.5">
-                                @foreach ($slots as $slotKey => $slotLabel)
-                                    {{-- Hidden rather than merely disabled, so a window
-                                         whose van has gone is not offered at all. --}}
-                                    <option value="{{ $slotKey }}" x-show="slotAvailable(@js($slotKey))"
-                                            :disabled="! slotAvailable(@js($slotKey))">{{ $slotLabel }}</option>
-                                @endforeach
+                                {{-- The chosen branch's windows. Hidden rather than merely
+                                     disabled, so a window whose van has gone is not offered. --}}
+                                <template x-for="(slotLabel, slotKey) in slots" :key="slotKey">
+                                    <option :value="slotKey" x-text="slotLabel" x-show="slotAvailable(slotKey)"
+                                            :disabled="! slotAvailable(slotKey)" :selected="slotKey === form.pickup_slot"></option>
+                                </template>
                             </select>
                             <p class="cc-help mt-1" x-show="form.pickup_date === today" x-cloak>
                                 Booking for today. We&rsquo;ll collect in the next window that is still open.
@@ -434,12 +449,12 @@
                     </div>
 
                     <ul class="cc-soft mt-5 space-y-3 px-4 py-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0 lg:px-5">
-                        @foreach ([
-                            ['truck', 'Free pickup & delivery', 'For 5 kg and above'],
-                            ['scale', 'Minimum 5 kg', 'Per pickup'],
+                        @foreach (array_filter([
+                            $freeDeliveryKilos ? ['truck', 'Free pickup & delivery', 'For '.$freeDeliveryKilos.' kg and above'] : null,
+                            $minimumKilos ? ['scale', 'Minimum '.$minimumKilos.' kg', 'Per pickup'] : null,
                             ['wallet', 'Please have payment ready', 'Our rider collects it when they pick up'],
                             ['time', 'We’ll confirm the exact time', $settings?->sms_enabled ? 'By SMS before the rider heads over' : 'With a call before the rider heads over'],
-                        ] as [$icon, $title, $body])
+                        ]) as [$icon, $title, $body])
                             <li class="flex items-center gap-3">
                                 <span class="cc-icon-tile h-9 w-9 bg-none bg-cc-surface"><span data-lucide="{{ $icon }}" class="h-4.5 w-4.5"></span></span>
                                 <span>
@@ -506,9 +521,9 @@
                                     <label for="delivery_slot" class="cc-label">Delivery Time <span class="font-semibold text-cc-muted">(optional)</span></label>
                                     <select id="delivery_slot" name="delivery_slot" x-model="form.delivery_slot" class="cc-input mt-1.5">
                                         <option value="">No preference</option>
-                                        @foreach ($slots as $slotKey => $slotLabel)
-                                            <option value="{{ $slotKey }}">{{ $slotLabel }}</option>
-                                        @endforeach
+                                        <template x-for="(slotLabel, slotKey) in slots" :key="slotKey">
+                                            <option :value="slotKey" x-text="slotLabel" :selected="slotKey === form.delivery_slot"></option>
+                                        </template>
                                     </select>
                                     @error('delivery_slot') <p class="cc-error">{{ $message }}</p> @enderror
                                 </div>
@@ -624,7 +639,8 @@
             // Every bookable key => the amount typed against it.
             qty: {},
             branches: config.branches,
-            slots: config.slots,
+            defaultSlots: config.slots,
+            slotsByBranch: config.slotsByBranch,
             slotCutoffs: config.slotCutoffs,
             today: config.today,
             tokenUrl: config.tokenUrl,
@@ -660,11 +676,26 @@
 
                 // Switching to today can leave a window selected whose van has
                 // already gone; move to the first one still open.
-                this.$watch('form.pickup_date', () => {
-                    if (! this.slotAvailable(this.form.pickup_slot)) {
-                        this.form.pickup_slot = this.openSlots[0] || '';
-                    }
-                });
+                this.$watch('form.pickup_date', () => this.keepSlotsValid());
+
+                // Another branch runs other windows, so a time picked for the
+                // first may not exist at the second.
+                this.$watch('form.branch_id', () => this.keepSlotsValid());
+            },
+
+            /** The chosen branch's pickup windows, key => label. */
+            get slots() {
+                return this.slotsByBranch[this.form.branch_id] || this.defaultSlots;
+            },
+
+            keepSlotsValid() {
+                if (! (this.form.pickup_slot in this.slots) || ! this.slotAvailable(this.form.pickup_slot)) {
+                    this.form.pickup_slot = this.openSlots[0] || '';
+                }
+
+                if (this.form.delivery_slot && ! (this.form.delivery_slot in this.slots)) {
+                    this.form.delivery_slot = '';
+                }
             },
 
             /** Same-day pickup, as long as that window has not closed yet. */
@@ -723,10 +754,12 @@
 
             /** Mirrors App\Support\Booking::billableQuantity. */
             billableQuantity(item, amount) {
+                // Each load-priced service says what one load holds: at 10 kg a
+                // load, 1 to 10 kg is one load and 11 to 20 kg is two.
                 if (item.pricingType === 'load') {
-                    const perLoad = {{ (int) \App\Support\Booking::KILOS_PER_LOAD }};
+                    const perLoad = Number(item.kilosPerLoad) > 0 ? Number(item.kilosPerLoad) : {{ (int) \App\Support\Booking::DEFAULT_KILOS_PER_LOAD }};
 
-                    return Math.max(1, Math.ceil(amount / perLoad));
+                    return Math.max(1, Math.ceil(Math.round((amount / perLoad) * 1e6) / 1e6));
                 }
 
                 // Three kilos against a five-kilo minimum is charged as five.

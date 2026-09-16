@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\BranchSetting;
 use App\Models\SystemSetting;
 use App\Support\Activity;
+use App\Support\Booking;
 use App\Support\PublicUpload;
 use App\Support\SmsNotifier;
 use Illuminate\Support\Facades\Artisan;
@@ -98,6 +99,19 @@ class SystemSettingController extends Controller
             'operating_hours' => ['nullable', 'array'],
             'operating_hours.*.open' => ['nullable', 'date_format:H:i'],
             'operating_hours.*.close' => ['nullable', 'date_format:H:i'],
+            // The windows customers choose a pickup or delivery time from.
+            // Left out entirely (an older form, a script), the saved windows stay.
+            'pickup_windows' => ['sometimes', 'required', 'array', 'min:1', 'max:12'],
+            'pickup_windows.*.start' => ['required', 'date_format:H:i'],
+            'pickup_windows.*.end' => ['required', 'date_format:H:i', function (string $attribute, mixed $value, \Closure $fail) use ($request) {
+                $start = $request->input(str_replace('.end', '.start', $attribute));
+
+                if (is_string($start) && $value <= $start) {
+                    $fail('Each pickup window must end after it starts.');
+                } elseif ($value > Booking::LATEST_WINDOW_END) {
+                    $fail('Pickup and delivery windows must end by 2:00 PM.');
+                }
+            }],
             'job_order_prefix' => ['nullable', 'string', 'max:20'],
             'invoice_prefix' => ['nullable', 'string', 'max:20'],
         ];
@@ -115,6 +129,8 @@ class SystemSettingController extends Controller
                 'vat_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
                 'primary_color' => ['required', 'string', 'max:20'],
                 'dark_mode_default' => ['nullable', 'boolean'],
+                'booking_minimum_kilos' => ['nullable', 'numeric', 'min:0', 'max:100'],
+                'free_delivery_minimum_kilos' => ['nullable', 'numeric', 'min:0', 'max:100'],
             ]);
 
             if ($canManageSms) {
@@ -132,7 +148,25 @@ class SystemSettingController extends Controller
             }
         }
 
-        $validated = $request->validate($rules);
+        $validated = $request->validate($rules, [
+            'pickup_windows.required' => 'Keep at least one pickup window, or customers cannot book.',
+            'pickup_windows.min' => 'Keep at least one pickup window, or customers cannot book.',
+        ]);
+
+        $pickupWindows = collect($validated['pickup_windows'] ?? [])
+            ->map(fn (array $window) => ['start' => $window['start'], 'end' => $window['end']])
+            ->sortBy('start')
+            ->values();
+
+        // Two windows sharing time would offer the customer the same van twice.
+        foreach ($pickupWindows->slice(1) as $index => $window) {
+            if ($window['start'] < $pickupWindows[$index - 1]['end']) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'pickup_windows' => 'Pickup windows cannot overlap. Check the windows starting at '
+                        .$pickupWindows[$index - 1]['start'].' and '.$window['start'].'.',
+                ]);
+            }
+        }
 
         if ($canManageGlobal && $request->hasFile('business_logo')) {
             if ($settings->business_logo) {
@@ -173,6 +207,10 @@ class SystemSettingController extends Controller
             ];
         }
 
+        if ($request->has('pickup_windows')) {
+            $branchSettingsPayload['pickup_windows'] = $pickupWindows->all();
+        }
+
         BranchSetting::updateOrCreate(
             ['branch_id' => $branch->id],
             array_merge($branchSettingsPayload, $branchSmsSettingsPayload)
@@ -210,6 +248,7 @@ class SystemSettingController extends Controller
             $validated['operating_hours'],
             $validated['job_order_prefix'],
             $validated['invoice_prefix'],
+            $validated['pickup_windows'],
         );
 
         if ($canManageGlobal) {

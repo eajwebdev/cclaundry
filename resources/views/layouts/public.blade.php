@@ -310,9 +310,10 @@
                         <a href="mailto:{{ $appSettings->business_email }}" class="break-all hover:text-cc-brown">{{ $appSettings->business_email }}</a>
                     </li>
                 @endif
+                {{-- The span the pickup windows cover, from Settings > Branch. --}}
                 <li class="flex items-center gap-2">
                     <span data-lucide="time" class="h-4 w-4 text-cc-brown"></span>
-                    Pickups daily, 8:00 AM - 7:00 PM
+                    Pickups daily, {{ \App\Support\Booking::pickupHoursLabel() }}
                 </li>
                 @if($appSettings?->facebook_url)
                     <li class="flex items-center gap-2">

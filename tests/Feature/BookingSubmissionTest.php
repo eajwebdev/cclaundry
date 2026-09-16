@@ -99,6 +99,7 @@ class BookingSubmissionTest extends TestCase
         $category = LaundryServiceCategory::query()->create([
             'name' => Booking::ADDON_CATEGORY,
             'visibility' => 'all',
+            'is_addon' => true,
             'sort_order' => 9,
             'is_active' => true,
         ]);
@@ -271,6 +272,7 @@ class BookingSubmissionTest extends TestCase
         $category = LaundryServiceCategory::query()->create([
             'name' => Booking::ADDON_CATEGORY,
             'visibility' => 'all',
+            'is_addon' => true,
             'sort_order' => 9,
             'is_active' => true,
         ]);
@@ -319,6 +321,7 @@ class BookingSubmissionTest extends TestCase
         $category = LaundryServiceCategory::query()->create([
             'name' => Booking::ADDON_CATEGORY,
             'visibility' => 'all',
+            'is_addon' => true,
             'sort_order' => 9,
             'is_active' => true,
         ]);
@@ -355,16 +358,36 @@ class BookingSubmissionTest extends TestCase
         ]);
 
         $this->post(route('booking.store'), $this->payload([
-            'items' => [['key' => 'service:'.$linens->id, 'quantity' => 9]],
+            'items' => [['key' => 'service:'.$linens->id, 'quantity' => 12]],
         ]))->assertSessionHasNoErrors();
 
         $line = PickupRequest::query()->with('items')->firstOrFail()->items->first();
 
-        // 9 kg is two loads of 7, so ₱700 — and the counter still sees the 9 kg
-        // the customer declared.
-        $this->assertSame('9.00', $line->quantity);
+        // 12 kg is two loads of 10, so ₱700 — and the counter still sees the
+        // 12 kg the customer declared.
+        $this->assertSame('12.00', $line->quantity);
         $this->assertSame('2.00', $line->billable_quantity);
         $this->assertSame('700.00', $line->line_total);
+    }
+
+    /**
+     * ₱350 a load, up to 10 kg a load: 1 to 10 kg is one load, 11 to 20 kg is
+     * two, 21 kg starts a third.
+     */
+    public function test_every_started_load_is_charged_as_a_full_load(): void
+    {
+        foreach ([[1, 350], [9.5, 350], [10, 350], [10.5, 700], [11, 700], [20, 700], [21, 1050]] as [$kilos, $total]) {
+            $this->assertSame((float) $total, Booking::lineTotal('load', 350, (float) $kilos, null, 10), "{$kilos} kg");
+        }
+
+        // Wash ₱85 and dry ₱95 a load: 8 kg is still one load, not two.
+        foreach ([[8, 85, 95], [10, 85, 95], [11, 170, 190]] as [$kilos, $wash, $dry]) {
+            $this->assertSame((float) $wash, Booking::lineTotal('load', 85, (float) $kilos), "wash {$kilos} kg");
+            $this->assertSame((float) $dry, Booking::lineTotal('load', 95, (float) $kilos), "dry {$kilos} kg");
+        }
+
+        // A service with smaller machines sets its own load size.
+        $this->assertSame(3.0, Booking::billableQuantity('load', 16, null, 7));
     }
 
     /** Under the minimum is charged at the minimum, as it is at the counter. */

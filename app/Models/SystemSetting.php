@@ -42,6 +42,8 @@ class SystemSetting extends Model
         'maintenance_mode',
         'maintenance_message',
         'maintenance_started_at',
+        'booking_minimum_kilos',
+        'free_delivery_minimum_kilos',
     ];
 
     protected $casts = [
@@ -56,6 +58,8 @@ class SystemSetting extends Model
         'is_completed' => 'boolean',
         'maintenance_mode' => 'boolean',
         'maintenance_started_at' => 'datetime',
+        'booking_minimum_kilos' => 'decimal:2',
+        'free_delivery_minimum_kilos' => 'decimal:2',
     ];
 
     public static function current(): self

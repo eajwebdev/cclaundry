@@ -43,7 +43,13 @@
                     @forelse($categories as $category)
                         <tr>
                             <td class="px-4 py-3 text-muted">{{ $category->sort_order }}</td>
-                            <td class="px-4 py-3 font-medium">{{ $category->name }}</td>
+                            <td class="px-4 py-3 font-medium">
+                                {{ $category->name }}
+                                @if($category->is_addon)
+                                    <span class="ml-1.5 inline-flex rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 align-middle text-[10px] font-semibold text-primary"
+                                          title="Offered alongside a laundry service on the booking form">Add-ons</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3">
                                 @if($category->visibility === 'all')
                                     <span class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">

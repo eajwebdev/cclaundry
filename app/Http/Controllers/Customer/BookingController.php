@@ -187,6 +187,10 @@ class BookingController extends Controller
                 ? (float) $service->minimum_kilos
                 : null;
 
+            // What one load of this service holds, so 10 kg of a 10 kg load is
+            // one load and 11 kg is two.
+            $kilosPerLoad = $service?->pricing_type === 'load' ? $service->kilosPerLoad() : null;
+
             $lines[] = [
                 'laundry_service_id' => $service?->id,
                 'service_preset_id' => $preset?->id,
@@ -197,8 +201,8 @@ class BookingController extends Controller
                 // An add-on is counted by the sachet even if it were ever
                 // priced by weight, so it is never mistaken for laundry.
                 'unit' => $isAddon ? 'qty' : Booking::unitFor($pricingType),
-                'billable_quantity' => Booking::billableQuantity($pricingType, $quantity, $minimumKilos),
-                'line_total' => Booking::lineTotal($pricingType, $price, $quantity, $minimumKilos),
+                'billable_quantity' => Booking::billableQuantity($pricingType, $quantity, $minimumKilos, $kilosPerLoad),
+                'line_total' => Booking::lineTotal($pricingType, $price, $quantity, $minimumKilos, $kilosPerLoad),
                 'is_addon' => $isAddon,
                 'sort_order' => $position,
             ];
@@ -316,7 +320,8 @@ class BookingController extends Controller
             'pickup_date' => ['required', 'date', 'after_or_equal:'.Booking::earliestPickupDate(), 'before_or_equal:'.Booking::latestPickupDate()],
             // Same-day pickup is allowed, but not a window that has already
             // closed: the van for it has gone.
-            'pickup_slot' => ['required', Rule::in(array_keys(Booking::slots())), function ($attribute, $value, $fail) use ($request) {
+            // The windows are the chosen branch's own.
+            'pickup_slot' => ['required', Rule::in(array_keys(Booking::slots($request->integer('branch_id') ?: null))), function ($attribute, $value, $fail) use ($request) {
                 if ($request->input('pickup_date') === now()->toDateString() && Booking::slotHasPassed($value)) {
                     $fail('That pickup time has already passed today. Please choose a later time, or tomorrow.');
                 }
@@ -327,7 +332,7 @@ class BookingController extends Controller
             'delivery_latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'delivery_longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'delivery_date' => ['nullable', 'date', 'after_or_equal:pickup_date', 'before_or_equal:'.Booking::latestPickupDate()],
-            'delivery_slot' => ['nullable', Rule::in(array_keys(Booking::slots()))],
+            'delivery_slot' => ['nullable', Rule::in(array_keys(Booking::slots($request->integer('branch_id') ?: null)))],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];
 

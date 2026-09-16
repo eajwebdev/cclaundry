@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Booking;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -10,14 +11,6 @@ class PickupRequest extends Model
     use SoftDeletes;
 
     public const STATUSES = ['pending', 'confirmed', 'picked_up', 'completed', 'cancelled'];
-
-    public const PICKUP_SLOTS = [
-        '08_09' => '8:00 AM - 9:00 AM',
-        '09_10' => '9:00 AM - 10:00 AM',
-        '10_11' => '10:00 AM - 11:00 AM',
-        '11_12' => '11:00 AM - 12:00 PM',
-        '13_14' => '1:00 PM - 2:00 PM',
-    ];
 
     protected $fillable = [
         'reference_no', 'tag_code', 'customer_id', 'branch_id', 'laundry_service_id', 'service_preset_id',
@@ -179,12 +172,14 @@ class PickupRequest extends Model
 
     public function pickupSlotLabel(): string
     {
-        return self::PICKUP_SLOTS[$this->pickup_slot] ?? (string) $this->pickup_slot;
+        // Read off the key itself, so the label survives the branch changing
+        // or removing that window after the booking was made.
+        return Booking::slotLabel($this->pickup_slot);
     }
 
     public function deliverySlotLabel(): ?string
     {
-        return $this->delivery_slot ? (self::PICKUP_SLOTS[$this->delivery_slot] ?? $this->delivery_slot) : null;
+        return $this->delivery_slot ? Booking::slotLabel($this->delivery_slot) : null;
     }
 
     /**

@@ -30,6 +30,7 @@ class LaundryServiceCategoryController extends Controller
 
         $validated = $request->validate($this->rules());
         $validated['is_active'] = $request->boolean('is_active', true);
+        $validated['is_addon'] = $request->boolean('is_addon');
         $validated['branch_id'] = $validated['visibility'] === 'branch' ? $validated['branch_id'] : null;
 
         LaundryServiceCategory::create($validated);
@@ -43,6 +44,7 @@ class LaundryServiceCategoryController extends Controller
 
         $validated = $request->validate($this->rules());
         $validated['is_active'] = $request->boolean('is_active');
+        $validated['is_addon'] = $request->boolean('is_addon');
         $validated['branch_id'] = $validated['visibility'] === 'branch' ? $validated['branch_id'] : null;
 
         $serviceCategory->update($validated);

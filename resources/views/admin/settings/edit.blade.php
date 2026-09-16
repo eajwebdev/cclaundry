@@ -5,7 +5,7 @@
 @section('content')
 <div 
     x-data="{ 
-        tab: @js($canManageGlobal ? 'business' : 'branch'),
+        tab: @js($canManageGlobal && ! $errors->hasAny(['pickup_windows', 'pickup_windows.*']) ? 'business' : 'branch'),
         logoPreview: null,
         vatEnabled: @js($settings->vat_enabled),
         smsEnabled: @js(old('sms_enabled', $settings->sms_enabled ?? $branchSetting->sms_enabled)),
@@ -163,6 +163,29 @@
                             <input type="number" step="0.01" name="vat_rate" value="{{ old('vat_rate', $settings->vat_rate) }}" class="w-full h-9 rounded-md border border-border dark:border-gray-700 bg-white dark:bg-gray-950 px-3 text-sm">
                         </div>
                     </div>
+
+                    {{-- The weight promises printed on the public booking pages. --}}
+                    <div class="lg:col-span-2 rounded-md border border-border p-3 dark:border-gray-700">
+                        <p class="text-sm font-medium">Online Booking</p>
+                        <p class="mt-0.5 text-xs text-muted">Shown to customers on the landing page and booking form. Leave blank to hide the line.</p>
+                        <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Minimum kg per pickup</label>
+                                <input type="number" step="0.5" min="0" max="100" name="booking_minimum_kilos" placeholder="No minimum shown"
+                                       value="{{ old('booking_minimum_kilos', $settings->booking_minimum_kilos !== null ? (float) $settings->booking_minimum_kilos : '') }}"
+                                       class="w-full h-9 rounded-md border border-border dark:border-gray-700 bg-white dark:bg-gray-950 px-3 text-sm">
+                                <p class="mt-1 text-xs text-muted">What each service actually charges is its own Minimum Kilos, under Laundry Services.</p>
+                                @error('booking_minimum_kilos') <p class="text-red-500 text-sm mt-1">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Free pickup &amp; delivery from (kg)</label>
+                                <input type="number" step="0.5" min="0" max="100" name="free_delivery_minimum_kilos" placeholder="Not shown"
+                                       value="{{ old('free_delivery_minimum_kilos', $settings->free_delivery_minimum_kilos !== null ? (float) $settings->free_delivery_minimum_kilos : '') }}"
+                                       class="w-full h-9 rounded-md border border-border dark:border-gray-700 bg-white dark:bg-gray-950 px-3 text-sm">
+                                @error('free_delivery_minimum_kilos') <p class="text-red-500 text-sm mt-1">{{ $message }}</p> @enderror
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 @endif
 
@@ -227,6 +250,49 @@
                                 </div>
                             @endforeach
                         </div>
+                    </div>
+
+                    {{-- The windows customers choose from when booking a pickup or a delivery. --}}
+                    @php($windowTimes = collect(range(12, 28))->mapWithKeys(fn ($half) => [sprintf('%02d:%02d', intdiv($half, 2), $half % 2 * 30) => \Illuminate\Support\Carbon::createFromFormat('H:i', sprintf('%02d:%02d', intdiv($half, 2), $half % 2 * 30))->format('g:i A')]))
+                    @php($savedWindows = old('pickup_windows', $branchSetting->pickup_windows ?: \App\Support\Booking::DEFAULT_PICKUP_WINDOWS))
+                    <div class="lg:col-span-2" x-data="{ windows: @js(array_values($savedWindows)) }">
+                        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <p class="text-sm font-medium">Pickup &amp; Delivery Windows</p>
+                                <p class="text-xs text-muted">The times customers can choose when booking online. Every window must end by 2:00 PM.</p>
+                            </div>
+                            <button type="button" @click="windows.push({ start: '13:00', end: '14:00' })" x-show="windows.length < 12"
+                                    class="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:bg-smoke dark:border-gray-700 dark:hover:bg-gray-950">
+                                <span data-lucide="plus" class="h-4 w-4"></span>
+                                Add window
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
+                            <template x-for="(pickupWindow, index) in windows" :key="index">
+                                <div class="flex items-center gap-2 rounded-md border border-border p-2 dark:border-gray-700">
+                                    <select :name="`pickup_windows[${index}][start]`" x-model="pickupWindow.start" aria-label="Window start" class="h-10 flex-1 rounded-lg border border-border bg-white px-2 text-sm dark:border-gray-700 dark:bg-gray-950">
+                                        @foreach($windowTimes as $time => $label)
+                                            <option value="{{ $time }}">{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                    <span class="text-sm text-muted">to</span>
+                                    <select :name="`pickup_windows[${index}][end]`" x-model="pickupWindow.end" aria-label="Window end" class="h-10 flex-1 rounded-lg border border-border bg-white px-2 text-sm dark:border-gray-700 dark:bg-gray-950">
+                                        @foreach($windowTimes as $time => $label)
+                                            <option value="{{ $time }}">{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                    <button type="button" @click="windows.splice(index, 1)" :disabled="windows.length === 1"
+                                            title="Remove window" aria-label="Remove window"
+                                            class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40">
+                                        <span data-lucide="trash" class="h-4 w-4"></span>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                        @if($errors->hasAny(['pickup_windows', 'pickup_windows.*']))
+                            <p class="mt-2 text-sm text-red-500">{{ $errors->first('pickup_windows') ?: collect($errors->getMessages())->first(fn ($messages, $key) => str_starts_with($key, 'pickup_windows.'))[0] }}</p>
+                        @endif
+                        <p class="mt-2 text-xs text-muted">Existing bookings keep the time they were booked for, even if you change or remove its window.</p>
                     </div>
                 </div>
 

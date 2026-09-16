@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\PickupRequest;
 use App\Models\User;
 use App\Support\Activity;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -62,6 +63,44 @@ class PickupRequestController extends Controller
                 ->when(! $user->canManageAllBranches(), fn ($query) => $query->where('branch_id', $user->branch_id))
                 ->orderBy('name')
                 ->get(['id', 'name', 'branch_id']),
+        ]);
+    }
+
+    /**
+     * What the staff screens poll for the new-booking alert: bookings newer than
+     * the last one this browser has seen, and how many are still waiting.
+     * Scoped like the list itself, so a branch only hears about its own.
+     */
+    public function feed(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $after = max(0, $request->integer('after'));
+
+        $base = PickupRequest::query()
+            ->when(! $user->canManageAllBranches(), fn ($query) => $query->where('branch_id', $user->branch_id));
+
+        $bookings = $after > 0
+            ? (clone $base)
+                ->with('branch:id,name')
+                ->where('id', '>', $after)
+                // Cancelled before anyone saw it: nothing to act on.
+                ->where('status', '!=', 'cancelled')
+                ->orderBy('id')
+                ->limit(10)
+                ->get()
+            : collect();
+
+        return response()->json([
+            'latest_id' => (int) (clone $base)->max('id'),
+            'pending' => (clone $base)->where('status', 'pending')->count(),
+            'bookings' => $bookings->map(fn (PickupRequest $booking) => [
+                'id' => $booking->id,
+                'reference_no' => $booking->reference_no,
+                'contact_name' => $booking->contact_name,
+                'branch' => $user->canManageAllBranches() ? $booking->branch?->name : null,
+                'pickup' => $booking->pickup_date?->format('M j').' · '.$booking->pickupSlotLabel(),
+                'url' => route('admin.pickup-requests.index', ['search' => $booking->reference_no]),
+            ])->values(),
         ]);
     }
 

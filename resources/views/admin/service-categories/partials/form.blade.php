@@ -31,6 +31,19 @@
         <p class="mt-1 text-xs text-muted">Lower number = appears first in the POS tabs.</p>
     </div>
 
+    {{-- Found by this flag, not the name, so the category can be renamed freely. --}}
+    <div class="rounded-md border border-border p-3 dark:border-gray-800">
+        <label class="flex cursor-pointer items-start gap-2.5">
+            <input type="checkbox" name="is_addon" value="1" @checked(old('is_addon', $category->is_addon ?? false)) class="mt-0.5 rounded border-border text-primary">
+            <span>
+                <span class="block text-sm font-semibold">Add-ons category</span>
+                <span class="mt-0.5 block text-xs text-muted">
+                    For extras like detergent and fabric conditioner. On the booking form they are offered alongside a laundry service, never on their own.
+                </span>
+            </span>
+        </label>
+    </div>
+
     <div>
         <label class="inline-flex h-9 items-center gap-2 text-sm text-muted">
             <input type="checkbox" name="is_active" value="1" @checked(old('is_active', $category->is_active ?? true)) class="rounded border-border text-primary">

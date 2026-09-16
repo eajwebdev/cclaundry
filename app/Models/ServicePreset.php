@@ -53,6 +53,24 @@ class ServicePreset extends Model
         ), 2);
     }
 
+    /**
+     * Bundled services that can no longer be sold: deleted, switched off, or
+     * moved out of the preset's branch. A preset with any of these would be
+     * advertised at a price that leaves them out.
+     *
+     * @return array<int, string>
+     */
+    public function unavailableServiceNames(): array
+    {
+        return $this->items
+            ->filter(fn (ServicePresetItem $item) => ! $item->service
+                || ! $item->service->is_active
+                || (int) $item->service->branch_id !== (int) $this->branch_id)
+            ->map(fn (ServicePresetItem $item) => $item->service?->name ?? 'a deleted service')
+            ->values()
+            ->all();
+    }
+
     /** Names of the services bundled in, for the landing page card. */
     public function includedServiceNames(): array
     {

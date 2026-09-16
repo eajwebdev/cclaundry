@@ -3,9 +3,10 @@
 namespace App\Support;
 
 use App\Models\Branch;
+use App\Models\BranchSetting;
 use App\Models\LaundryService;
-use App\Models\PickupRequest;
 use App\Models\ServicePreset;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -30,14 +31,33 @@ class Booking
     public const RUSH_SURCHARGE = 100;
 
     /**
-     * Assumed size of one machine load when estimating a load-priced service
-     * from a customer's rough weight guess. Only ever used for the non-binding
-     * estimate; the branch weighs the bag and sets the real total.
+     * How many kilos one load holds when a load-priced service does not set its
+     * own (Laundry Services > Max kg per load). 1 to 10 kg is one load, 11 to
+     * 20 kg is two.
      */
-    public const KILOS_PER_LOAD = 7;
+    public const DEFAULT_KILOS_PER_LOAD = 10;
 
-    /** Extras chosen with a load, never the load itself. */
+    /**
+     * Name of the category the default catalog puts the extras in. What makes a
+     * category hold add-ons is its `is_addon` flag, not this name, so staff can
+     * rename it freely.
+     */
     public const ADDON_CATEGORY = 'Add-ons';
+
+    /** No pickup or delivery window may run past this: the vans are back by 2 PM. */
+    public const LATEST_WINDOW_END = '14:00';
+
+    /**
+     * The collection windows a branch uses until it sets its own under
+     * Settings > Branch.
+     */
+    public const DEFAULT_PICKUP_WINDOWS = [
+        ['start' => '08:00', 'end' => '09:00'],
+        ['start' => '09:00', 'end' => '10:00'],
+        ['start' => '10:00', 'end' => '11:00'],
+        ['start' => '11:00', 'end' => '12:00'],
+        ['start' => '13:00', 'end' => '14:00'],
+    ];
 
     /**
      * Services pinned to the landing page. Scoped to a branch when given, so a
@@ -49,7 +69,7 @@ class Booking
             // Detergent and fabric conditioner belong on the published price
             // list, but nobody books "Ariel" as their laundry service, so they
             // stay out of the booking form's service choices.
-            ->whereDoesntHave('serviceCategory', fn ($query) => $query->where('name', self::ADDON_CATEGORY))
+            ->whereDoesntHave('serviceCategory', fn ($query) => $query->where('is_addon', true))
             ->get();
     }
 
@@ -60,7 +80,7 @@ class Booking
     public static function addons(?int $branchId = null): Collection
     {
         return self::landingServices($branchId)
-            ->whereHas('serviceCategory', fn ($query) => $query->where('name', self::ADDON_CATEGORY))
+            ->whereHas('serviceCategory', fn ($query) => $query->where('is_addon', true))
             ->get();
     }
 
@@ -86,8 +106,9 @@ class Booking
             ->with('items.service')
             ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
             ->get()
-            // A bundle with no priceable components would advertise nothing.
-            ->filter(fn (ServicePreset $preset) => $preset->items->isNotEmpty())
+            // A bundle with no priceable components would advertise nothing, and
+            // one missing a component would advertise the wrong price.
+            ->filter(fn (ServicePreset $preset) => $preset->items->isNotEmpty() && $preset->unavailableServiceNames() === [])
             ->values();
     }
 
@@ -122,6 +143,7 @@ class Booking
             'price' => (float) $service->price,
             'pricing_type' => $service->pricing_type,
             'minimum_kilos' => $service->minimum_kilos !== null ? (float) $service->minimum_kilos : null,
+            'kilos_per_load' => $service->pricing_type === 'load' ? $service->kilosPerLoad() : null,
             'unit' => $service->priceUnitLabel(),
             'unit_short' => $service->priceUnitShort(),
             'icon' => $service->landingIcon(),
@@ -194,18 +216,23 @@ class Booking
 
     /**
      * The amount in the units the service is actually priced in: kilos stay
-     * kilos, but 12 kg of load-priced linens is two loads on the bill.
+     * kilos, but 12 kg of load-priced linens at 10 kg a load is two loads on
+     * the bill.
      *
      * A service sold by weight can also carry a minimum. Three kilos against
      * a five-kilo minimum is charged as five, which is what the shop has
      * always done at the counter and what the card promises on the way in.
      */
-    public static function billableQuantity(?string $pricingType, float $quantity, ?float $minimumKilos = null): float
+    public static function billableQuantity(?string $pricingType, float $quantity, ?float $minimumKilos = null, ?float $kilosPerLoad = null): float
     {
         $quantity = max(0.01, $quantity);
 
         if ($pricingType === 'load') {
-            return (float) max(1, (int) ceil($quantity / self::KILOS_PER_LOAD));
+            $perLoad = $kilosPerLoad !== null && $kilosPerLoad > 0 ? $kilosPerLoad : self::DEFAULT_KILOS_PER_LOAD;
+
+            // Rounded to the centikilo first, so 20 kg over 10 kg a load is
+            // exactly two loads and never two point something.
+            return (float) max(1, (int) ceil(round($quantity / $perLoad, 6)));
         }
 
         return $pricingType === 'kilo' && $minimumKilos !== null
@@ -242,27 +269,140 @@ class Booking
     }
 
     /**
-     * When each pickup window closes -- the hour it ends -- so a booking made
-     * early can still be collected later the same day. Same-day is the common
-     * case: someone rings at breakfast and wants the bag gone before lunch.
+     * A branch's pickup windows as key => label, earliest first.
+     *
+     * The key is the window's own times ("08_09", or "0830_0930" off the hour),
+     * so a booking keeps its label and its cutoff even after the branch
+     * changes or deletes that window.
      */
-    public const SLOT_CUTOFFS = [
-        '08_09' => '09:00',
-        '09_10' => '10:00',
-        '10_11' => '11:00',
-        '11_12' => '12:00',
-        '13_14' => '14:00',
-    ];
-
-    public static function slots(): array
+    public static function slots(?int $branchId = null): array
     {
-        return PickupRequest::PICKUP_SLOTS;
+        $windows = ($branchId ? BranchSetting::query()->where('branch_id', $branchId)->first()?->pickup_windows : null)
+            ?: self::DEFAULT_PICKUP_WINDOWS;
+
+        return collect($windows)
+            ->sortBy('start')
+            ->mapWithKeys(fn (array $window) => [self::slotKey($window['start'], $window['end']) => self::windowLabel($window['start'], $window['end'])])
+            ->all();
+    }
+
+    /**
+     * The span the pickup windows cover across every branch, for the line on
+     * the landing page: "8:00 AM - 2:00 PM".
+     */
+    public static function pickupHoursLabel(): string
+    {
+        $windows = collect(self::slotsByBranch() ?: [self::slots()])
+            ->flatMap(fn (array $slots) => array_keys($slots))
+            ->map(fn (string $slot) => self::slotTimes($slot))
+            ->filter();
+
+        if ($windows->isEmpty()) {
+            return '';
+        }
+
+        return self::windowLabel($windows->min(0), $windows->max(1));
+    }
+
+    /**
+     * A branch's opening hours folded into lines customers can read at a glance,
+     * with runs of days on the same hours joined: ["Mon - Sat: 8:00 AM - 6:00 PM",
+     * "Sun: 9:00 AM - 1:00 PM"].
+     *
+     * @return array<int, string>
+     */
+    public static function openingHoursLines(?array $hours): array
+    {
+        $days = ['monday' => 'Mon', 'tuesday' => 'Tue', 'wednesday' => 'Wed', 'thursday' => 'Thu', 'friday' => 'Fri', 'saturday' => 'Sat', 'sunday' => 'Sun'];
+        $runs = [];
+
+        foreach ($days as $day => $short) {
+            $open = data_get($hours, "$day.open");
+            $close = data_get($hours, "$day.close");
+            $label = $open && $close && $open !== $close ? self::windowLabel($open, $close) : 'Closed';
+            $last = array_key_last($runs);
+
+            if ($last !== null && $runs[$last]['label'] === $label) {
+                $runs[$last]['to'] = $short;
+            } else {
+                $runs[] = ['from' => $short, 'to' => $short, 'label' => $label];
+            }
+        }
+
+        if ($hours === null || $hours === []) {
+            return [];
+        }
+
+        return array_map(
+            fn (array $run) => ($run['from'] === $run['to'] ? $run['from'] : $run['from'].' - '.$run['to']).': '.$run['label'],
+            $runs
+        );
+    }
+
+    /** Every active branch's windows, keyed by branch id, for the booking form. */
+    public static function slotsByBranch(): array
+    {
+        return self::branches()
+            ->mapWithKeys(fn (Branch $branch) => [$branch->id => self::slots($branch->id)])
+            ->all();
+    }
+
+    public static function slotKey(string $start, string $end): string
+    {
+        $part = fn (string $time) => str_ends_with($time, ':00') ? substr($time, 0, 2) : str_replace(':', '', $time);
+
+        return $part($start).'_'.$part($end);
+    }
+
+    /**
+     * The start and end a key stands for, as "H:i", or null for a key that is
+     * not a time window (old bookings from before the hourly windows).
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    public static function slotTimes(string $slot): ?array
+    {
+        if (! preg_match('/^(\d{2})(\d{2})?_(\d{2})(\d{2})?$/', $slot, $m)) {
+            return null;
+        }
+
+        return [$m[1].':'.(($m[2] ?? '') ?: '00'), $m[3].':'.(($m[4] ?? '') ?: '00')];
+    }
+
+    /** "8:00 AM - 9:00 AM" for a key; anything unrecognised is shown as it is. */
+    public static function slotLabel(?string $slot): string
+    {
+        $times = $slot ? self::slotTimes($slot) : null;
+
+        return $times ? self::windowLabel(...$times) : (string) $slot;
+    }
+
+    private static function windowLabel(string $start, string $end): string
+    {
+        $format = fn (string $time) => Carbon::createFromFormat('H:i', $time)->format('g:i A');
+
+        return $format($start).' - '.$format($end);
+    }
+
+    /**
+     * When each window closes -- the time it ends -- so a booking made early can
+     * still be collected later the same day.
+     *
+     * @param  array<string, string>  $slots
+     * @return array<string, string>
+     */
+    public static function slotCutoffs(array $slots): array
+    {
+        return collect(array_keys($slots))
+            ->mapWithKeys(fn (string $slot) => [$slot => self::slotTimes($slot)[1] ?? null])
+            ->filter()
+            ->all();
     }
 
     /** Has today's van for this window already gone? */
     public static function slotHasPassed(string $slot): bool
     {
-        $cutoff = self::SLOT_CUTOFFS[$slot] ?? null;
+        $cutoff = self::slotTimes($slot)[1] ?? null;
 
         return $cutoff !== null && now()->format('H:i') >= $cutoff;
     }
@@ -271,14 +411,14 @@ class Booking
      * The windows still open on a given day. Every window on a future date;
      * on today, only the ones that have not finished yet.
      */
-    public static function slotsFor(?string $date = null): array
+    public static function slotsFor(?string $date = null, ?int $branchId = null): array
     {
         if ($date !== now()->toDateString()) {
-            return self::slots();
+            return self::slots($branchId);
         }
 
         return array_filter(
-            self::slots(),
+            self::slots($branchId),
             fn (string $slot) => ! self::slotHasPassed($slot),
             ARRAY_FILTER_USE_KEY
         );
@@ -342,14 +482,14 @@ class Booking
      * What one line of a booking comes to: the service price times the amount
      * in the units it is sold in.
      */
-    public static function lineTotal(?string $pricingType, float $price, float $quantity, ?float $minimumKilos = null): float
+    public static function lineTotal(?string $pricingType, float $price, float $quantity, ?float $minimumKilos = null, ?float $kilosPerLoad = null): float
     {
         // A preset is a whole-bundle price, so the amount does not multiply it.
         if ($pricingType === 'preset') {
             return round($price, 2);
         }
 
-        return round($price * self::billableQuantity($pricingType, $quantity, $minimumKilos), 2);
+        return round($price * self::billableQuantity($pricingType, $quantity, $minimumKilos, $kilosPerLoad), 2);
     }
 
     /**
@@ -373,7 +513,8 @@ class Booking
                     $line['pricing_type'] ?? null,
                     (float) ($line['price'] ?? 0),
                     (float) ($line['quantity'] ?? 1),
-                    isset($line['minimum_kilos']) ? (float) $line['minimum_kilos'] : null
+                    isset($line['minimum_kilos']) ? (float) $line['minimum_kilos'] : null,
+                    isset($line['kilos_per_load']) ? (float) $line['kilos_per_load'] : null
                 );
             $counted++;
         }
@@ -392,7 +533,13 @@ class Booking
      */
     public static function earliestPickupDate(): string
     {
-        return self::slotsFor(now()->toDateString()) !== []
+        $branchIds = self::branches()->pluck('id')->all() ?: [null];
+
+        // Today while any branch still has a window open; the slot rule stops a
+        // customer picking a closed one at their own branch.
+        $openToday = collect($branchIds)->contains(fn (?int $branchId) => self::slotsFor(now()->toDateString(), $branchId) !== []);
+
+        return $openToday
             ? now()->toDateString()
             : now()->addDay()->toDateString();
     }

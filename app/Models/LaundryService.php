@@ -10,13 +10,14 @@ class LaundryService extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'branch_id', 'service_category_id', 'name', 'report_category', 'pricing_type', 'price', 'minimum_kilos', 'price_unit_label',
+        'branch_id', 'service_category_id', 'name', 'report_category', 'pricing_type', 'price', 'minimum_kilos', 'kilos_per_load', 'price_unit_label',
         'is_active', 'show_on_landing', 'landing_blurb', 'landing_icon', 'landing_sort_order',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
         'minimum_kilos' => 'decimal:2',
+        'kilos_per_load' => 'decimal:2',
         'is_active' => 'boolean',
         'show_on_landing' => 'boolean',
         'landing_sort_order' => 'integer',
@@ -62,6 +63,17 @@ class LaundryService extends Model
             str_contains($name, 'wash') => 'droplets',
             default => 'laundry',
         };
+    }
+
+    /**
+     * How many kilos one load holds, for a load-priced service: 10 kg a load
+     * means 1 to 10 kg is one load and 11 to 20 kg is two.
+     */
+    public function kilosPerLoad(): float
+    {
+        return $this->kilos_per_load !== null && (float) $this->kilos_per_load > 0
+            ? (float) $this->kilos_per_load
+            : (float) \App\Support\Booking::DEFAULT_KILOS_PER_LOAD;
     }
 
     /** How the price reads to a customer, e.g. "per load". */

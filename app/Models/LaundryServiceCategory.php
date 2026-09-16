@@ -6,9 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class LaundryServiceCategory extends Model
 {
-    protected $fillable = ['name', 'visibility', 'branch_id', 'sort_order', 'is_active'];
+    protected $fillable = ['name', 'visibility', 'is_addon', 'branch_id', 'sort_order', 'is_active'];
 
-    protected $casts = ['is_active' => 'boolean', 'sort_order' => 'integer'];
+    protected $casts = ['is_active' => 'boolean', 'is_addon' => 'boolean', 'sort_order' => 'integer'];
 
     public function branch()
     {

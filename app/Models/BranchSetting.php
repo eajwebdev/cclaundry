@@ -11,6 +11,7 @@ class BranchSetting extends Model
         'receipt_header',
         'receipt_footer',
         'operating_hours',
+        'pickup_windows',
         'default_price_per_kilo',
         'default_price_per_load',
         'default_price_per_piece',
@@ -24,6 +25,7 @@ class BranchSetting extends Model
 
     protected $casts = [
         'operating_hours' => 'array',
+        'pickup_windows' => 'array',
         'default_price_per_kilo' => 'decimal:2',
         'default_price_per_load' => 'decimal:2',
         'default_price_per_piece' => 'decimal:2',

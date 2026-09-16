@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\LaundryServiceCategory;
+use App\Support\Booking;
 use Illuminate\Database\Seeder;
 
 class LaundryServiceCategorySeeder extends Seeder
@@ -18,7 +19,7 @@ class LaundryServiceCategorySeeder extends Seeder
         foreach ($categories as $category) {
             LaundryServiceCategory::updateOrCreate(
                 ['name' => $category['name']],
-                ['visibility' => $category['visibility'], 'sort_order' => $category['sort_order'], 'is_active' => true]
+                ['visibility' => $category['visibility'], 'is_addon' => $category['name'] === Booking::ADDON_CATEGORY, 'sort_order' => $category['sort_order'], 'is_active' => true]
             );
         }
 

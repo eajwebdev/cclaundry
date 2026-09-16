@@ -3,8 +3,20 @@
 @section('page_title', 'Laundry Services')
 
 @section('content')
-@php($activeBranch = $branches->firstWhere('id', $selectedBranchId))
-<div x-data="{ createOpen: false, presetOpen: false, editOpen: null, editPresetOpen: @js((int) request('edit_preset') ?: null) }" class="space-y-4">
+@php
+    $activeBranch = $branches->firstWhere('id', $selectedBranchId);
+
+    // Every form posts `_form`, so a save that fails validation reopens the
+    // form it came from, with its errors, instead of closing without a word.
+    $failedForm = $errors->any() ? (string) old('_form') : '';
+    $failedId = fn (string $prefix) => str_starts_with($failedForm, $prefix) ? ((int) substr($failedForm, strlen($prefix)) ?: null) : null;
+@endphp
+<div x-data="{
+        createOpen: @js($failedForm === 'service-create'),
+        presetOpen: @js($failedForm === 'preset-create'),
+        editOpen: @js($failedId('service-')),
+        editPresetOpen: @js($failedId('preset-') ?? ((int) request('edit_preset') ?: null)),
+    }" class="space-y-4">
     <div class="flex flex-col gap-3 rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <div class="mb-2 inline-flex items-center gap-1.5 rounded-md border border-border bg-smoke px-2.5 py-1 text-xs font-medium text-muted dark:border-gray-800 dark:bg-gray-900">
@@ -84,7 +96,9 @@
                 </thead>
                 <tbody class="divide-y divide-border dark:divide-gray-800">
                     @forelse($servicePresets as $preset)
-                        @php($presetTotal = $preset->items->sum(fn ($item) => (float) $item->quantity * (float) ($item->service?->price ?? 0)))
+                        @php
+                            $unavailable = $preset->unavailableServiceNames();
+                        @endphp
                         <tr>
                             <td class="px-4 py-3 font-medium">
                                 {{ $preset->name }}
@@ -94,12 +108,18 @@
                                         <span data-lucide="globe" class="h-2.5 w-2.5"></span> Landing
                                     </span>
                                 @endif
+                                @if($unavailable)
+                                    <span class="mt-1 block text-xs font-normal text-red-600">
+                                        Includes {{ implode(', ', $unavailable) }}, which is inactive or removed.
+                                        {{ $preset->show_on_landing ? 'Hidden from the landing page until fixed.' : '' }}
+                                    </span>
+                                @endif
                             </td>
                             <td class="px-4 py-3">{{ $preset->serviceCategory?->name ?? 'No category' }}</td>
                             <td class="px-4 py-3 text-muted">
                                 {{ $preset->items->map(fn ($item) => rtrim(rtrim(number_format((float) $item->quantity, 2), '0'), '.').'x '.$item->service?->name)->join(', ') }}
                             </td>
-                            <td class="px-4 py-3">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format($presetTotal, 2) }}</td>
+                            <td class="px-4 py-3">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format($preset->totalPrice(), 2) }}</td>
                             <td class="px-4 py-3">
                                 <span class="{{ \App\Support\StatusBadge::classes($preset->is_active ? 'active' : 'inactive') }}">
                                     {{ $preset->is_active ? 'Active' : 'Inactive' }}
@@ -154,7 +174,14 @@
                             </td>
                             <td class="px-4 py-3">{{ $service->branch?->name ?? 'N/A' }}</td>
                             <td class="px-4 py-3">{{ $service->serviceCategory?->name ?? 'None' }}</td>
-                            <td class="px-4 py-3">{{ ucfirst($service->pricing_type) }}</td>
+                            <td class="px-4 py-3">
+                                {{ ucfirst($service->pricing_type) }}
+                                @if($service->pricing_type === 'load')
+                                    <span class="block text-xs text-muted">Max {{ rtrim(rtrim(number_format($service->kilosPerLoad(), 2), '0'), '.') }} kg per load</span>
+                                @elseif($service->pricing_type === 'kilo' && $service->minimum_kilos !== null)
+                                    <span class="block text-xs text-muted">Min {{ rtrim(rtrim(number_format((float) $service->minimum_kilos, 2), '0'), '.') }} kg</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $service->price, 2) }}</td>
                             <td class="px-4 py-3">
                                 <span class="{{ \App\Support\StatusBadge::classes($service->is_active ? 'active' : 'inactive') }}">
@@ -190,7 +217,7 @@
                 <h2 class="inline-flex items-center gap-2 text-lg font-semibold"><span data-lucide="services" class="h-4 w-4 text-primary"></span>Add Service</h2>
                 <button type="button" @click="createOpen = false" class="rounded-md p-2 hover:bg-smoke dark:hover:bg-gray-800"><span data-lucide="x" class="h-4 w-4"></span></button>
             </div>
-            @include('admin.services.partials.form', ['action' => route('admin.services.store'), 'method' => 'POST', 'service' => new \App\Models\LaundryService(['branch_id' => $selectedBranchId, 'pricing_type' => 'kilo', 'is_active' => true, 'price' => 0])])
+            @include('admin.services.partials.form', ['formKey' => 'service-create', 'action' => route('admin.services.store'), 'method' => 'POST', 'service' => new \App\Models\LaundryService(['branch_id' => $selectedBranchId, 'pricing_type' => 'kilo', 'is_active' => true, 'price' => 0])])
         </div>
     </div>
 
@@ -200,7 +227,7 @@
                 <h2 class="inline-flex items-center gap-2 text-lg font-semibold"><span data-lucide="tag" class="h-4 w-4 text-primary"></span>Add Preset</h2>
                 <button type="button" @click="presetOpen = false" class="rounded-md p-2 hover:bg-smoke dark:hover:bg-gray-800"><span data-lucide="x" class="h-4 w-4"></span></button>
             </div>
-            @include('admin.services.partials.preset-form', ['action' => route('admin.services.presets.store'), 'method' => 'POST', 'preset' => new \App\Models\ServicePreset(['branch_id' => $selectedBranchId, 'sort_order' => 0, 'is_active' => true, 'items' => collect()])])
+            @include('admin.services.partials.preset-form', ['formKey' => 'preset-create', 'action' => route('admin.services.presets.store'), 'method' => 'POST', 'preset' => new \App\Models\ServicePreset(['branch_id' => $selectedBranchId, 'sort_order' => 0, 'is_active' => true, 'items' => collect()])])
         </div>
     </div>
 
@@ -211,7 +238,7 @@
                     <h2 class="inline-flex items-center gap-2 text-lg font-semibold"><span data-lucide="settings" class="h-4 w-4 text-primary"></span>Edit Service</h2>
                     <button type="button" @click="editOpen = null" class="rounded-md p-2 hover:bg-smoke dark:hover:bg-gray-800"><span data-lucide="x" class="h-4 w-4"></span></button>
                 </div>
-                @include('admin.services.partials.form', ['action' => route('admin.services.update', $service), 'method' => 'PUT', 'service' => $service])
+                @include('admin.services.partials.form', ['formKey' => 'service-'.$service->id, 'action' => route('admin.services.update', $service), 'method' => 'PUT', 'service' => $service])
             </div>
         </div>
     @endforeach
@@ -223,7 +250,7 @@
                     <h2 class="inline-flex items-center gap-2 text-lg font-semibold"><span data-lucide="settings" class="h-4 w-4 text-primary"></span>Edit Preset</h2>
                     <button type="button" @click="editPresetOpen = null" class="rounded-md p-2 hover:bg-smoke dark:hover:bg-gray-800"><span data-lucide="x" class="h-4 w-4"></span></button>
                 </div>
-                @include('admin.services.partials.preset-form', ['action' => route('admin.services.presets.update', $preset), 'method' => 'PUT', 'preset' => $preset])
+                @include('admin.services.partials.preset-form', ['formKey' => 'preset-'.$preset->id, 'action' => route('admin.services.presets.update', $preset), 'method' => 'PUT', 'preset' => $preset])
             </div>
         </div>
     @endforeach
