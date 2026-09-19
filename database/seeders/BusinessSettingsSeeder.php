@@ -11,16 +11,26 @@ class BusinessSettingsSeeder extends Seeder
 {
     public function run(): void
     {
-        SystemSetting::query()->updateOrCreate(
-            ['id' => 1],
-            [
-                'business_name' => 'Cane & Cotton Laundry',
-                'business_address' => BusinessDefaults::ADDRESS,
-                'contact_number' => BusinessDefaults::CONTACT_NUMBER,
-                'business_email' => BusinessDefaults::EMAIL,
-                'facebook_url' => BusinessDefaults::FACEBOOK_URL,
-            ]
-        );
+        $settings = SystemSetting::current();
+        $settings->fill([
+            'business_name' => 'Cane & Cotton Laundry',
+            'business_address' => BusinessDefaults::ADDRESS,
+            'contact_number' => BusinessDefaults::CONTACT_NUMBER,
+            'business_email' => BusinessDefaults::EMAIL,
+            'facebook_url' => BusinessDefaults::FACEBOOK_URL,
+        ]);
+
+        // Existing installations may have an unfinished settings record. Fill
+        // only missing operational defaults, then use the same completion check
+        // as the settings form instead of forcing the flag to true.
+        foreach (['currency' => 'PHP', 'job_order_prefix' => 'JO', 'invoice_prefix' => 'INV'] as $field => $default) {
+            if (blank($settings->{$field})) {
+                $settings->{$field} = $default;
+            }
+        }
+
+        $settings->is_completed = $settings->isComplete();
+        $settings->save();
 
         $mainBranch = Branch::query()->firstOrCreate(
             ['code' => 'MAIN'],
