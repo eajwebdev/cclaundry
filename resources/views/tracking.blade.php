@@ -87,7 +87,7 @@
 
             <p class="text-center text-sm text-cc-muted lg:text-left">
                 Want to manage this booking?
-                <a href="{{ route('login', ['as' => 'customer']) }}" class="font-bold text-cc-brown hover:underline">Sign in to your account</a>
+                <a href="{{ route('login') }}" class="font-bold text-cc-brown hover:underline">Sign in to your account</a>
             </p>
         </div>
     </div>

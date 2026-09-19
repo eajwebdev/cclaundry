@@ -272,9 +272,8 @@ class SystemSettingsTest extends TestCase
         $this->get(route('login'))
             ->assertOk()
             ->assertSee('Welcome back')
-            ->assertSee('Customer')
-            ->assertSee('Staff')
-            ->assertSee('Mobile number or email')
+            ->assertSee('Mobile number, username, or email')
+            ->assertDontSee('role="tablist"', false)
             ->assertSee('Create an account');
     }
 

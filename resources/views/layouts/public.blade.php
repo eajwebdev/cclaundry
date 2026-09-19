@@ -135,7 +135,7 @@
                             </button>
                         </form>
                     @else
-                        <a href="{{ route('login', ['as' => 'customer']) }}" class="cc-nav-link">Sign in</a>
+                        <a href="{{ route('login') }}" class="cc-nav-link">Sign in</a>
                     @endif
 
                     <a href="{{ $landingUrl }}#book" class="cc-btn cc-btn-sm ml-2">
@@ -211,7 +211,7 @@
                         </button>
                     </form>
                 @else
-                    <a href="{{ route('login', ['as' => 'customer']) }}" class="cc-btn w-full">
+                    <a href="{{ route('login') }}" class="cc-btn w-full">
                         <span data-lucide="login" class="h-4.5 w-4.5"></span>
                         Sign in
                     </a>
@@ -292,7 +292,7 @@
                 @if($publicCustomer)
                     <a href="{{ route('customer.bookings.index') }}" class="hover:text-cc-brown">My bookings</a>
                 @else
-                    <a href="{{ route('login', ['as' => 'customer']) }}" class="hover:text-cc-brown">Sign in</a>
+                    <a href="{{ route('login') }}" class="hover:text-cc-brown">Sign in</a>
                 @endif
             </nav>
 

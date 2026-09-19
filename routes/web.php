@@ -134,7 +134,7 @@ Route::post('/webhooks/paymongo', [SubscriptionBillingController::class, 'webhoo
 Route::middleware('guest:web,customer')->group(function () {
     Route::get('/login', [LoginController::class, 'showLogin'])->name('login');
     Route::post('/login', [LoginController::class, 'login'])->name('login.submit');
-    Route::get('/customer/login', fn () => redirect()->route('login', ['as' => 'customer']))->name('customer.login');
+    Route::get('/customer/login', fn () => redirect()->route('login'))->name('customer.login');
     Route::post('/customer/login', [LoginController::class, 'login'])->name('customer.login.submit');
 });
 

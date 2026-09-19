@@ -33,41 +33,56 @@ class LoginController extends Controller
     public function login(Request $request)
     {
         $validated = $request->validate([
-            'account_type' => ['nullable', 'in:customer,staff'],
             'login' => ['required', 'string', 'max:150'],
             'password' => ['required', 'string'],
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
         ]);
 
-        // Old customer sign-in forms still post to /customer/login. Existing
-        // staff integrations that post to /login without a type stay valid.
-        $accountType = $request->routeIs('customer.login.submit')
-            ? 'customer'
-            : ($validated['account_type'] ?? 'staff');
+        $login = trim($validated['login']);
+        $password = $validated['password'];
+        $isEmail = filter_var($login, FILTER_VALIDATE_EMAIL) !== false;
 
-        if ($accountType === 'customer') {
-            return $this->loginCustomer($request, trim($validated['login']), $validated['password']);
-        }
-
-        return $this->loginStaff($request, trim($validated['login']), $validated['password']);
-    }
-
-    private function loginCustomer(Request $request, string $login, string $password)
-    {
-        $customer = filter_var($login, FILTER_VALIDATE_EMAIL)
+        $customer = $isEmail
             ? Customer::query()->whereRaw('LOWER(email) = ?', [mb_strtolower($login)])->first()
             : Customer::query()->matchingPhone($login)->first();
+        $staff = $isEmail
+            ? User::query()->whereRaw('LOWER(email) = ?', [mb_strtolower($login)])->first()
+            : User::query()->where('username', $login)->first();
 
-        if (! $customer || ! $customer->hasPortalAccount() || ! Hash::check($password, $customer->password)) {
-            return redirect()->route('login', ['as' => 'customer'])
-                ->withErrors(['login' => 'We could not match that mobile number/email and password.'])
-                ->onlyInput('login', 'account_type');
+        $customerMatches = $customer && $customer->hasPortalAccount() && Hash::check($password, $customer->password);
+        $staffMatches = $staff && Hash::check($password, $staff->password);
+
+        // Older customer forms still post to this route. Keep their destination
+        // restricted to customer accounts while the shared form detects both.
+        if ($request->routeIs('customer.login.submit')) {
+            return $customerMatches
+                ? $this->loginCustomer($request, $customer)
+                : back()->withErrors(['login' => 'Invalid login or password.'])->onlyInput('login');
         }
 
+        if ($customerMatches && $staffMatches) {
+            return back()
+                ->withErrors(['login' => 'These credentials match two accounts. Use your customer mobile number or staff username to sign in.'])
+                ->onlyInput('login');
+        }
+
+        if ($customerMatches) {
+            return $this->loginCustomer($request, $customer);
+        }
+
+        if ($staffMatches) {
+            return $this->loginStaff($request, $staff);
+        }
+
+        return back()->withErrors(['login' => 'Invalid login or password.'])->onlyInput('login');
+    }
+
+    private function loginCustomer(Request $request, Customer $customer)
+    {
         if (! $customer->is_active) {
-            return redirect()->route('login', ['as' => 'customer'])
+            return back()
                 ->withErrors(['login' => 'This account is on hold. Please contact your branch.'])
-                ->onlyInput('login', 'account_type');
+                ->onlyInput('login');
         }
 
         Auth::guard('customer')->login($customer, $request->boolean('remember'));
@@ -78,22 +93,12 @@ class LoginController extends Controller
             ->with('success', 'Signed in. Good to see you again, '.$customer->name.'.');
     }
 
-    private function loginStaff(Request $request, string $login, string $password)
+    private function loginStaff(Request $request, User $user)
     {
-        $field = filter_var($login, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
-
-        $user = User::where($field, $login)->first();
-
-        if (!$user || !Hash::check($password, $user->password)) {
-            return back()
-                ->withErrors(['login' => 'Invalid username/email or password.'])
-                ->onlyInput('login', 'branch_id', 'account_type');
-        }
-
         if ($user->status !== 'active') {
             return back()
                 ->withErrors(['login' => 'Your account is inactive. Please contact administrator.'])
-                ->onlyInput('login', 'branch_id', 'account_type');
+                ->onlyInput('login', 'branch_id');
         }
 
         // Admins work across every branch, so their branch is never reassigned here.
@@ -108,7 +113,7 @@ class LoginController extends Controller
             if (! $branch) {
                 return back()
                     ->withErrors(['branch_id' => 'That branch is unavailable. Please pick another.'])
-                    ->onlyInput('login', 'branch_id', 'account_type');
+                    ->onlyInput('login', 'branch_id');
             }
 
             $branchId = $branch->id;

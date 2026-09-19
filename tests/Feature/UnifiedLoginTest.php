@@ -14,15 +14,15 @@ class UnifiedLoginTest extends TestCase
 
     public function test_the_old_customer_url_leads_to_the_one_login_page(): void
     {
-        $this->get(route('customer.login'))->assertRedirect(route('login', ['as' => 'customer']));
-        $this->get(route('customer.bookings.index'))->assertRedirect(route('login', ['as' => 'customer']));
+        $this->get(route('customer.login'))->assertRedirect(route('login'));
+        $this->get(route('customer.bookings.index'))->assertRedirect(route('login'));
 
         $this->get(route('login'))
             ->assertOk()
             ->assertSee('action="'.route('login.submit').'"', false)
-            ->assertSee('Customer')
-            ->assertSee('Staff')
-            ->assertSee('name="account_type"', false);
+            ->assertSee('Mobile number, username, or email')
+            ->assertDontSee('role="tablist"', false)
+            ->assertDontSee('name="account_type"', false);
     }
 
     public function test_customer_and_staff_credentials_use_their_own_guards(): void
@@ -45,7 +45,6 @@ class UnifiedLoginTest extends TestCase
         ]);
 
         $this->post(route('login.submit'), [
-            'account_type' => 'customer',
             'login' => '+63 917 123 4567',
             'password' => 'customer-secret',
         ])->assertRedirect(route('customer.bookings.index'));
@@ -55,7 +54,6 @@ class UnifiedLoginTest extends TestCase
         $this->post(route('customer.logout'));
 
         $this->post(route('login.submit'), [
-            'account_type' => 'staff',
             'login' => 'juan-staff',
             'password' => 'staff-secret',
             'branch_id' => $otherBranch->id,
@@ -65,10 +63,10 @@ class UnifiedLoginTest extends TestCase
         $this->assertSame($otherBranch->id, $staff->fresh()->branch_id);
     }
 
-    public function test_the_account_choice_prevents_cross_sign_in_even_with_a_shared_email(): void
+    public function test_shared_email_uses_the_matching_password_to_identify_the_account(): void
     {
         $branch = Branch::query()->create(['name' => 'Main', 'code' => 'MAIN', 'is_active' => true]);
-        Customer::query()->create([
+        $customer = Customer::query()->create([
             'branch_id' => $branch->id,
             'name' => 'Juan Customer',
             'phone' => '09171234567',
@@ -76,21 +74,48 @@ class UnifiedLoginTest extends TestCase
             'password' => 'customer-secret',
             'is_active' => true,
         ]);
-        User::factory()->create([
+        $staff = User::factory()->create([
             'email' => 'shared@example.com',
             'password' => 'staff-secret',
         ]);
 
         $this->post(route('login.submit'), [
-            'account_type' => 'customer',
-            'login' => 'shared@example.com',
-            'password' => 'staff-secret',
-        ])->assertSessionHasErrors('login');
-
-        $this->post(route('login.submit'), [
-            'account_type' => 'staff',
             'login' => 'shared@example.com',
             'password' => 'customer-secret',
+        ])->assertRedirect(route('customer.bookings.index'));
+        $this->assertAuthenticatedAs($customer, 'customer');
+        $this->assertGuest('web');
+
+        $this->post(route('customer.logout'));
+
+        $this->post(route('login.submit'), [
+            'login' => 'shared@example.com',
+            'password' => 'staff-secret',
+        ])->assertRedirect(route('dashboard'));
+        $this->assertAuthenticatedAs($staff, 'web');
+        $this->assertGuest('customer');
+    }
+
+    public function test_identical_credentials_for_both_accounts_require_a_unique_identifier(): void
+    {
+        $branch = Branch::query()->create(['name' => 'Main', 'code' => 'MAIN', 'is_active' => true]);
+        Customer::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Juan Customer',
+            'phone' => '09171234567',
+            'email' => 'shared@example.com',
+            'password' => 'same-secret',
+            'is_active' => true,
+        ]);
+        User::factory()->create([
+            'username' => 'staff-juan',
+            'email' => 'shared@example.com',
+            'password' => 'same-secret',
+        ]);
+
+        $this->post(route('login.submit'), [
+            'login' => 'shared@example.com',
+            'password' => 'same-secret',
         ])->assertSessionHasErrors('login');
 
         $this->assertGuest('web');
