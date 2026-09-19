@@ -24,13 +24,12 @@
 
     // The weight promises, from Settings. Blank hides the line.
     $kilos = fn ($amount) => rtrim(rtrim(number_format((float) $amount, 2), '0'), '.');
-    $minimumKilos = filled($settings?->booking_minimum_kilos) ? $kilos($settings->booking_minimum_kilos) : null;
     $freeDeliveryKilos = filled($settings?->free_delivery_minimum_kilos) ? $kilos($settings->free_delivery_minimum_kilos) : null;
 
-    $stepLabels = [1 => 'Your laundry', 2 => 'Your details', 3 => 'Pickup schedule', 4 => 'Review'];
+    $stepLabels = [1 => 'Laundry Details', 2 => 'Your Details', 3 => 'Pickup Schedule', 4 => 'Review & Confirm'];
 
     // Second line under each step in the desktop side panel.
-    $stepHints = [1 => 'What and how much', 2 => 'Contact and address', 3 => 'Date, time and return', 4 => 'Check, then confirm'];
+    $stepHints = [1 => 'What you are sending', 2 => 'Contact and address', 3 => 'Choose your preferred date and time', 4 => 'Check your order before submitting'];
 
     // Which step holds the first thing the server complained about, so a bounced
     // submission reopens where the problem is instead of back at step one.
@@ -62,7 +61,7 @@
 
     // Everything bookable in one shape for the script: the services, then the
     // add-ons. `unitNoun` is what the customer is asked for — kilos for what we
-    // weigh, pairs for steaming, a plain count for a sachet of detergent.
+    // weigh, pairs for steaming, loads for detergent or conditioner.
     $toMeta = fn (array $offering, bool $isAddon) => [
         'key' => $offering['key'],
         'label' => $offering['name'],
@@ -71,8 +70,9 @@
         'minimumKilos' => $isAddon ? null : ($offering['minimum_kilos'] ?? null),
         'kilosPerLoad' => $offering['kilos_per_load'] ?? null,
         'unit' => $offering['unit'],
-        'unitNoun' => $isAddon ? 'qty' : \App\Support\Booking::unitFor($offering['pricing_type']),
+        'unitNoun' => $isAddon ? 'load' : \App\Support\Booking::unitFor($offering['pricing_type']),
         'isAddon' => $isAddon,
+        'addonGroup' => $isAddon ? ($offering['report_category'] ?? null) : null,
     ];
 
     // Mirrors App\Support\Booking::estimate so the live figure and the stored
@@ -175,7 +175,7 @@
                  for the steps by name and a running summary that stays in view. --}}
             <aside class="hidden lg:sticky lg:top-28 lg:block">
                 <p class="text-xs font-bold tracking-[0.3em] text-cc-brown uppercase">Book a Service</p>
-                <h2 class="cc-title mt-2">Let us take laundry off your list.</h2>
+                <h2 class="cc-title mt-2">Let us take laundry off your to-do list.</h2>
                 <p class="cc-subtitle mt-2">Fill out the form and our team will confirm your pickup. Nothing is charged until your bag is weighed at the branch.</p>
 
                 <ol class="mt-7 space-y-1.5">
@@ -230,7 +230,7 @@
                     @if($freeDeliveryKilos)
                         <li class="flex items-center gap-2">
                             <span data-lucide="truck" class="h-4 w-4 shrink-0 text-cc-brown"></span>
-                            Free pickup &amp; delivery from {{ $freeDeliveryKilos }} kg
+                            Pickup &amp; delivery available. Free for orders {{ $freeDeliveryKilos }} kg and above.
                         </li>
                     @endif
                     <li class="flex items-center gap-2">
@@ -278,7 +278,7 @@
                     <h2 class="cc-title text-[1.7rem] sm:text-3xl">Book Your Laundry Pickup</h2>
                     <p class="cc-subtitle mt-1.5">
                         @if($bookingCustomer)
-                            Booking as <span class="font-bold text-cc-brown">{{ $bookingCustomer->name }}</span>. We have filled in what we know.
+                            Booking as <span class="font-bold text-cc-brown">{{ $bookingCustomer->name }}</span>. We&rsquo;ve filled in the details we already have.
                         @else
                             Tell us what you need and we&rsquo;ll take care of the rest.
                         @endif
@@ -317,8 +317,8 @@
                         {{-- Below the services, because they go with a wash rather
                              than instead of one. --}}
                         <fieldset class="mt-7">
-                            <legend class="cc-label text-[15px]">2. Detergent &amp; fabric conditioner <span class="font-semibold text-cc-muted">(optional)</span></legend>
-                            <p class="cc-help mt-1">Tagged as add-ons: they go with the load above. Choose how many you&rsquo;d like.</p>
+                            <legend class="cc-label text-[15px]">2. Detergent &amp; Fabric Conditioner — Optional Add-ons</legend>
+                            <p class="cc-help mt-1">Choose your preferred detergent and fabric conditioner for this load.</p>
 
                             <div class="mt-3 space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
                                 @foreach ($addons as $addon)
@@ -450,9 +450,8 @@
 
                     <ul class="cc-soft mt-5 space-y-3 px-4 py-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0 lg:px-5">
                         @foreach (array_filter([
-                            $freeDeliveryKilos ? ['truck', 'Free pickup & delivery', 'For '.$freeDeliveryKilos.' kg and above'] : null,
-                            $minimumKilos ? ['scale', 'Minimum '.$minimumKilos.' kg', 'Per pickup'] : null,
-                            ['wallet', 'Please have payment ready', 'Our rider collects it when they pick up'],
+                            $freeDeliveryKilos ? ['truck', 'Pickup & delivery available', 'Free for orders '.$freeDeliveryKilos.' kg and above'] : null,
+                            ['wallet', 'Please have payment ready', 'Our rider collects it at pickup'],
                             ['time', 'We’ll confirm the exact time', $settings?->sms_enabled ? 'By SMS before the rider heads over' : 'With a call before the rider heads over'],
                         ]) as [$icon, $title, $body])
                             <li class="flex items-center gap-3">
@@ -476,7 +475,7 @@
                                     <span class="cc-icon-tile h-10 w-10"><span data-lucide="{{ $prefKey === 'deliver' ? 'truck' : 'store' }}" class="h-5 w-5"></span></span>
                                     <span>
                                         <span class="block text-sm leading-snug font-bold text-cc-deep">{{ $prefLabel }}</span>
-                                        <span class="mt-0.5 block text-xs text-cc-muted">{{ $prefKey === 'deliver' ? 'Payment will be collected by our rider upon pick up.' : 'Pick it up yourself.' }}</span>
+                                        <span class="mt-0.5 block text-xs text-cc-muted">{{ $prefKey === 'deliver' ? 'Payment will be collected by our rider at pickup.' : 'Pick it up yourself.' }}</span>
                                     </span>
                                 </label>
                             @endforeach
@@ -582,7 +581,7 @@
                         <p class="mt-1.5 font-display text-[2.6rem] leading-none font-bold text-cc-deep" x-text="money(estimate)"></p>
                         <p class="mt-2 flex items-start gap-1.5 text-xs text-cc-muted">
                             <span data-lucide="info" class="mt-px h-3.5 w-3.5 shrink-0"></span>
-                            Final amount will be based on the actual laundry weight.
+                            Final total confirmed after weighing.
                         </p>
                     </div>
 
@@ -619,7 +618,7 @@
                     </button>
                 </div>
 
-                <p class="mt-4 text-center text-xs text-cc-muted lg:text-right">No payment needed to book &middot; Cancel any time before collection</p>
+                <p class="mt-4 text-center text-xs text-cc-muted lg:text-right">No payment needed to book &middot; Cancel before collection</p>
             </div>
         </form>
         @endif
@@ -730,7 +729,16 @@
                     return;
                 }
 
+                const item = this.bookable(key);
+                if (item?.addonGroup === 'fabcon') {
+                    for (const pickedKey of this.picked.filter((pickedKey) => this.bookable(pickedKey)?.addonGroup === 'fabcon')) {
+                        this.qty[pickedKey] = '';
+                    }
+                    this.picked = this.picked.filter((pickedKey) => this.bookable(pickedKey)?.addonGroup !== 'fabcon');
+                }
+
                 this.picked.push(key);
+                if (item?.isAddon) this.qty[key] = '1';
 
                 // Straight into "how much", which is the whole point of ticking it.
                 this.$nextTick(() => {
@@ -805,6 +813,8 @@
                 if (item.unitNoun === 'kg') return amount + ' kg';
                 if (item.unitNoun === 'pc') return amount + (amount === '1' ? ' pair' : ' pairs');
 
+                if (item.isAddon) return amount + (Number(amount) === 1 ? ' load' : ' loads');
+
                 return amount + 'x';
             },
 
@@ -855,7 +865,7 @@
                     return 'Claim at ' + ((this.requiresBranch && this.branchLabel) || 'the branch');
                 }
 
-                let label = 'Free delivery back to you';
+                let label = 'Delivery back to you';
                 if (this.form.delivery_date) label += ' • ' + this.formatDate(this.form.delivery_date);
                 if (this.form.delivery_slot) label += ' • ' + (this.slots[this.form.delivery_slot] || '');
                 return label;

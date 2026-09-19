@@ -181,7 +181,7 @@ class BookingController extends Controller
             $quantity = (float) $item['quantity'];
             $isAddon = $service && in_array($service->id, $addonIds, true);
 
-            // An add-on is counted by the sachet, so a weight minimum on the
+            // An add-on is counted by the load, so a weight minimum on the
             // service it rides along with must not reach it.
             $minimumKilos = ! $isAddon && $service?->minimum_kilos !== null
                 ? (float) $service->minimum_kilos
@@ -198,9 +198,9 @@ class BookingController extends Controller
                 'service_price' => $price,
                 'pricing_type' => $pricingType,
                 'quantity' => $quantity,
-                // An add-on is counted by the sachet even if it were ever
+                // An add-on is counted by the load even if it were ever
                 // priced by weight, so it is never mistaken for laundry.
-                'unit' => $isAddon ? 'qty' : Booking::unitFor($pricingType),
+                'unit' => $isAddon ? 'load' : Booking::unitFor($pricingType),
                 'billable_quantity' => Booking::billableQuantity($pricingType, $quantity, $minimumKilos, $kilosPerLoad),
                 'line_total' => Booking::lineTotal($pricingType, $price, $quantity, $minimumKilos, $kilosPerLoad),
                 'is_addon' => $isAddon,
@@ -372,6 +372,21 @@ class BookingController extends Controller
         if (! $hasService) {
             throw ValidationException::withMessages([
                 'items' => 'Please choose a laundry service. Add-ons like detergent go with a wash.',
+            ]);
+        }
+
+        $conditionerIds = Booking::addons((int) $validated['branch_id'])
+            ->where('report_category', 'fabcon')
+            ->pluck('id');
+        $conditionerCount = collect($validated['items'])->filter(function (array $item) use ($conditionerIds) {
+            $offering = Booking::resolveOffering($item['key']);
+
+            return $offering && $conditionerIds->contains($offering['service']?->id);
+        })->count();
+
+        if ($conditionerCount > 1) {
+            throw ValidationException::withMessages([
+                'items' => 'Please choose one fabric conditioner for this booking.',
             ]);
         }
 

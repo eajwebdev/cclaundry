@@ -45,6 +45,7 @@ class PickupRequestItem extends Model
         return match ($this->unit) {
             'kg' => $amount.' kg',
             'pc' => $amount.' '.($amount === '1' ? 'pair' : 'pairs'),
+            'load' => $amount.' '.($amount === '1' ? 'load' : 'loads'),
             default => $amount.'x',
         };
     }

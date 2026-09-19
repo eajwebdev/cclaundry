@@ -20,6 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->redirectGuestsTo(fn (Request $request) => $request->is('customer/*')
+            ? route('login', ['as' => 'customer'])
+            : route('login'));
+
         $middleware->alias([
             'attendance.employee' => EnsureAttendanceEmployeeAuthenticated::class,
             'billing.access' => EnsureBranchBillingAccess::class,

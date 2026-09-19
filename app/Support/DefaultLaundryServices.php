@@ -13,9 +13,9 @@ class DefaultLaundryServices
     {
         return [
             // Full Service
-            ['name' => 'Regular Laundry',                         'pricing_type' => 'kilo', 'price' => 30,  'minimum_kilos' => 5, 'category' => 'Full Service', 'report_category' => 'wash',    'landing' => ['pinned' => true, 'icon' => 'scale', 'order' => 1, 'blurb' => 'Washed, dried and folded everyday clothes. Minimum order of 5 kg.']],
-            ['name' => 'Blankets, Comforters & Duvets',           'pricing_type' => 'kilo', 'price' => 55,  'minimum_kilos' => 4, 'category' => 'Full Service', 'report_category' => 'special', 'landing' => ['pinned' => true, 'icon' => 'bed-double', 'order' => 2, 'blurb' => 'Bulky and heavy fabrics, cleaned with extra care. Minimum order of 4 kg, maximum 10 kg per load.']],
-            ['name' => 'Bed Sheets and Towels (max 10kg)',        'pricing_type' => 'load', 'price' => 350, 'category' => 'Full Service', 'report_category' => 'special', 'landing' => ['pinned' => true, 'icon' => 'bed-double', 'order' => 3, 'blurb' => 'A full load of linens, up to 10 kg per load.']],
+            ['name' => 'Regular Laundry',                         'pricing_type' => 'kilo', 'price' => 30,  'minimum_kilos' => 5, 'category' => 'Full Service', 'report_category' => 'wash',    'landing' => ['pinned' => true, 'icon' => 'scale', 'order' => 1, 'blurb' => 'Washed, dried, and folded everyday clothing. Minimum 5 kg.']],
+            ['name' => 'Blankets, Comforters & Duvets',           'pricing_type' => 'kilo', 'price' => 55,  'minimum_kilos' => 4, 'category' => 'Full Service', 'report_category' => 'special', 'landing' => ['pinned' => true, 'icon' => 'bed-double', 'order' => 2, 'blurb' => 'Bulky and heavy fabrics cleaned with extra care. Minimum 4 kg; up to 10 kg per load.']],
+            ['name' => 'Bed Sheets and Towels (max 10kg)',        'pricing_type' => 'load', 'price' => 350, 'category' => 'Full Service', 'report_category' => 'special', 'landing' => ['pinned' => true, 'icon' => 'bed-double', 'order' => 3, 'blurb' => 'A full load of sheets and towels, up to 10 kg.']],
             ['name' => 'Wash Only',                               'pricing_type' => 'load', 'price' => 85,  'category' => 'Full Service', 'report_category' => 'wash',    'landing' => ['pinned' => true, 'icon' => 'laundry', 'order' => 4, 'blurb' => 'Washing only, up to 10 kg per load.']],
             ['name' => 'Dry Only',                                'pricing_type' => 'load', 'price' => 95,  'category' => 'Full Service', 'report_category' => 'dry',     'landing' => ['pinned' => true, 'icon' => 'wind', 'order' => 5, 'blurb' => 'Drying only, up to 10 kg per load.']],
 
@@ -27,9 +27,10 @@ class DefaultLaundryServices
             // Pinned so they show on the public price list exactly as the poster
             // does; Booking::services() keeps them out of the bookable list,
             // because nobody books "Ariel" as their laundry service.
-            ['name' => 'Ariel Detergent',            'pricing_type' => 'custom', 'price' => 20, 'category' => 'Add-ons', 'report_category' => 'detergent', 'landing' => ['pinned' => true, 'icon' => 'droplets', 'order' => 8, 'blurb' => 'Per load.']],
-            ['name' => 'Tide Detergent',             'pricing_type' => 'custom', 'price' => 18, 'category' => 'Add-ons', 'report_category' => 'detergent', 'landing' => ['pinned' => true, 'icon' => 'droplets', 'order' => 9, 'blurb' => 'Per load.']],
-            ['name' => 'Downy',                      'pricing_type' => 'custom', 'price' => 10, 'category' => 'Add-ons', 'report_category' => 'fabcon', 'landing' => ['pinned' => true, 'icon' => 'sparkles', 'order' => 10, 'blurb' => 'Per load.']],
+            ['name' => 'Ariel Detergent',            'pricing_type' => 'custom', 'price' => 20, 'price_unit_label' => 'per load', 'category' => 'Add-ons', 'report_category' => 'detergent', 'landing' => ['pinned' => true, 'icon' => 'droplets', 'order' => 8, 'blurb' => 'Optional detergent for your load.']],
+            ['name' => 'Tide Detergent',             'pricing_type' => 'custom', 'price' => 18, 'price_unit_label' => 'per load', 'category' => 'Add-ons', 'report_category' => 'detergent', 'landing' => ['pinned' => true, 'icon' => 'droplets', 'order' => 9, 'blurb' => 'Optional detergent for your load.']],
+            ['name' => 'Downy Mystique',             'pricing_type' => 'custom', 'price' => 10, 'price_unit_label' => 'per load', 'category' => 'Add-ons', 'report_category' => 'fabcon', 'landing' => ['pinned' => true, 'icon' => 'sparkles', 'order' => 10, 'blurb' => 'Optional fabric conditioner for your load.']],
+            ['name' => 'Downy Sunrise',              'pricing_type' => 'custom', 'price' => 10, 'price_unit_label' => 'per load', 'category' => 'Add-ons', 'report_category' => 'fabcon', 'landing' => ['pinned' => true, 'icon' => 'sparkles', 'order' => 11, 'blurb' => 'Optional fabric conditioner for your load.']],
         ];
     }
 

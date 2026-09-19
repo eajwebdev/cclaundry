@@ -36,7 +36,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#F7EFE4">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="description" content="@yield('meta_description', $publicBusinessName . ' - Wash, Dry, Fold, Repeat. Free pick-up and delivery in Kabankalan City.')">
+    <meta name="description" content="@yield('meta_description', $publicBusinessName . ' - Wash, Dry, Fold, Repeat. Pickup and delivery in Kabankalan City.')">
     <title>@yield('page_title', 'Laundry pickup & delivery') &middot; {{ $publicBusinessName }}</title>
     <link rel="icon" href="{{ $appBusinessLogo }}">
     <link rel="apple-touch-icon" href="{{ $appBusinessLogo }}">
@@ -135,7 +135,7 @@
                             </button>
                         </form>
                     @else
-                        <a href="{{ route('customer.login') }}" class="cc-nav-link">Sign in</a>
+                        <a href="{{ route('login', ['as' => 'customer']) }}" class="cc-nav-link">Sign in</a>
                     @endif
 
                     <a href="{{ $landingUrl }}#book" class="cc-btn cc-btn-sm ml-2">
@@ -211,13 +211,12 @@
                         </button>
                     </form>
                 @else
-                    <a href="{{ route('customer.login') }}" class="cc-btn w-full">
+                    <a href="{{ route('login', ['as' => 'customer']) }}" class="cc-btn w-full">
                         <span data-lucide="login" class="h-4.5 w-4.5"></span>
                         Sign in
                     </a>
                     <a href="{{ route('customer.register') }}" class="cc-btn-outline w-full">Create an account</a>
                 @endif
-                <a href="{{ route('login') }}" class="block pt-1 text-center text-xs font-semibold text-cc-muted hover:text-cc-brown">Staff sign in</a>
             </div>
         </div>
     </div>
@@ -293,7 +292,7 @@
                 @if($publicCustomer)
                     <a href="{{ route('customer.bookings.index') }}" class="hover:text-cc-brown">My bookings</a>
                 @else
-                    <a href="{{ route('customer.login') }}" class="hover:text-cc-brown">Sign in</a>
+                    <a href="{{ route('login', ['as' => 'customer']) }}" class="hover:text-cc-brown">Sign in</a>
                 @endif
             </nav>
 
@@ -327,8 +326,6 @@
 
             <p class="mt-6 text-xs text-cc-muted">
                 &copy; {{ now()->year }} {{ $publicBusinessName }}. All rights reserved.
-                &middot;
-                <a href="{{ route('login') }}" class="font-semibold hover:text-cc-brown">Staff sign in</a>
             </p>
         </div>
     </footer>

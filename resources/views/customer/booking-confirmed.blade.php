@@ -41,7 +41,7 @@
         ['store', 'Branch', $pickupRequest->branch?->name ?? '--'],
         ['map-pin', 'Pickup address', $pickupRequest->pickup_address.($pickupRequest->pickup_landmark ? ' (Landmark: '.$pickupRequest->pickup_landmark.')' : '')],
         ['truck', 'Pickup & delivery', $pickupRequest->wantsDelivery()
-            ? 'Free delivery'
+            ? 'Delivery'
                 .($pickupRequest->delivery_date ? ' · '.$pickupRequest->delivery_date->format('M j, Y') : '')
                 .($pickupRequest->deliverySlotLabel() ? ' · '.$pickupRequest->deliverySlotLabel() : '')
             : 'Claim at '.($pickupRequest->branch?->name ?? 'the branch')],

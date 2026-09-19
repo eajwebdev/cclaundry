@@ -118,8 +118,10 @@ class BookingSubmissionTest extends TestCase
         $response = $this->get(route('landing'))->assertOk();
 
         $response->assertSee('What would you like us to clean?', false);
-        $response->assertSee('How many kilos?', false);
-        $response->assertSee('Detergent &amp; fabric conditioner', false);
+        $response->assertSee('Estimated weight', false);
+        $response->assertSee('Detergent &amp; Fabric Conditioner — Optional Add-ons', false);
+        $response->assertSee('Number of loads', false);
+        $response->assertDontSee('fixed price', false);
         $response->assertSee('Add-on', false);
 
         // The one-weight-for-everything question is gone: each chosen service
@@ -309,7 +311,7 @@ class BookingSubmissionTest extends TestCase
 
         $addon = $booking->items->firstWhere('is_addon', true);
         $this->assertSame('Downy Mystique Fabcon', $addon->service_name);
-        $this->assertSame('qty', $addon->unit);
+        $this->assertSame('load', $addon->unit);
 
         // Add-ons sort last, whatever order they were ticked in.
         $this->assertTrue((bool) $booking->items->last()->is_addon);
@@ -342,6 +344,68 @@ class BookingSubmissionTest extends TestCase
         ]))->assertSessionHasErrors('items');
 
         $this->assertSame(0, PickupRequest::query()->count());
+    }
+
+    public function test_a_four_kilo_blanket_and_one_and_a_half_loads_of_conditioner_cost_235(): void
+    {
+        $category = LaundryServiceCategory::query()->create([
+            'name' => Booking::ADDON_CATEGORY,
+            'visibility' => 'all',
+            'is_addon' => true,
+            'sort_order' => 9,
+            'is_active' => true,
+        ]);
+
+        $blankets = LaundryService::query()->create([
+            'branch_id' => $this->branch->id,
+            'name' => 'Blankets, Comforters & Duvets',
+            'pricing_type' => 'kilo',
+            'price' => 55,
+            'minimum_kilos' => 4,
+            'is_active' => true,
+            'show_on_landing' => true,
+        ]);
+        $mystique = LaundryService::query()->create([
+            'branch_id' => $this->branch->id,
+            'service_category_id' => $category->id,
+            'name' => 'Downy Mystique',
+            'pricing_type' => 'custom',
+            'report_category' => 'fabcon',
+            'price' => 10,
+            'price_unit_label' => 'per load',
+            'is_active' => true,
+            'show_on_landing' => true,
+        ]);
+        $sunrise = LaundryService::query()->create([
+            'branch_id' => $this->branch->id,
+            'service_category_id' => $category->id,
+            'name' => 'Downy Sunrise',
+            'pricing_type' => 'custom',
+            'report_category' => 'fabcon',
+            'price' => 10,
+            'price_unit_label' => 'per load',
+            'is_active' => true,
+            'show_on_landing' => true,
+        ]);
+
+        $page = $this->get(route('landing'))->assertOk();
+        $page->assertSee('Downy Mystique')->assertSee('Downy Sunrise');
+        $page->assertSee('Pickup &amp; delivery available. Free for orders', false);
+
+        $this->post(route('booking.store'), $this->payload(['items' => [
+            ['key' => 'service:'.$blankets->id, 'quantity' => 4],
+            ['key' => 'service:'.$mystique->id, 'quantity' => 1.5],
+        ]]))->assertSessionHasNoErrors();
+
+        $booking = PickupRequest::query()->firstOrFail();
+        $this->assertSame('235.00', $booking->estimated_total);
+        $this->assertSame(4.0, $booking->declaredKilos());
+
+        $this->post(route('booking.store'), $this->payload(['items' => [
+            ['key' => 'service:'.$blankets->id, 'quantity' => 4],
+            ['key' => 'service:'.$mystique->id, 'quantity' => 1],
+            ['key' => 'service:'.$sunrise->id, 'quantity' => 1],
+        ]]))->assertSessionHasErrors('items');
     }
 
     /** A load-priced service is asked for in kilos and billed by the load. */

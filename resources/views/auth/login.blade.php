@@ -1,181 +1,93 @@
-<!DOCTYPE html>
-<html lang="en" x-data x-init="$store.theme.init()" class="scroll-smooth" style="--color-primary: {{ $appPrimaryColor }};">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - {{ $appBusinessName }}</title>
-    <link rel="icon" href="{{ $appBusinessLogo }}">
-    <link rel="apple-touch-icon" href="{{ $appBusinessLogo }}">
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-    <script>
-        window.appDarkModeDefault = @js($appDarkModeDefault);
-        window.appPrimaryColor = @js($appPrimaryColor);
-    </script>
-</head>
+@extends('layouts.public')
 
-<body
-    class="min-h-screen overflow-hidden bg-smoke text-dark dark:bg-gray-950 dark:text-gray-100"
-    x-data="{ mx: 0, my: 0 }"
-    x-on:mousemove.window="mx = (($event.clientX / window.innerWidth) - 0.5) * 2; my = (($event.clientY / window.innerHeight) - 0.5) * 2"
-    x-on:mouseleave.window="mx = 0; my = 0"
-    style="--bubble-x: 0; --bubble-y: 0;"
-    x-bind:style="`--bubble-x: ${mx}; --bubble-y: ${my}; --color-primary: ${window.appPrimaryColor || '#2E7D32'};`"
->
-    <div class="laundry-login-bg fixed inset-0 overflow-hidden">
-        <div class="laundry-login-wash absolute inset-0"></div>
-        <div class="laundry-wave laundry-wave-one"></div>
-        <div class="laundry-wave laundry-wave-two"></div>
-        <div class="laundry-wave laundry-wave-three"></div>
+@section('page_title', 'Sign in')
+@section('back_url', route('landing'))
 
-        @foreach([
-            ['x' => 5, 'y' => 14, 's' => 4.8, 'd' => .1, 'p' => 11],
-            ['x' => 9, 'y' => 48, 's' => 2.4, 'd' => 1.1, 'p' => 18],
-            ['x' => 14, 'y' => 76, 's' => 3.1, 'd' => 2.2, 'p' => 9],
-            ['x' => 18, 'y' => 25, 's' => 1.7, 'd' => .6, 'p' => 24],
-            ['x' => 24, 'y' => 62, 's' => 5.6, 'd' => 1.8, 'p' => 13],
-            ['x' => 31, 'y' => 12, 's' => 2.1, 'd' => 2.6, 'p' => 20],
-            ['x' => 38, 'y' => 83, 's' => 1.5, 'd' => .4, 'p' => 28],
-            ['x' => 45, 'y' => 18, 's' => 3.8, 'd' => 1.5, 'p' => 15],
-            ['x' => 51, 'y' => 68, 's' => 2.7, 'd' => 2.9, 'p' => 22],
-            ['x' => 58, 'y' => 9, 's' => 1.4, 'd' => 3.5, 'p' => 30],
-            ['x' => 63, 'y' => 43, 's' => 6.2, 'd' => .8, 'p' => 10],
-            ['x' => 69, 'y' => 78, 's' => 2.2, 'd' => 2.1, 'p' => 25],
-            ['x' => 74, 'y' => 19, 's' => 3.2, 'd' => 1.2, 'p' => 17],
-            ['x' => 80, 'y' => 56, 's' => 1.8, 'd' => 3.1, 'p' => 29],
-            ['x' => 86, 'y' => 11, 's' => 4.2, 'd' => .3, 'p' => 14],
-            ['x' => 91, 'y' => 71, 's' => 5.4, 'd' => 2.7, 'p' => 12],
-            ['x' => 94, 'y' => 35, 's' => 2.5, 'd' => 1.7, 'p' => 26],
-            ['x' => 35, 'y' => 47, 's' => 1.2, 'd' => 3.9, 'p' => 34],
-            ['x' => 72, 'y' => 88, 's' => 1.3, 'd' => 4.4, 'p' => 32],
-            ['x' => 22, 'y' => 88, 's' => 1.1, 'd' => 3.4, 'p' => 36],
-        ] as $bubble)
-            <div
-                class="laundry-bubble"
-                style="left: {{ $bubble['x'] }}%; top: {{ $bubble['y'] }}%; width: {{ $bubble['s'] }}rem; height: {{ $bubble['s'] }}rem; --delay: {{ $bubble['d'] }}s; --parallax: {{ $bubble['p'] }}px;"
-            ></div>
-        @endforeach
-    </div>
+@section('content')
+<section class="px-4 pt-8 sm:pt-14">
+    <div class="mx-auto w-full max-w-md">
+        <div class="text-center">
+            <x-brand-mark class="mx-auto h-20 w-20" />
+            <h1 class="cc-title mt-5">Welcome back</h1>
+            <p class="cc-subtitle mt-1.5">Sign in to your {{ $appBusinessName ?: config('app.name') }} account.</p>
+        </div>
 
-    <main class="relative z-10 flex min-h-screen items-center justify-center px-4 py-8">
-        <div
-            x-data="{ showPassword: false, loading: false, remember: false }"
-            class="w-full max-w-md rounded-lg border border-white/70 bg-white/90 p-6 shadow-2xl backdrop-blur-xl dark:border-gray-700/70 dark:bg-gray-900/88"
-        >
-            <div class="mb-6 text-center">
-                <x-brand-mark class="mx-auto mb-4 h-16 w-16 shadow-sm" />
-                <h1 class="text-xl font-semibold tracking-normal">Staff Login</h1>
-                <p class="mt-1 text-sm text-muted">Manage laundry orders, payments, and daily operations in one place.</p>
+        <div class="cc-card mt-6 p-5 sm:p-8"
+             x-data="{ accountType: @js(old('account_type', request()->query('as') === 'customer' ? 'customer' : 'staff')), showPassword: false }">
+            <div class="mb-6 grid grid-cols-2 gap-1 rounded-xl bg-cc-soft p-1" role="tablist" aria-label="Account type">
+                <button type="button" role="tab" @click="accountType = 'customer'"
+                        :aria-selected="accountType === 'customer'"
+                        :class="accountType === 'customer' ? 'bg-cc-surface text-cc-deep shadow-sm' : 'text-cc-muted'"
+                        class="min-h-11 rounded-lg px-3 text-sm font-bold transition">Customer</button>
+                <button type="button" role="tab" @click="accountType = 'staff'"
+                        :aria-selected="accountType === 'staff'"
+                        :class="accountType === 'staff' ? 'bg-cc-surface text-cc-deep shadow-sm' : 'text-cc-muted'"
+                        class="min-h-11 rounded-lg px-3 text-sm font-bold transition">Staff</button>
             </div>
 
-            <form method="POST" action="{{ route('login.submit') }}" class="space-y-4" x-on:submit="loading = true">
+            <form method="POST" action="{{ route('login.submit') }}" class="space-y-4">
                 @csrf
+                <input type="hidden" name="account_type" :value="accountType">
 
                 <div>
-                    <label for="login" class="mb-1.5 block text-sm font-medium">Username or Email</label>
-                    <input
-                        id="login"
-                        name="login"
-                        type="text"
-                        value="{{ old('login') }}"
-                        {{-- iOS capitalises the first letter of a text field by
-                             default, which silently breaks a lowercase username
-                             for a rider signing in on a phone. --}}
-                        autocapitalize="none"
-                        autocorrect="off"
-                        spellcheck="false"
-                        autocomplete="username"
-                        autocomplete="username"
-                        autofocus
-                        required
-                        class="h-10 w-full rounded-md border border-border bg-white px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-gray-700 dark:bg-gray-950"
-                    >
-                    @error('login')
-                        <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
-                    @enderror
+                    <label for="login" class="cc-label" x-text="accountType === 'staff' ? 'Username or email' : 'Mobile number or email'">Mobile number or email</label>
+                    <input id="login" type="text" name="login" required autofocus autocomplete="username"
+                           autocapitalize="none" autocorrect="off" spellcheck="false"
+                           :placeholder="accountType === 'staff' ? 'Username or email' : '09XX XXX XXXX or email'"
+                           value="{{ old('login') }}" class="cc-input mt-1.5">
+                    @error('login') <p class="cc-error">{{ $message }}</p> @enderror
+                    @error('account_type') <p class="cc-error">{{ $message }}</p> @enderror
                 </div>
 
                 <div>
-                    <label for="password" class="mb-1.5 block text-sm font-medium">Password</label>
-                    <div class="relative">
-                        <input
-                            id="password"
-                            name="password"
-                            x-bind:type="showPassword ? 'text' : 'password'"
-                            autocomplete="current-password"
-                            required
-                            class="h-10 w-full rounded-md border border-border bg-white px-3 pr-16 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-gray-700 dark:bg-gray-950"
-                        >
-                        <button
-                            type="button"
-                            x-on:click="showPassword = !showPassword"
-                            class="absolute inset-y-0 right-0 flex items-center gap-1 px-3 text-xs font-medium text-primary"
-                        >
-                            <span x-show="!showPassword" data-lucide="eye" class="h-4 w-4"></span>
-                            <span x-show="showPassword" data-lucide="eyeOff" class="h-4 w-4"></span>
-                            <span x-text="showPassword ? 'Hide' : 'Show'"></span>
+                    <label for="password" class="cc-label">Password</label>
+                    <div class="relative mt-1.5">
+                        <input id="password" name="password" required autocomplete="current-password"
+                               :type="showPassword ? 'text' : 'password'" type="password" class="cc-input pr-12">
+                        <button type="button" @click="showPassword = ! showPassword"
+                                class="absolute top-1/2 right-1 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-cc-muted hover:text-cc-brown"
+                                :aria-label="showPassword ? 'Hide password' : 'Show password'">
+                            <span data-lucide="eye" class="h-4.5 w-4.5" x-show="! showPassword"></span>
+                            <span data-lucide="eyeOff" class="h-4.5 w-4.5" x-show="showPassword" x-cloak></span>
                         </button>
                     </div>
-                    @error('password')
-                        <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
-                    @enderror
+                    @error('password') <p class="cc-error">{{ $message }}</p> @enderror
                 </div>
 
                 @if($branches->count() > 1)
-                    <div>
-                        <label for="branch_id" class="mb-1.5 block text-sm font-medium">
-                            Branch
-                            <span class="font-normal text-muted">(branch staff only)</span>
-                        </label>
-                        <select
-                            id="branch_id"
-                            name="branch_id"
-                            class="h-10 w-full rounded-md border border-border bg-white px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-gray-700 dark:bg-gray-950"
-                        >
+                    <div x-show="accountType === 'staff'" x-cloak>
+                        <label for="branch_id" class="cc-label">Branch <span class="font-normal text-cc-muted">(optional)</span></label>
+                        <select id="branch_id" name="branch_id" class="cc-input mt-1.5">
                             <option value="">Use my assigned branch</option>
                             @foreach($branches as $branch)
                                 <option value="{{ $branch->id }}" @selected((int) old('branch_id') === (int) $branch->id)>{{ $branch->name }}</option>
                             @endforeach
                         </select>
-                        <p class="mt-1.5 text-xs text-muted">Working at another branch today? Pick it here. Admins keep access to all branches.</p>
-                        @error('branch_id')
-                            <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
+                        <p class="cc-help mt-1">Working at another branch today? Choose it here.</p>
+                        @error('branch_id') <p class="cc-error">{{ $message }}</p> @enderror
                     </div>
                 @endif
 
-                <div class="flex items-center justify-between">
-                    <label class="inline-flex cursor-pointer items-center gap-2 text-sm text-muted">
-                        <input type="checkbox" name="remember" value="1" x-model="remember" class="sr-only">
-                        <span class="flex h-5 w-9 items-center rounded-full p-0.5 transition" :class="remember ? 'bg-primary' : 'bg-gray-300'">
-                            <span class="h-4 w-4 rounded-full bg-white transition" :class="remember ? 'translate-x-4' : 'translate-x-0'"></span>
-                        </span>
-                        Remember me
-                    </label>
+                <label class="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-semibold text-cc-ink">
+                    <input type="checkbox" name="remember" value="1" @checked(old('remember')) class="cc-checkbox">
+                    Keep me signed in
+                </label>
 
-                    <button type="button" x-on:click="$store.theme.toggle()" class="text-sm font-medium text-primary">
-                        Theme
-                    </button>
-                </div>
-
-                <button
-                    type="submit"
-                    x-bind:disabled="loading"
-                    class="flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-white shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary/25 disabled:cursor-wait disabled:opacity-80"
-                >
-                    <span x-show="!loading" class="inline-flex items-center gap-2">
-                        <span data-lucide="login" class="h-4 w-4"></span>
-                        Login
-                    </span>
-                    <span x-cloak x-show="loading" class="inline-flex items-center gap-2">
-                        <span data-lucide="loader" class="h-4 w-4 animate-spin"></span>
-                        Signing in...
-                    </span>
+                <button type="submit" class="cc-btn w-full">
+                    <span data-lucide="login" class="h-4.5 w-4.5"></span>
+                    Sign in
                 </button>
             </form>
+
+            <p class="mt-6 border-t border-cc-line pt-5 text-center text-sm text-cc-muted" x-show="accountType === 'customer'">
+                New here?
+                <a href="{{ route('customer.register') }}" class="font-bold text-cc-brown hover:underline">Create an account</a>
+            </p>
         </div>
-    </main>
 
-    @include('partials.alerts')
-</body>
-</html>
-
+        <p class="mt-5 text-center text-xs leading-relaxed text-cc-muted">
+            Booked at the counter before? Use the same mobile number when you create your account to link your laundry history.
+        </p>
+    </div>
+</section>
+@endsection

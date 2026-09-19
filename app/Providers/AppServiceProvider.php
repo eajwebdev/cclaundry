@@ -4,7 +4,6 @@ namespace App\Providers;
 
 use App\Models\SystemSetting;
 use App\Support\PublicUpload;
-use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Auth\Middleware\RedirectIfAuthenticated;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,15 +26,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // The staff system and the customer portal share a browser session but
-        // not a guard, so the stock auth redirects have to be told which side
-        // of the app a visitor belongs on.
-        Authenticate::redirectUsing(function (Request $request) {
-            return $request->is('customer/*') || $request->is('customer')
-                ? route('customer.login')
-                : route('login');
-        });
-
         RedirectIfAuthenticated::redirectUsing(function (Request $request) {
             return Auth::guard('customer')->check() && ! Auth::guard('web')->check()
                 ? route('customer.bookings.index')

@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Branch;
 use App\Models\User;
+use App\Support\BusinessDefaults;
 use App\Support\Menu;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Schema;
@@ -23,8 +24,9 @@ class UserSeeder extends Seeder
                 ['code' => 'MAIN'],
                 [
                     'name' => 'Main Branch',
-                    'address' => 'Main Office',
-                    'contact_number' => null,
+                    'address' => BusinessDefaults::ADDRESS,
+                    'contact_number' => BusinessDefaults::CONTACT_NUMBER,
+                    'machine_count' => BusinessDefaults::MACHINE_COUNT,
                     'is_active' => true,
                 ]
             )->id;

@@ -5,7 +5,7 @@
      *
      * Ticking it reveals its own amount box, because a booking can hold several
      * services at once and each is measured on its own terms — kilos for
-     * anything we weigh, pairs for steaming, a plain count for a sachet.
+     * anything we weigh, pairs for steaming, loads for an add-on.
      *
      * @var array $offering  One entry from App\Support\Booking::offerings()
      * @var bool  $isAddon
@@ -15,12 +15,13 @@
     // Safe for an id attribute: the key itself carries a colon.
     $fieldId = 'qty-'.preg_replace('/[^a-z0-9]+/i', '-', $key);
 
-    $noun = $isAddon ? 'qty' : \App\Support\Booking::unitFor($offering['pricing_type']);
+    $noun = $isAddon ? 'load' : \App\Support\Booking::unitFor($offering['pricing_type']);
 
     [$prompt, $suffix, $step, $placeholder] = match ($noun) {
-        'kg' => ['How many kilos?', 'kg', '0.5', 'e.g. 8'],
+        'kg' => ['Estimated weight', 'kg', '0.5', 'e.g. 8'],
         'pc' => ['How many pairs?', 'pairs', '1', 'e.g. 2'],
-        default => ['How many?', 'qty', '1', 'e.g. 1'],
+        'load' => ['Number of loads', 'loads', '0.5', 'e.g. 1'],
+        default => ['Quantity', 'qty', '1', 'e.g. 1'],
     };
 
     $peso = fn ($amount) => '₱'.number_format((float) $amount, fmod((float) $amount, 1) ? 2 : 0);
@@ -66,7 +67,7 @@
                 <span class="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-xs font-bold text-cc-muted">{{ $suffix }}</span>
             </div>
             <p class="cc-help" x-show="lineTotalFor(@js($key)) > 0" x-cloak>
-                about <span class="font-bold text-cc-deep" x-text="money(lineTotalFor(@js($key)))"></span>
+                Estimated: <span class="font-bold text-cc-deep" x-text="money(lineTotalFor(@js($key)))"></span>
                 {{-- Anything under the minimum is still charged at it, so the
                      figure is explained here rather than queried at the door. --}}
                 <span x-show="belowMinimum(@js($key))" x-cloak

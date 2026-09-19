@@ -17,7 +17,7 @@
             : []),
         ['calendar-days', 'Pickup', $pickupRequest->pickup_date->format('D, M j, Y').' · '.$pickupRequest->pickupSlotLabel()],
         ['truck', 'Return', $pickupRequest->wantsDelivery()
-            ? 'Free delivery'.($pickupRequest->delivery_date ? ' on '.$pickupRequest->delivery_date->format('D, M j, Y') : ', date to be confirmed')
+            ? 'Delivery'.($pickupRequest->delivery_date ? ' on '.$pickupRequest->delivery_date->format('D, M j, Y') : ', date to be confirmed')
             : 'Claim at branch'],
         ['jobOrders', 'Job order', $pickupRequest->jobOrder?->job_order_number ?? 'Not yet created'],
     ];
@@ -87,7 +87,7 @@
 
             <p class="text-center text-sm text-cc-muted lg:text-left">
                 Want to manage this booking?
-                <a href="{{ route('customer.login') }}" class="font-bold text-cc-brown hover:underline">Sign in to your account</a>
+                <a href="{{ route('login', ['as' => 'customer']) }}" class="font-bold text-cc-brown hover:underline">Sign in to your account</a>
             </p>
         </div>
     </div>

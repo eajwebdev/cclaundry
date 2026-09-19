@@ -271,11 +271,11 @@ class SystemSettingsTest extends TestCase
     {
         $this->get(route('login'))
             ->assertOk()
-            ->assertSee('Staff Login')
-            ->assertSee('laundry-bubble')
-            ->assertSee('--bubble-x')
-            ->assertSee('window.appPrimaryColor')
-            ->assertDontSee('particles-js');
+            ->assertSee('Welcome back')
+            ->assertSee('Customer')
+            ->assertSee('Staff')
+            ->assertSee('Mobile number or email')
+            ->assertSee('Create an account');
     }
 
     private function completeSystemSettings(): void

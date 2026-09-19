@@ -65,7 +65,7 @@
             <h2 class="font-display text-2xl font-bold text-cc-deep">Sign up</h2>
             <p class="mt-1 text-sm text-cc-muted">
                 Already have one?
-                <a href="{{ route('customer.login') }}" class="font-bold text-cc-brown hover:underline">Sign in instead</a>
+                <a href="{{ route('login', ['as' => 'customer']) }}" class="font-bold text-cc-brown hover:underline">Sign in instead</a>
             </p>
 
             <form method="POST" action="{{ route('customer.register.submit') }}" class="mt-6 space-y-4" x-data="{ show: false }">
@@ -151,9 +151,6 @@
                 </button>
             </form>
 
-            <p class="mt-5 border-t border-cc-line pt-4 text-center text-xs text-cc-muted">
-                Staff member? <a href="{{ route('login') }}" class="font-bold text-cc-brown hover:underline">Sign in to the laundry system</a>.
-            </p>
         </div>
     </div>
 </section>

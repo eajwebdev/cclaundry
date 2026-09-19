@@ -104,8 +104,8 @@ class BookingOperationsSettingsTest extends TestCase
 
         $this->get(route('landing'))
             ->assertOk()
-            ->assertSee('Minimum 6 kg per pickup')
-            ->assertSee('Free pickup &amp; delivery from 7.5 kg', false)
+            ->assertDontSee('Minimum 6 kg per pickup')
+            ->assertSee('Pickup &amp; delivery available. Free for orders 7.5 kg and above.', false)
             ->assertDontSee('Minimum 5 kg');
 
         $this->settings->update(['booking_minimum_kilos' => null, 'free_delivery_minimum_kilos' => null]);
@@ -113,7 +113,7 @@ class BookingOperationsSettingsTest extends TestCase
         $this->get(route('landing'))
             ->assertOk()
             ->assertDontSee('kg per pickup')
-            ->assertDontSee('Free pickup &amp; delivery from', false);
+            ->assertDontSee('Free for orders', false);
     }
 
     public function test_a_branch_without_its_own_windows_keeps_the_original_five(): void

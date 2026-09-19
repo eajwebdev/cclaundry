@@ -42,7 +42,7 @@
 
         <div class="md:col-span-2">
             <label class="mb-1.5 block text-sm font-medium">Washing Machines</label>
-            <input type="number" min="0" max="100" name="machine_count" value="{{ old('machine_count', $branch->machine_count ?? 0) }}" placeholder="5" class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+            <input type="number" min="0" max="100" name="machine_count" value="{{ old('machine_count', $branch->machine_count ?? \App\Support\BusinessDefaults::MACHINE_COUNT) }}" placeholder="5" class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
             <p class="mt-1 text-xs text-muted">This controls the machine choices shown in Cycle Monitoring.</p>
         </div>
 

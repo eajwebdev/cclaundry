@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\SystemSetting;
-use App\Models\User;
 use App\Support\Booking;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -102,58 +101,6 @@ class AuthController extends Controller
         );
     }
 
-    public function showLogin(Request $request)
-    {
-        return view('customer.login', [
-            'settings' => SystemSetting::current(),
-        ]);
-    }
-
-    public function login(Request $request)
-    {
-        $validated = $request->validate([
-            'login' => ['required', 'string', 'max:150'],
-            'password' => ['required', 'string'],
-        ]);
-
-        $login = trim($validated['login']);
-
-        // Customers sign in with the mobile number they book with, or with an
-        // email if they gave us one.
-        $customer = filter_var($login, FILTER_VALIDATE_EMAIL)
-            ? Customer::query()->whereRaw('LOWER(email) = ?', [mb_strtolower($login)])->first()
-            : Customer::query()->matchingPhone($login)->first();
-
-        if (! $customer || ! $customer->hasPortalAccount() || ! Hash::check($validated['password'], $customer->password)) {
-            // Staff who land on the customer portal by mistake get pointed at
-            // their own sign-in rather than a dead end. We only say so when the
-            // credentials actually check out, so this cannot be used to probe
-            // for valid staff accounts.
-            if ($this->matchesStaffAccount($login, $validated['password'])) {
-                return redirect()
-                    ->route('login')
-                    ->with('info', 'That is a staff account. Please sign in to the laundry system here.');
-            }
-
-            return back()
-                ->withInput($request->only('login'))
-                ->withErrors(['login' => 'We could not match that mobile number/email and password.']);
-        }
-
-        if (! $customer->is_active) {
-            return back()
-                ->withInput($request->only('login'))
-                ->withErrors(['login' => 'This account is on hold. Please contact your branch.']);
-        }
-
-        Auth::guard('customer')->login($customer, $request->boolean('remember'));
-        $request->session()->regenerate();
-
-        $customer->forceFill(['last_login_at' => now()])->save();
-
-        return $this->afterAuthentication($request, $customer, 'Signed in. Good to see you again, '.$customer->name.'.');
-    }
-
     public function logout(Request $request)
     {
         Auth::guard('customer')->logout();
@@ -164,19 +111,6 @@ class AuthController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('landing')->with('success', 'You have been signed out.');
-    }
-
-    /**
-     * Does this identifier and password belong to a staff user? Mirrors the
-     * username-or-email lookup the staff LoginController uses.
-     */
-    private function matchesStaffAccount(string $login, string $password): bool
-    {
-        $field = filter_var($login, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
-
-        $user = User::query()->where($field, $login)->first();
-
-        return $user !== null && Hash::check($password, $user->password);
     }
 
     /**

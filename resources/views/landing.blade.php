@@ -1,6 +1,6 @@
 @extends('layouts.public')
 
-@section('page_title', 'Free pick-up & delivery in Kabankalan City')
+@section('page_title', 'Pickup & delivery in Kabankalan City')
 
 @php
     $businessName = $appBusinessName ?: config('app.name');
@@ -32,7 +32,7 @@
                     <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"></span>
                     <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary"></span>
                 </span>
-                Free pick up and delivery
+                Pickup &amp; delivery available
             </span>
 
             <h1 class="mt-5 font-serif text-[2.4rem] leading-[1.05] font-medium tracking-tight text-primary-deep sm:mt-6 sm:text-6xl lg:text-[4.25rem] dark:text-cane">
@@ -54,7 +54,7 @@
                 <a href="#book"
                    class="group inline-flex h-13 items-center justify-center gap-2.5 rounded-full bg-primary px-7 text-[15px] font-semibold text-white shadow-xl shadow-primary/25 transition hover:bg-primary-deep hover:shadow-2xl hover:shadow-primary/30">
                     <span data-lucide="truck" class="h-4.5 w-4.5"></span>
-                    Book a free pickup
+                    Book a Pickup
                     <span data-lucide="arrow-right" class="h-4 w-4 transition-transform group-hover:translate-x-0.5"></span>
                 </a>
                 <a href="#track"
@@ -76,7 +76,9 @@
                 // The SMS promise only appears when SMS is actually enabled.
                 $heroStats = [
                     ['24h', 'Standard turnaround'],
-                    ['Free', 'Pick up & delivery'],
+                    $settings?->free_delivery_minimum_kilos
+                        ? [rtrim(rtrim(number_format((float) $settings->free_delivery_minimum_kilos, 2), '0'), '.').' kg+', 'Free pickup & delivery']
+                        : ['Doorstep', 'Pickup & delivery'],
                 ];
 
                 if ($settings?->sms_enabled) {
@@ -214,12 +216,6 @@
                 @endforeach
             </div>
 
-            @if(filled($settings?->booking_minimum_kilos))
-                <p class="mt-5 flex items-center justify-center gap-2 text-sm font-semibold text-cc-muted md:justify-start">
-                    <span class="cc-icon-tile h-7 w-7"><span data-lucide="scale" class="h-3.5 w-3.5"></span></span>
-                    Minimum {{ rtrim(rtrim(number_format((float) $settings->booking_minimum_kilos, 2), '0'), '.') }} kg per pickup
-                </p>
-            @endif
         @endif
             </div>
         </div>
@@ -326,7 +322,7 @@
             </p>
             <p class="mt-2.5 text-sm leading-relaxed text-cc-muted">
                 Rooted in {{ $settings?->business_address ?: 'Kabankalan City' }}, we&rsquo;re here to offer dependable
-                laundry care with the convenience of free pick-up and delivery.
+                laundry care with the convenience of pickup and delivery.
             </p>
 
             {{-- Where the name comes from, in the shop's own words. --}}

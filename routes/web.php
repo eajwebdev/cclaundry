@@ -91,8 +91,6 @@ Route::get('/booking/{reference}', [BookingController::class, 'confirmed'])
 Route::middleware('guest:customer')->group(function () {
     Route::get('/customer/register', [CustomerAuthController::class, 'showRegister'])->name('customer.register');
     Route::post('/customer/register', [CustomerAuthController::class, 'register'])->name('customer.register.submit');
-    Route::get('/customer/login', [CustomerAuthController::class, 'showLogin'])->name('customer.login');
-    Route::post('/customer/login', [CustomerAuthController::class, 'login'])->name('customer.login.submit');
 });
 
 Route::middleware('auth:customer')->group(function () {
@@ -133,9 +131,11 @@ Route::get('/uploads/{path}', [PublicUploadController::class, 'show'])
 Route::post('/webhooks/paymongo', [SubscriptionBillingController::class, 'webhook'])
     ->name('webhooks.paymongo');
 
-Route::middleware('guest')->group(function () {
+Route::middleware('guest:web,customer')->group(function () {
     Route::get('/login', [LoginController::class, 'showLogin'])->name('login');
     Route::post('/login', [LoginController::class, 'login'])->name('login.submit');
+    Route::get('/customer/login', fn () => redirect()->route('login', ['as' => 'customer']))->name('customer.login');
+    Route::post('/customer/login', [LoginController::class, 'login'])->name('customer.login.submit');
 });
 
 Route::get('/attendance-login', [LoginController::class, 'showAttendanceLogin'])->name('attendance.login');

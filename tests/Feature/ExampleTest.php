@@ -38,7 +38,7 @@ class ExampleTest extends TestCase
     {
         $this->get('/')->assertOk();
 
-        $this->get('/dashboard')->assertRedirect('/login');
+        $this->get('/dashboard')->assertRedirect(route('login'));
     }
 
     public function test_authenticated_user_can_view_reports_pdf(): void

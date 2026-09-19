@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\BranchSetting;
 use App\Models\SystemSetting;
 use App\Support\Activity;
+use App\Support\BusinessDefaults;
 use App\Support\Booking;
 use App\Support\PublicUpload;
 use App\Support\SmsNotifier;
@@ -37,7 +38,7 @@ class SystemSettingController extends Controller
         if (! $branch) {
             $branch = Branch::firstOrCreate(
                 ['code' => 'MAIN'],
-                ['name' => 'Main Branch', 'is_active' => true]
+                ['name' => 'Main Branch', 'machine_count' => BusinessDefaults::MACHINE_COUNT, 'is_active' => true]
             );
         }
 

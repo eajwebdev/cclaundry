@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\BranchSetting;
 use App\Models\DailyTask;
+use App\Support\BusinessDefaults;
 use App\Support\DefaultInventoryItems;
 use App\Support\DefaultLaundryServices;
 use App\Support\DefaultServiceInventoryUsages;
@@ -50,6 +51,9 @@ class BranchController extends Controller
 
         $validated = $request->validate($this->rules());
         $validated['branch_type'] = $validated['branch_type'] ?? 'full_service';
+        $validated['machine_count'] = $validated['branch_type'] === 'pickup_dropoff'
+            ? 0
+            : ($validated['machine_count'] ?? BusinessDefaults::MACHINE_COUNT);
 
         DB::transaction(function () use ($request, $validated) {
             $branch = Branch::create($validated + ['is_active' => $request->boolean('is_active')]);

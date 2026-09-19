@@ -75,7 +75,7 @@ class Booking
 
     /**
      * The extras: detergent and fabric conditioner, chosen alongside a wash and
-     * counted by the sachet rather than weighed.
+     * counted by the load rather than weighed.
      */
     public static function addons(?int $branchId = null): Collection
     {
@@ -169,11 +169,12 @@ class Booking
             'name' => $service->name,
             'price' => (float) $service->price,
             'pricing_type' => $service->pricing_type,
-            // An add-on is counted by the sachet, so a weight minimum on it
+            'report_category' => $service->report_category,
+            // An add-on is counted by the load, so a weight minimum on it
             // would never apply.
             'minimum_kilos' => null,
-            'unit' => $service->priceUnitLabel(),
-            'unit_short' => $service->priceUnitShort(),
+            'unit' => $service->price_unit_label ?: 'per load',
+            'unit_short' => $service->price_unit_label ? $service->priceUnitShort() : 'load',
             'icon' => $service->landingIcon(),
             'blurb' => $service->landing_blurb,
             'includes' => [],
@@ -203,7 +204,7 @@ class Booking
      * Anything the branch weighs is asked for in kilos — including the
      * load-priced linens, so that every washing line on a booking can be held
      * against the scale at the counter in the same units. Steaming is counted
-     * in pairs and the add-ons by the sachet, where a weight would be nonsense.
+     * in pairs and the add-ons by the load, where a weight would be nonsense.
      */
     public static function unitFor(?string $pricingType): string
     {
