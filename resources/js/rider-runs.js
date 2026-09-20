@@ -12,16 +12,28 @@
 export default function installRiderRuns() {
     window.riderRuns = (config) => ({
         signature: config.signature,
+        activeTab: config.activeTab ?? 'collect',
+        rangeFrom: config.rangeFrom ?? '',
+        rangeTo: config.rangeTo ?? '',
         timer: null,
         loading: false,
         offline: false,
-        newRunMessage: '',
-        availableIds: config.availableIds ?? [],
-        assignedIds: config.assignedIds ?? [],
+        screenReaderMessage: '',
+        seenCollectIds: new Set((config.collectIds ?? []).map(String)),
+        highlightedUntil: new Map(),
+        audio: null,
+        soundBlocked: true,
+        missedChime: false,
 
         start() {
             this.schedule();
             this.$nextTick(() => this.check());
+
+            // Browsers permit sound only after a gesture. The first gesture
+            // prepares the same two-note chime used for admin bookings.
+            const unlock = () => this.unlockSound();
+            window.addEventListener('pointerdown', unlock, { once: true, capture: true });
+            window.addEventListener('keydown', unlock, { once: true, capture: true });
 
             // Coming back to the app is the moment a stale list is most
             // obvious, so check then rather than waiting for the next tick.
@@ -40,12 +52,25 @@ export default function installRiderRuns() {
 
         schedule() {
             this.stop();
-            this.timer = window.setInterval(() => this.check(), config.everyMs ?? 10000);
+            this.timer = window.setInterval(() => this.check(), config.everyMs ?? 5000);
         },
 
         stop() {
             if (this.timer) window.clearInterval(this.timer);
             this.timer = null;
+        },
+
+        selectTab(tab) {
+            this.activeTab = tab;
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', tab);
+            window.history.replaceState(null, '', url);
+        },
+
+        showToday() {
+            const url = new URL(config.indexUrl, window.location.href);
+            url.searchParams.set('tab', this.activeTab);
+            window.location.assign(url);
         },
 
         async check() {
@@ -60,6 +85,10 @@ export default function installRiderRuns() {
             try {
                 const url = new URL(config.feedUrl, window.location.href);
                 url.searchParams.set('signature', this.signature);
+                if (!config.defaultToday && config.rangeFrom && config.rangeTo) {
+                    url.searchParams.set('from', config.rangeFrom);
+                    url.searchParams.set('to', config.rangeTo);
+                }
                 const response = await fetch(url, {
                     cache: 'no-store',
                     headers: { Accept: 'application/json' },
@@ -69,21 +98,28 @@ export default function installRiderRuns() {
                     const body = await response.json();
                     this.offline = false;
 
-                    const availableIds = body.available_ids ?? [];
-                    const assignedIds = body.assigned_ids ?? [];
-                    const newAssigned = assignedIds.some((id) => !this.assignedIds.includes(id));
-                    const newAvailable = availableIds.some((id) => !this.availableIds.includes(id));
-                    this.availableIds = availableIds;
-                    this.assignedIds = assignedIds;
-
-                    if (body.signature !== this.signature) {
-                        this.signature = body.signature;
-                        if (body.html) this.apply(body.html);
+                    // An overnight dashboard still defaults to the new day.
+                    if (config.defaultToday && body.range_from !== config.rangeFrom) {
+                        this.loading = false;
+                        window.location.reload();
+                        return;
                     }
-                    if (newAssigned || newAvailable) {
-                        this.newRunMessage = newAssigned
-                            ? 'A new run was assigned to you. It is in your list below.'
-                            : 'A new pickup is available to claim below.';
+
+                    if (body.signature !== this.signature && body.html) {
+                        const collectIds = body.collect_ids ?? [];
+                        const fresh = collectIds.filter((id) => !this.seenCollectIds.has(String(id)));
+
+                        this.apply(body.html);
+                        this.signature = body.signature;
+                        collectIds.forEach((id) => this.seenCollectIds.add(String(id)));
+
+                        if (fresh.length) {
+                            this.flash(fresh);
+                            this.screenReaderMessage = fresh.length === 1
+                                ? 'New pickup in To collect.'
+                                : `${fresh.length} new pickups in To collect.`;
+                            this.ring(3);
+                        }
                     }
                 } else {
                     this.offline = true;
@@ -102,11 +138,103 @@ export default function installRiderRuns() {
 
             if (!container) return;
 
+            const focusedTab = container.contains(document.activeElement)
+                ? document.activeElement?.dataset.riderTab
+                : null;
             container.innerHTML = html;
+            if (focusedTab) container.querySelector(`[data-rider-tab="${focusedTab}"]`)?.focus();
+            this.paintHighlights();
 
             // Alpine picks up the new nodes through its own observer; the
             // icons are drawn once per page and need asking again.
             this.$nextTick(() => window.renderLucideIcons?.());
+        },
+
+        flash(ids) {
+            const expires = Date.now() + 3000;
+            ids.forEach((id) => this.highlightedUntil.set(String(id), expires));
+            this.paintHighlights();
+            window.setTimeout(() => this.paintHighlights(), 3000);
+        },
+
+        paintHighlights() {
+            const now = Date.now();
+            for (const [id, expires] of this.highlightedUntil) {
+                if (expires <= now) this.highlightedUntil.delete(id);
+            }
+
+            this.$refs.runs?.querySelectorAll('[data-rider-collect-id]').forEach((card) => {
+                const expires = this.highlightedUntil.get(card.dataset.riderCollectId) ?? 0;
+                card.classList.toggle('rider-new-run', expires > now);
+            });
+
+            const summary = this.$refs.runs?.querySelector('[data-rider-collect-summary]');
+            summary?.classList.toggle('rider-new-run', this.highlightedUntil.size > 0);
+        },
+
+        async unlockSound() {
+            try {
+                const Audio = window.AudioContext || window.webkitAudioContext;
+                if (!Audio) throw new Error('Audio unavailable');
+                this.audio ??= new Audio();
+                if (this.audio.state !== 'running') await this.audio.resume();
+                this.soundBlocked = this.audio.state !== 'running';
+
+                if (!this.soundBlocked && this.missedChime) {
+                    this.missedChime = false;
+                    this.playChime(3);
+                }
+
+                return !this.soundBlocked;
+            } catch {
+                this.soundBlocked = true;
+                return false;
+            }
+        },
+
+        async enableSound() {
+            await this.unlockSound();
+        },
+
+        async ring(times) {
+            this.missedChime = false;
+            if (!await this.unlockSound()) {
+                this.missedChime = true;
+                return;
+            }
+
+            this.playChime(times);
+        },
+
+        playChime(times) {
+            if (this.audio?.state !== 'running') return;
+
+            try {
+                const start = this.audio.currentTime + 0.05;
+                for (let i = 0; i < times; i++) {
+                    const at = start + i * 1.1;
+                    this.tone(988, at, 0.45);
+                    this.tone(784, at + 0.32, 0.7);
+                }
+            } catch {
+                this.soundBlocked = true;
+                this.missedChime = true;
+            }
+        },
+
+        tone(frequency, at, length) {
+            const oscillator = this.audio.createOscillator();
+            const gain = this.audio.createGain();
+
+            oscillator.type = 'sine';
+            oscillator.frequency.value = frequency;
+            gain.gain.setValueAtTime(0.0001, at);
+            gain.gain.exponentialRampToValueAtTime(0.5, at + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
+
+            oscillator.connect(gain).connect(this.audio.destination);
+            oscillator.start(at);
+            oscillator.stop(at + length + 0.05);
         },
     });
 }

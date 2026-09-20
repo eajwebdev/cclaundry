@@ -7,7 +7,24 @@
 <div
     x-data="{
         dateRange: @js($dateRangeValue),
+        liveSignature: @js($liveSignature),
+        liveChanged: false,
+        liveChecking: false,
+        liveTimer: null,
         init() {
+            const scrollKey = 'cycle-board-scroll:' + window.location.pathname + window.location.search;
+            try {
+                const saved = sessionStorage.getItem(scrollKey);
+                if (saved !== null) {
+                    sessionStorage.removeItem(scrollKey);
+                    this.$nextTick(() => window.scrollTo(0, Number(saved) || 0));
+                }
+            } catch (_) {}
+            this.liveTimer = window.setInterval(() => this.checkLive(), 15000);
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) this.checkLive();
+            });
+            window.addEventListener('online', () => this.checkLive());
             this.$nextTick(() => {
                 if (!window.flatpickr) return;
                 window.flatpickr(this.$refs.dateRange, {
@@ -18,9 +35,47 @@
                 });
             });
         },
+        destroy() {
+            if (this.liveTimer) window.clearInterval(this.liveTimer);
+        },
+        busyWithBoard() {
+            const active = document.activeElement;
+            return Boolean(document.querySelector('.swal2-container')
+                || this.$el.querySelector('input[type=checkbox]:checked')
+                || (this.$el.contains(active) && active.matches('input, select, textarea')));
+        },
+        refreshBoard() {
+            try {
+                sessionStorage.setItem('cycle-board-scroll:' + window.location.pathname + window.location.search, String(window.scrollY));
+            } catch (_) {}
+            window.location.reload();
+        },
+        async checkLive() {
+            if (this.liveChecking || document.hidden) return;
+            this.liveChecking = true;
+            const url = new URL(window.location.href);
+            url.searchParams.set('live', '1');
+            try {
+                const response = await fetch(url, { cache: 'no-store', headers: { Accept: 'application/json' } });
+                if (!response.ok) return;
+                const data = await response.json();
+                if (data.signature && data.signature !== this.liveSignature) {
+                    if (this.busyWithBoard()) this.liveChanged = true;
+                    else this.refreshBoard();
+                }
+            } catch (_) {
+                // Keep the board visible during a temporary connection loss.
+            } finally {
+                this.liveChecking = false;
+            }
+        },
     }"
     class="space-y-4"
 >
+    <div x-cloak x-show="liveChanged" role="status" class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+        <span>Machine or order information has changed.</span>
+        <button type="button" @click="refreshBoard()" class="rounded-md border border-current px-3 py-1.5 font-semibold">Refresh board</button>
+    </div>
     <div class="flex flex-col gap-3 rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
         <div>
             <div class="mb-2 inline-flex items-center gap-1.5 rounded-md border border-border bg-smoke px-2.5 py-1 text-xs font-medium text-muted dark:border-gray-800 dark:bg-gray-900">

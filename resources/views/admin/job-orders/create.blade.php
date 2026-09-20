@@ -649,10 +649,12 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         tagSearch: @js($tagCode ?? ''),
         tagSuggestions: [],
         tagSuggestionsLoading: false,
+        tagRefreshing: false,
         tagSuggestionsError: '',
         tagSelectionHint: '',
         tagRequestId: 0,
         tagSearchTimer: null,
+        tagPollTimer: null,
         waitingTagCounts: @js($waitingTagCounts ?? []),
         quickCustomerOpen: @js($errors->any() && old('redirect_to') === 'pos'),
         customerOpen: false,
@@ -678,6 +680,14 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
                 this.loadTagSuggestions();
                 this.$nextTick(() => this.$refs.pickupTagInput?.focus());
             }
+            if (!this.isEditing) {
+                this.tagPollTimer = window.setInterval(() => this.pollTags(), 10000);
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) this.pollTags();
+                });
+                window.addEventListener('online', () => this.pollTags());
+                this.pollTags();
+            }
             
             // Watch for branch changes
             this.$watch('branchId', () => {
@@ -687,6 +697,8 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
 
                 if (this.tagModalOpen) {
                     this.loadTagSuggestions();
+                } else {
+                    this.pollTags();
                 }
 
                 this.items = [];
@@ -723,6 +735,29 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
             // Initial icon render
             this.$nextTick(() => this.refreshIcons());
         },
+        destroy() {
+            if (this.tagPollTimer) window.clearInterval(this.tagPollTimer);
+            clearTimeout(this.tagSearchTimer);
+        },
+        async pollTags() {
+            if (this.isEditing || document.hidden || this.tagSuggestionsLoading || this.tagRefreshing || this.tagSearchTimer) return;
+            if (this.tagModalOpen) {
+                await this.loadTagSuggestions(true);
+                return;
+            }
+
+            const branchId = this.branchId;
+            const url = new URL(@js(route('admin.job-orders.pickup-tags')), window.location.origin);
+            url.searchParams.set('branch_id', branchId);
+            try {
+                const response = await fetch(url, { cache: 'no-store', headers: { Accept: 'application/json' } });
+                if (!response.ok) return;
+                const result = await response.json();
+                this.waitingTagCounts[branchId] = result.count ?? 0;
+            } catch (_) {
+                // Keep the last count while the cashier is offline.
+            }
+        },
         openTagModal() {
             this.tagModalOpen = true;
             this.tagSelectionHint = '';
@@ -735,7 +770,10 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
             this.tagSuggestionsLoading = true;
             this.tagSelectionHint = '';
             clearTimeout(this.tagSearchTimer);
-            this.tagSearchTimer = setTimeout(() => this.loadTagSuggestions(), 250);
+            this.tagSearchTimer = setTimeout(() => {
+                this.tagSearchTimer = null;
+                this.loadTagSuggestions();
+            }, 250);
         },
         loadTagSelection() {
             const value = this.tagSearch.trim().toUpperCase();
@@ -761,12 +799,16 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
 
             this.$refs.tagLookupForm.requestSubmit();
         },
-        async loadTagSuggestions() {
+        async loadTagSuggestions(silent = false) {
             clearTimeout(this.tagSearchTimer);
+            this.tagSearchTimer = null;
             const requestId = ++this.tagRequestId;
-            this.tagSuggestions = [];
-            this.tagSuggestionsError = '';
-            this.tagSuggestionsLoading = true;
+            if (!silent) {
+                this.tagSuggestions = [];
+                this.tagSuggestionsError = '';
+            }
+            if (!silent) this.tagSuggestionsLoading = true;
+            if (silent) this.tagRefreshing = true;
 
             const url = new URL(@js(route('admin.job-orders.pickup-tags')), window.location.origin);
             url.searchParams.set('branch_id', this.branchId);
@@ -775,20 +817,22 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
             }
 
             try {
-                const response = await fetch(url, { headers: { Accept: 'application/json' } });
+                const response = await fetch(url, { cache: 'no-store', headers: { Accept: 'application/json' } });
                 if (!response.ok) throw new Error('Could not load waiting tags. Try again.');
                 const result = await response.json();
                 if (requestId !== this.tagRequestId) return;
                 this.tagSuggestions = result.tags || [];
                 this.waitingTagCounts[this.branchId] = result.count || 0;
+                this.tagSuggestionsError = '';
             } catch (error) {
-                if (requestId === this.tagRequestId) {
+                if (requestId === this.tagRequestId && !silent) {
                     this.tagSuggestionsError = error.message;
                 }
             } finally {
                 if (requestId === this.tagRequestId) {
-                    this.tagSuggestionsLoading = false;
+                    if (!silent) this.tagSuggestionsLoading = false;
                 }
+                if (silent) this.tagRefreshing = false;
             }
         },
         get selectedBranch() {

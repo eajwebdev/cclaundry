@@ -431,6 +431,8 @@ class RiderTrackingTest extends TestCase
         $first = $this->actingAs($rider)->getJson(route('rider.runs'))->assertOk();
         $before = $first->json('signature');
         $this->assertContains($assigned->id, $first->json('assigned_ids'));
+        $this->assertContains($assigned->id, $first->json('collect_ids'));
+        $this->assertStringContainsString('no-store', (string) $first->headers->get('Cache-Control'));
 
         // Nothing has happened, so the phone should be told to leave the list be.
         $this->assertSame($before, $this->actingAs($rider)->getJson(route('rider.runs'))->json('signature'));
@@ -445,7 +447,74 @@ class RiderTrackingTest extends TestCase
 
         $this->assertNotSame($before, $after->json('signature'));
         $this->assertStringContainsString($fresh->reference_no, $after->json('html'));
+        $this->assertStringContainsString('To collect', $after->json('html'));
         $this->assertContains($fresh->id, $after->json('available_ids'));
+        $this->assertContains($fresh->id, $after->json('collect_ids'));
+    }
+
+    public function test_the_runs_feed_adds_a_new_assignment_to_the_live_to_collect_list(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $before = $this->actingAs($rider)->getJson(route('rider.runs'))->assertOk()->json('signature');
+
+        $fresh = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+
+        $after = $this->actingAs($rider)
+            ->getJson(route('rider.runs', ['signature' => $before]))
+            ->assertOk();
+
+        $this->assertNotSame($before, $after->json('signature'));
+        $this->assertContains($fresh->id, $after->json('collect_ids'));
+        $this->assertStringContainsString('data-rider-collect-id="'.$fresh->id.'"', $after->json('html'));
+    }
+
+    public function test_the_rider_dashboard_defaults_to_today_without_hiding_undated_deliveries(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $todayPickup = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+        $tomorrowPickup = $this->booking($branch, ['status' => 'pending', 'pickup_date' => today()->addDay()]);
+        $undatedDelivery = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'picked_up', 'delivery_date' => null]);
+        $doneToday = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'completed', 'delivered_at' => now()]);
+        $doneYesterday = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'completed', 'delivered_at' => now()->subDay()]);
+
+        $page = $this->actingAs($rider)->get(route('rider.index'))->assertOk();
+
+        $page->assertViewHas('rangeFrom', today()->toDateString())
+            ->assertViewHas('rangeTo', today()->toDateString())
+            ->assertViewHas('completedCount', 1)
+            ->assertViewHas('trackerJobId', $undatedDelivery->id)
+            ->assertSee($todayPickup->reference_no)
+            ->assertSee($undatedDelivery->reference_no)
+            ->assertSee($doneToday->reference_no)
+            ->assertDontSee($tomorrowPickup->reference_no)
+            ->assertDontSee($doneYesterday->reference_no);
+    }
+
+    public function test_the_date_range_filters_live_pickups_deliveries_and_finished_runs(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $tomorrow = today()->addDay()->toDateString();
+        $pickup = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed', 'pickup_date' => $tomorrow]);
+        $delivery = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'picked_up', 'delivery_date' => $tomorrow]);
+        $finished = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'completed', 'delivered_at' => today()->addDay()->setHour(14)]);
+        $undated = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'picked_up', 'delivery_date' => null]);
+
+        $page = $this->actingAs($rider)->get(route('rider.index', ['from' => $tomorrow, 'to' => $tomorrow, 'tab' => 'done']))->assertOk();
+
+        $page->assertViewHas('selectedTab', 'done')
+            ->assertViewHas('completedCount', 1)
+            ->assertSee($pickup->reference_no)
+            ->assertSee($delivery->reference_no)
+            ->assertSee($finished->reference_no)
+            ->assertDontSee($undated->reference_no);
+
+        $feed = $this->actingAs($rider)->getJson(route('rider.runs', ['from' => $tomorrow, 'to' => $tomorrow]))->assertOk();
+        $this->assertContains($pickup->id, $feed->json('collect_ids'));
+        $this->assertStringContainsString('Done in range', $feed->json('html'));
+        $this->assertSame($tomorrow, $feed->json('range_from'));
     }
 
     public function test_the_runs_feed_refreshes_when_a_delivery_becomes_ready(): void
@@ -739,8 +808,19 @@ class RiderTrackingTest extends TestCase
         $rider = $this->rider($branch);
         $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
 
+        $page = $this->actingAs($rider)
+            ->get(route('rider.jobs.show', $job))
+            ->assertOk()
+            ->assertSee('placeholder="Enter the number on the bag"', false);
+
+        $this->assertMatchesRegularExpression('/<input[^>]*id="tag_code"[^>]*value=""/s', $page->getContent());
+
         $this->actingAs($rider)
             ->patch(route('rider.jobs.status', $job), ['status' => 'picked_up'])
+            ->assertSessionHasErrors('tag_code');
+
+        $this->actingAs($rider)
+            ->patch(route('rider.jobs.status', $job), ['status' => 'picked_up', 'tag_code' => '   '])
             ->assertSessionHasErrors('tag_code');
 
         $this->assertSame('confirmed', $job->refresh()->status);

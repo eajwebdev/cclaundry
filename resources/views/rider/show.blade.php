@@ -257,11 +257,12 @@
                             </p>
 
                             <div>
-                                <label for="tag_code" class="block text-xs font-semibold text-muted">Bag tag # <span class="text-primary">*</span></label>
-                                <input id="tag_code" name="tag_code" required maxlength="24" autocomplete="off"
-                                       value="{{ old('tag_code', $job->tag_code ?: $job->suggestedTagCode()) }}"
+                                <label for="tag_code" class="block text-xs font-semibold text-muted">Bag tag # <span class="text-primary">Required</span></label>
+                                <input id="tag_code" name="tag_code" required maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false"
+                                       placeholder="Enter the number on the bag"
+                                       value="{{ old('tag_code', '') }}"
                                        class="mt-1 h-11 w-full rounded-lg border border-border bg-white px-3 font-mono text-base uppercase dark:border-gray-700 dark:bg-gray-950">
-                                <p class="mt-1 text-[11px] text-muted">Write this on the bag. It follows the laundry through the branch.</p>
+                                <p class="mt-1 text-[11px] text-muted">Write this number on the bag. The cashier will use it to load the booking in POS.</p>
                                 @error('tag_code') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
                             </div>
 
@@ -295,7 +296,10 @@
                                 // so the tag and the amount are visible first.
                                 if (tag && ! sheetOpen) { sheetOpen = true; $nextTick(() => tag.focus()); return; }
 
-                                if (tag && ! tag.value.trim()) { tag.focus(); return; }
+                                if (tag) {
+                                    tag.value = tag.value.trim().toUpperCase();
+                                    if (! tag.reportValidity()) { tag.focus(); return; }
+                                }
 
                                 Swal.fire({
                                     title: @js($isCollected ? 'Mark as delivered?' : 'Mark as collected?'),

@@ -28,6 +28,16 @@ class RiderController extends Controller
     public function index(Request $request)
     {
         $rider = $request->user();
+        $filters = $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'tab' => ['nullable', Rule::in(['collect', 'deliver', 'done'])],
+        ]);
+        $today = today()->toDateString();
+        $rangeFrom = $filters['from'] ?? $filters['to'] ?? $today;
+        $rangeTo = $filters['to'] ?? $rangeFrom;
+        $selectedTab = $filters['tab'] ?? 'collect';
+        $includesToday = $rangeFrom <= $today && $rangeTo >= $today;
 
         // Split by what the rider actually has to do next, because a run
         // collected today and delivered tomorrow is two separate jobs in their
@@ -35,6 +45,8 @@ class RiderController extends Controller
         $toCollect = PickupRequest::query()
             ->where('rider_id', $rider->id)
             ->where('status', 'confirmed')
+            ->whereDate('pickup_date', '>=', $rangeFrom)
+            ->whereDate('pickup_date', '<=', $rangeTo)
             ->with(['items', 'customer:id,name,phone', 'branch:id,name,address'])
             ->orderBy('pickup_date')
             ->orderBy('id')
@@ -43,24 +55,36 @@ class RiderController extends Controller
         $toDeliver = PickupRequest::query()
             ->where('rider_id', $rider->id)
             ->where('status', 'picked_up')
+            ->where(function ($query) use ($rangeFrom, $rangeTo, $includesToday) {
+                $query->whereDate('delivery_date', '>=', $rangeFrom)
+                    ->whereDate('delivery_date', '<=', $rangeTo);
+                if ($includesToday) {
+                    $query->orWhereNull('delivery_date');
+                }
+            })
             ->with(['items', 'customer:id,name,phone', 'branch:id,name,address', 'jobOrder:id,job_order_number,status,updated_at'])
             ->orderByRaw('CASE WHEN delivery_date IS NULL THEN 1 ELSE 0 END')
             ->orderBy('delivery_date')
             ->orderBy('id')
             ->get();
 
-        // Recently finished, so a rider can check back on what they dropped off
-        // yesterday without ringing the branch.
+        // Keep completed and cancelled runs available under the Done tab for
+        // whichever dates the rider is checking.
         $recent = PickupRequest::query()
             ->where('rider_id', $rider->id)
-            ->whereIn('status', ['completed', 'cancelled'])
-            ->where(fn ($query) => $query
-                ->whereDate('delivered_at', '>=', today()->subDays(7))
-                ->orWhereDate('cancelled_at', '>=', today()->subDays(7)))
+            ->where(function ($query) use ($rangeFrom, $rangeTo) {
+                $query->where(fn ($query) => $query
+                    ->where('status', 'completed')
+                    ->whereDate('delivered_at', '>=', $rangeFrom)
+                    ->whereDate('delivered_at', '<=', $rangeTo))
+                    ->orWhere(fn ($query) => $query
+                        ->where('status', 'cancelled')
+                        ->whereDate('cancelled_at', '>=', $rangeFrom)
+                        ->whereDate('cancelled_at', '<=', $rangeTo));
+            })
             ->with(['customer:id,name,phone'])
             ->orderByDesc('delivered_at')
             ->orderByDesc('cancelled_at')
-            ->limit(15)
             ->get();
 
         // Up for grabs: this branch's open bookings with no rider on them.
@@ -69,26 +93,35 @@ class RiderController extends Controller
             ->whereNull('rider_id')
             ->where('branch_id', $rider->branch_id)
             ->whereIn('status', ['pending', 'confirmed'])
+            ->whereDate('pickup_date', '>=', $rangeFrom)
+            ->whereDate('pickup_date', '<=', $rangeTo)
             ->with(['items', 'customer:id,name,phone', 'branch:id,name,address'])
             ->orderByDesc('is_rush')
             ->orderBy('pickup_date')
             ->orderBy('id')
             ->get();
 
-        $completedToday = PickupRequest::query()
+        $trackerJobId = PickupRequest::query()
             ->where('rider_id', $rider->id)
-            ->whereDate('delivered_at', today())
-            ->count();
+            ->whereIn('status', ['confirmed', 'picked_up'])
+            ->orderByRaw("CASE WHEN status = 'picked_up' THEN 0 ELSE 1 END")
+            ->value('id');
 
         $data = [
             'rider' => $rider,
-            // Work in hand is what makes location sharing worth nagging about.
-            'riderHasOpenRuns' => $toCollect->isNotEmpty() || $toDeliver->isNotEmpty(),
+            // Date filters must not stop location sharing for an active run.
+            'riderHasOpenRuns' => $trackerJobId !== null,
+            'trackerJobId' => $trackerJobId,
             'toCollect' => $toCollect,
             'toDeliver' => $toDeliver,
             'recent' => $recent,
             'available' => $available,
-            'completedToday' => $completedToday,
+            'completedCount' => $recent->where('status', 'completed')->count(),
+            'rangeFrom' => $rangeFrom,
+            'rangeTo' => $rangeTo,
+            'selectedTab' => $selectedTab,
+            'today' => $today,
+            'defaultToday' => ! $request->filled('from') && ! $request->filled('to'),
         ];
 
         return view('rider.index', $data + [
@@ -117,8 +150,11 @@ class RiderController extends Controller
             'html' => $unchanged ? null : view('rider.partials.runs', $data)->render(),
             'available_ids' => $data['available']->pluck('id')->values(),
             'assigned_ids' => $data['toCollect']->concat($data['toDeliver'])->pluck('id')->values(),
+            'collect_ids' => $data['available']->concat($data['toCollect'])->pluck('id')->values(),
+            'range_from' => $data['rangeFrom'],
+            'range_to' => $data['rangeTo'],
             'fetched_at' => now()->toIso8601String(),
-        ]);
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     /**
@@ -139,7 +175,7 @@ class RiderController extends Controller
                     $key === 'toDeliver' ? $job->jobOrder?->updated_at?->format('Y-m-d H:i:s.u') : null,
                 ]))
                 ->all())
-            ->push('done:'.$data['completedToday']);
+            ->push('done:'.$data['completedCount']);
 
         return md5($parts->implode('|'));
     }

@@ -82,7 +82,7 @@ class LandingController extends Controller
             'settings' => SystemSetting::current(),
             'pickupRequest' => $requestRecord,
             'trackingPhone' => $validated['phone'],
-            'trackingVersion' => $this->trackingVersion($requestRecord),
+            'trackingVersion' => $requestRecord->trackingVersion(),
         ]);
     }
 
@@ -100,7 +100,7 @@ class LandingController extends Controller
 
         return response()->json([
             'status' => $requestRecord->customerProgressStatus(),
-            'version' => $this->trackingVersion($requestRecord),
+            'version' => $requestRecord->trackingVersion(),
             'checked_at' => now()->toIso8601String(),
         ])->header('Cache-Control', 'no-store');
     }
@@ -118,21 +118,4 @@ class LandingController extends Controller
                 : null;
     }
 
-    private function trackingVersion(PickupRequest $requestRecord): string
-    {
-        $order = $requestRecord->jobOrder;
-
-        return hash('sha256', implode('|', [
-            $requestRecord->customerProgressStatus(),
-            $requestRecord->updated_at?->format('Y-m-d H:i:s.u'),
-            $requestRecord->tag_code,
-            $requestRecord->collected_amount,
-            $order?->updated_at?->format('Y-m-d H:i:s.u'),
-            $order?->job_order_number,
-            $order?->total,
-            $order?->balance,
-            $order?->latestCycle?->updated_at?->format('Y-m-d H:i:s.u'),
-            $order?->latestCycle?->id,
-        ]));
-    }
 }

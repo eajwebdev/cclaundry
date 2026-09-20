@@ -234,7 +234,33 @@ class CycleController extends Controller
                 ->all())
             ->all() : [];
 
+        $liveSignature = hash('sha256', json_encode([
+            $orders->total(),
+            $orders->currentPage(),
+            $orders->getCollection()->map(fn (JobOrder $order) => [
+                $order->id,
+                $order->status,
+                $order->active_cycles_count,
+                $order->cycles_count,
+                $order->cycles->map(fn (CycleRecord $cycle) => [
+                    $cycle->id,
+                    $cycle->cycle_type,
+                    $cycle->machine_number,
+                    $cycle->ended_at,
+                ])->all(),
+            ])->all(),
+            $machineOverviewBranches->map(fn (Branch $branch) => [$branch->id, $branch->machine_count])->all(),
+            $activeMachinesByBranch,
+            $machineActivityByBranch,
+        ]));
+
+        if ($request->boolean('live')) {
+            return response()->json(['signature' => $liveSignature])
+                ->header('Cache-Control', 'no-store');
+        }
+
         return view('admin.cycles.index', [
+            'liveSignature' => $liveSignature,
             'activeMachinesByBranch' => $activeMachinesByBranch,
             'branches' => $branches,
             'canChooseBranch' => $canChooseBranch,

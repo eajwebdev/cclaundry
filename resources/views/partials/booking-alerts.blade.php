@@ -41,7 +41,7 @@
         x-show="open"
         x-transition
         @click.outside="open = false"
-        class="absolute right-0 mt-2 w-80 overflow-hidden rounded-md border border-border bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900"
+        class="fixed inset-x-2 top-16 z-10 overflow-hidden rounded-md border border-border bg-white shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 dark:border-gray-800 dark:bg-gray-900"
     >
         <div class="flex items-center justify-between border-b border-border px-3 py-2 dark:border-gray-800">
             <p class="text-sm font-semibold">Pickup Bookings</p>
@@ -69,15 +69,14 @@
         </label>
     </div>
 
-    {{-- The pop-up: stays until someone looks, and rings again while ignored. --}}
-    <template x-teleport="body">
-        <div
-            x-cloak
-            x-show="unacknowledged.length"
-            x-transition
-            role="alert"
-            class="fixed right-4 bottom-24 z-[80] w-[min(24rem,calc(100vw-2rem))] rounded-lg border-2 border-primary bg-white p-4 shadow-2xl dark:bg-gray-900"
-        >
+    {{-- New bookings appear below the pickup icon until acknowledged. --}}
+    <div
+        x-cloak
+        x-show="unacknowledged.length"
+        x-transition
+        role="alert"
+        class="fixed inset-x-2 top-16 z-20 rounded-lg border-2 border-primary bg-white p-4 shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 dark:bg-gray-900"
+    >
             <div class="flex items-start gap-3">
                 <span class="flex h-10 w-10 shrink-0 animate-pulse items-center justify-center rounded-full bg-primary text-white">
                     <span data-lucide="truck" class="h-5 w-5"></span>
@@ -107,8 +106,7 @@
                     </div>
                 </div>
             </div>
-        </div>
-    </template>
+    </div>
 </div>
 
 @push('scripts')
@@ -192,6 +190,7 @@
                 const newestFirst = [...bookings].reverse();
                 this.recent = [...newestFirst, ...this.recent].slice(0, 20);
                 this.unacknowledged = [...newestFirst, ...this.unacknowledged];
+                this.open = false;
                 document.title = '(' + this.unacknowledged.length + ') New booking · ' + this.baseTitle;
                 this.$nextTick(() => window.renderLucideIcons?.());
 

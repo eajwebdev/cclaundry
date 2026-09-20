@@ -237,7 +237,20 @@ class BookingSubmissionTest extends TestCase
         $this->assertTrue($customer->hasPortalAccount());
 
         // The booking placed as a guest is on the account, not stranded.
-        $this->get(route('customer.bookings.index'))->assertOk()->assertSee($reference);
+        $this->get(route('customer.bookings.index'))
+            ->assertOk()
+            ->assertSee($reference)
+            ->assertSee('Updates automatically');
+
+        $before = $this->getJson(route('customer.bookings.index', ['live' => 1]))
+            ->assertOk()
+            ->assertJsonStructure(['signature'])
+            ->json('signature');
+        PickupRequest::query()->firstOrFail()->update(['status' => 'picked_up']);
+        $after = $this->getJson(route('customer.bookings.index', ['live' => 1]))
+            ->assertOk()
+            ->json('signature');
+        $this->assertNotSame($before, $after);
     }
 
     public function test_a_weight_outside_what_we_can_wash_is_refused(): void
@@ -829,6 +842,11 @@ class BookingSubmissionTest extends TestCase
         $this->post(route('booking.store'), $this->payload())->assertSessionHasNoErrors();
         $booking = PickupRequest::query()->firstOrFail();
         $credentials = ['reference_no' => $booking->reference_no, 'phone' => $booking->contact_phone];
+
+        $this->get(route('booking.confirmed', $booking->reference_no))
+            ->assertOk()
+            ->assertSee('Checking for updates automatically every 15 seconds')
+            ->assertSee($booking->trackingVersion());
 
         $this->post(route('track'), $credentials)
             ->assertOk()

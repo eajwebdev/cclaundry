@@ -24,7 +24,14 @@
         </div>
 
         {{-- Pickup bookings --}}
-        <h2 class="mt-10 font-display text-2xl font-bold text-cc-deep">Pickup Bookings</h2>
+        <div class="mt-10 flex flex-wrap items-end justify-between gap-2">
+            <h2 class="font-display text-2xl font-bold text-cc-deep">Pickup Bookings</h2>
+            <div class="flex items-center gap-2 text-xs text-cc-muted">
+                <span class="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true"></span>
+                <span id="customer-bookings-live-label" role="status">Updates automatically</span>
+                <button id="customer-bookings-check" type="button" class="rounded-full border border-cc-line px-2.5 py-1 font-semibold text-cc-brown hover:bg-cc-surface">Check now</button>
+            </div>
+        </div>
 
         @if($requests->isEmpty())
             <div class="cc-card mt-4 px-6 py-12 text-center">
@@ -134,3 +141,66 @@
     </div>
 </section>
 @endsection
+
+@push('scripts')
+<script>
+(() => {
+    const label = document.getElementById('customer-bookings-live-label');
+    const button = document.getElementById('customer-bookings-check');
+    if (!label || !button) return;
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('live', '1');
+    const scrollKey = 'customer-bookings-scroll:' + window.location.pathname + window.location.search;
+    const version = @js($liveSignature);
+    let timer = null;
+    let checking = false;
+
+    try {
+        const saved = sessionStorage.getItem(scrollKey);
+        if (saved !== null) {
+            sessionStorage.removeItem(scrollKey);
+            window.scrollTo(0, Number(saved) || 0);
+        }
+    } catch (_) {}
+
+    const schedule = () => {
+        clearTimeout(timer);
+        if (!document.hidden) timer = setTimeout(check, 15000);
+    };
+
+    async function check() {
+        if (checking || document.hidden) return;
+        checking = true;
+        button.disabled = true;
+        label.textContent = 'Checking for updates...';
+        try {
+            const response = await fetch(url, { cache: 'no-store', headers: { Accept: 'application/json' } });
+            if (!response.ok) throw new Error('Could not check. Retrying soon.');
+            const data = await response.json();
+            if (data.signature !== version) {
+                try { sessionStorage.setItem(scrollKey, String(window.scrollY)); } catch (_) {}
+                label.textContent = 'New update found. Refreshing...';
+                window.location.reload();
+                return;
+            }
+            label.textContent = 'Up to date · checked just now';
+        } catch (error) {
+            label.textContent = error.message || 'Could not check. Retrying soon.';
+        } finally {
+            checking = false;
+            button.disabled = false;
+            schedule();
+        }
+    }
+
+    button.addEventListener('click', check);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) clearTimeout(timer);
+        else check();
+    });
+    window.addEventListener('online', check);
+    schedule();
+})();
+</script>
+@endpush

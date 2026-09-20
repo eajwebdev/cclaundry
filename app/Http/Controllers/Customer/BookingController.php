@@ -120,19 +120,43 @@ class BookingController extends Controller
     {
         $customer = Auth::guard('customer')->user();
 
+        $requests = PickupRequest::query()
+            ->with(['items', 'branch', 'jobOrder.latestCycle'])
+            ->where('customer_id', $customer->id)
+            ->latest()
+            ->paginate(10);
+        $jobOrders = $customer->jobOrders()
+            ->with(['branch', 'latestCycle'])
+            ->latest()
+            ->limit(10)
+            ->get();
+
+        $liveSignature = hash('sha256', json_encode([
+            $requests->total(),
+            $requests->currentPage(),
+            $requests->getCollection()->map(fn (PickupRequest $booking) => [$booking->id, $booking->trackingVersion()])->all(),
+            $jobOrders->map(fn ($order) => [
+                $order->id,
+                $order->customerProgressStatus(),
+                $order->total,
+                $order->balance,
+                $order->updated_at?->format('Y-m-d H:i:s.u'),
+                $order->latestCycle?->id,
+                $order->latestCycle?->updated_at?->format('Y-m-d H:i:s.u'),
+            ])->all(),
+        ]));
+
+        if ($request->boolean('live')) {
+            return response()->json(['signature' => $liveSignature])
+                ->header('Cache-Control', 'no-store');
+        }
+
         return view('customer.orders', [
             'settings' => SystemSetting::current(),
             'customer' => $customer,
-            'requests' => PickupRequest::query()
-                ->with(['items', 'branch', 'jobOrder.latestCycle'])
-                ->where('customer_id', $customer->id)
-                ->latest()
-                ->paginate(10),
-            'jobOrders' => $customer->jobOrders()
-                ->with(['branch', 'latestCycle'])
-                ->latest()
-                ->limit(10)
-                ->get(),
+            'requests' => $requests,
+            'jobOrders' => $jobOrders,
+            'liveSignature' => $liveSignature,
         ]);
     }
 

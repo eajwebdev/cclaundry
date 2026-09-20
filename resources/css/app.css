@@ -88,6 +88,23 @@ body {
     background: #191310;
 }
 
+/* A newly arrived rider pickup stays highlighted for three seconds. */
+[data-rider-collect-id],
+[data-rider-collect-summary] {
+    transition: background-color 350ms ease, box-shadow 350ms ease;
+}
+
+[data-rider-collect-id].rider-new-run,
+[data-rider-collect-summary].rider-new-run {
+    background-color: #fff1c2;
+    box-shadow: 0 0 0 3px #f59e0b, 0 8px 22px rgb(245 158 11 / 20%);
+}
+
+.dark [data-rider-collect-id].rider-new-run,
+.dark [data-rider-collect-summary].rider-new-run {
+    background-color: #4a2d14;
+}
+
 input,
 select,
 textarea {

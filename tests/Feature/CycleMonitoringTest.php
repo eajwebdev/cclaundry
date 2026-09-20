@@ -22,6 +22,36 @@ class CycleMonitoringTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_live_cycle_signature_changes_when_an_order_moves_stage(): void
+    {
+        $this->completeSystemSettings();
+        $this->activeTrial();
+
+        $branch = $this->createBranch();
+        $customer = $this->createCustomer($branch);
+        $user = User::factory()->create([
+            'role' => 'admin',
+            'branch_id' => $branch->id,
+            'access' => ['cycles'],
+        ]);
+        $order = $this->createJobOrder($branch, $customer);
+
+        $before = $this->actingAs($user)
+            ->getJson(route('admin.cycles.index', ['live' => 1]))
+            ->assertOk()
+            ->assertJsonStructure(['signature'])
+            ->json('signature');
+
+        $order->update(['status' => 'washing']);
+
+        $after = $this->actingAs($user)
+            ->getJson(route('admin.cycles.index', ['live' => 1]))
+            ->assertOk()
+            ->json('signature');
+
+        $this->assertNotSame($before, $after);
+    }
+
     public function test_cycle_monitoring_only_allows_finish_statuses_manually(): void
     {
         $this->completeSystemSettings();

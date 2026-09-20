@@ -72,6 +72,25 @@ class PickupRequest extends Model
             default => $orderStatus,
         };
     }
+
+    public function trackingVersion(): string
+    {
+        $order = $this->jobOrder;
+
+        return hash('sha256', implode('|', [
+            $this->customerProgressStatus(),
+            $this->updated_at?->format('Y-m-d H:i:s.u'),
+            $this->tag_code,
+            $this->collected_amount,
+            $order?->updated_at?->format('Y-m-d H:i:s.u'),
+            $order?->job_order_number,
+            $order?->total,
+            $order?->balance,
+            $order?->latestCycle?->updated_at?->format('Y-m-d H:i:s.u'),
+            $order?->latestCycle?->id,
+        ]));
+    }
+
     public function handler() { return $this->belongsTo(User::class, 'handled_by'); }
     public function rider() { return $this->belongsTo(User::class, 'rider_id'); }
     public function locationPings() { return $this->hasMany(RiderLocationPing::class); }

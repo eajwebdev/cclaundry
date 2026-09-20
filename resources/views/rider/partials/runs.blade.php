@@ -38,34 +38,44 @@
 --}}
 <div class="space-y-3">
 
-    <div class="grid grid-cols-3 gap-2">
-        <div class="rounded-xl border border-border bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-            <p class="text-2xl font-bold text-amber-600">{{ $toCollect->count() }}</p>
+    <div class="grid grid-cols-3 gap-2" role="group" aria-label="Run status filter">
+        <button type="button" data-rider-tab="collect" data-rider-collect-summary @click="selectTab('collect')" :aria-pressed="activeTab === 'collect'"
+                :class="activeTab === 'collect' ? 'border-amber-500 ring-2 ring-amber-200 dark:border-amber-400' : 'border-border dark:border-gray-800'"
+                class="min-w-0 rounded-xl border bg-white p-3 text-left transition hover:shadow-md focus-visible:outline-2 focus-visible:outline-primary dark:bg-gray-900">
+            <p class="text-2xl font-bold text-amber-600">{{ $toCollect->count() + $available->count() }}</p>
             <p class="text-[11px] font-medium uppercase tracking-wide text-muted">To collect</p>
-        </div>
-        <div class="rounded-xl border border-border bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+        </button>
+        <button type="button" data-rider-tab="deliver" @click="selectTab('deliver')" :aria-pressed="activeTab === 'deliver'"
+                :class="activeTab === 'deliver' ? 'border-sky-500 ring-2 ring-sky-200 dark:border-sky-400' : 'border-border dark:border-gray-800'"
+                class="min-w-0 rounded-xl border bg-white p-3 text-left transition hover:shadow-md focus-visible:outline-2 focus-visible:outline-primary dark:bg-gray-900">
             <p class="text-2xl font-bold text-sky-600">{{ $toDeliver->count() }}</p>
             <p class="text-[11px] font-medium uppercase tracking-wide text-muted">To deliver</p>
-        </div>
-        <div class="rounded-xl border border-border bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-            <p class="text-2xl font-bold text-emerald-600">{{ $completedToday }}</p>
-            <p class="text-[11px] font-medium uppercase tracking-wide text-muted">Done today</p>
-        </div>
+        </button>
+        <button type="button" data-rider-tab="done" @click="selectTab('done')" :aria-pressed="activeTab === 'done'"
+                :class="activeTab === 'done' ? 'border-emerald-500 ring-2 ring-emerald-200 dark:border-emerald-400' : 'border-border dark:border-gray-800'"
+                class="min-w-0 rounded-xl border bg-white p-3 text-left transition hover:shadow-md focus-visible:outline-2 focus-visible:outline-primary dark:bg-gray-900">
+            <p class="text-2xl font-bold text-emerald-600">{{ $completedCount }}</p>
+            <p class="text-[11px] font-medium uppercase tracking-wide text-muted">{{ $rangeFrom === $today && $rangeTo === $today ? 'Done today' : 'Done in range' }}</p>
+        </button>
     </div>
 
-    {{-- The whole day on one map, for picking the next stop by looking. --}}
+    {{-- The full map remains available regardless of the dashboard date filter. --}}
     <a href="{{ route('rider.map') }}"
        class="flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-white shadow-sm transition hover:opacity-90">
         <span data-lucide="map" class="h-4.5 w-4.5"></span>
-        See every run on the map
+        See all runs on the map
     </a>
 
     {{-- ══ Up for grabs: confirming one of these assigns it to this rider ══ --}}
     @if($available->isNotEmpty())
-        <div class="pt-1">
+        <div x-show="activeTab === 'collect'" x-cloak class="pt-1">
             <h2 class="flex items-center gap-2 px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-muted">
                 <span data-lucide="hand-helping" class="h-3.5 w-3.5"></span>
-                Available now &middot; {{ $available->count() }}
+                To collect &middot; {{ $available->count() + $toCollect->count() }}
+                <button type="button" x-show="soundBlocked" x-cloak @click="enableSound()"
+                        class="ml-auto rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold normal-case tracking-normal text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                    Enable sound
+                </button>
             </h2>
 
             <div class="space-y-3">
@@ -77,11 +87,12 @@
                         $chip = $whenChip($job->pickup_date);
                         [$chipLabel, $chipClasses] = $chip;
                     @endphp
-                    <article class="overflow-hidden rounded-xl border border-dashed border-primary/40 bg-white shadow-sm dark:bg-gray-900">
+                    <article data-rider-collect-id="{{ $job->id }}" class="overflow-hidden rounded-xl border border-dashed border-primary/40 bg-white shadow-sm dark:bg-gray-900">
                         <div class="flex items-start justify-between gap-3 border-b border-border px-4 py-3 dark:border-gray-800">
                             <div class="min-w-0">
                                 <p class="truncate font-semibold">{{ $job->customer?->name ?? $job->contact_name }}</p>
                                 <p class="truncate font-mono text-xs text-muted">{{ $job->reference_no }}</p>
+                                <p class="mt-0.5 text-xs font-medium text-primary">Available to claim</p>
                             </div>
                             <div class="flex shrink-0 items-center gap-1.5">
                                 @if($job->is_rush)
@@ -159,11 +170,19 @@
             $group = $workGroup['jobs'];
         @endphp
         @if($group->isNotEmpty())
-            <div class="pt-1">
-                <h2 class="flex items-center gap-2 px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                    <span data-lucide="{{ $headingIcon }}" class="h-3.5 w-3.5"></span>
-                    {{ $heading }} &middot; {{ $group->count() }}
-                </h2>
+            <div x-show="activeTab === '{{ $mode }}'" x-cloak class="pt-1">
+                @if($mode !== 'collect' || $available->isEmpty())
+                    <h2 class="flex items-center gap-2 px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                        <span data-lucide="{{ $headingIcon }}" class="h-3.5 w-3.5"></span>
+                        {{ $heading }} &middot; {{ $group->count() }}
+                        @if($mode === 'collect')
+                            <button type="button" x-show="soundBlocked" x-cloak @click="enableSound()"
+                                    class="ml-auto rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold normal-case tracking-normal text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                                Enable sound
+                            </button>
+                        @endif
+                    </h2>
+                @endif
 
                 <div class="space-y-3">
                     @foreach ($group as $job)
@@ -175,7 +194,7 @@
                             [$chipLabel, $chipClasses] = $whenChip($workDate);
                             $address = $isDelivering && $job->delivery_address ? $job->delivery_address : $job->pickup_address;
                         @endphp
-                        <article class="overflow-hidden rounded-xl border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                        <article @if(! $isDelivering) data-rider-collect-id="{{ $job->id }}" @endif class="overflow-hidden rounded-xl border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                             <div class="flex items-start justify-between gap-3 border-b border-border px-4 py-3 dark:border-gray-800">
                                 <div class="min-w-0">
                                     <p class="truncate font-semibold">{{ $job->customer?->name ?? $job->contact_name }}</p>
@@ -261,31 +280,41 @@
         @endif
     @endforeach
 
-    @if($toCollect->isEmpty() && $toDeliver->isEmpty())
-        <div class="rounded-xl border border-dashed border-border py-14 text-center dark:border-gray-800">
+    @if($toCollect->isEmpty() && $available->isEmpty())
+        <div x-show="activeTab === 'collect'" x-cloak class="rounded-xl border border-dashed border-border py-14 text-center dark:border-gray-800">
             <span data-lucide="coffee" class="mx-auto mb-3 block h-8 w-8 text-muted"></span>
-            <p class="text-sm font-medium">You are not holding any runs.</p>
+            <p class="text-sm font-medium">No pickups for these dates.</p>
             <p class="mt-1 text-xs text-muted">
-                {{ $available->isNotEmpty()
-                    ? 'Confirm one of the bookings above to take it.'
-                    : 'New bookings at your branch show up here to confirm.' }}
+                {{ $rangeFrom <= $today && $rangeTo >= $today
+                    ? 'New pickups for these dates will appear automatically.'
+                    : 'Choose another date range to see more pickups.' }}
             </p>
+        </div>
+    @endif
+
+    @if($toDeliver->isEmpty())
+        <div x-show="activeTab === 'deliver'" x-cloak class="rounded-xl border border-dashed border-border py-14 text-center dark:border-gray-800">
+            <span data-lucide="package-check" class="mx-auto mb-3 block h-8 w-8 text-muted"></span>
+            <p class="text-sm font-medium">No deliveries for these dates.</p>
+        </div>
+    @endif
+
+    @if($recent->isEmpty())
+        <div x-show="activeTab === 'done'" x-cloak class="rounded-xl border border-dashed border-border py-14 text-center dark:border-gray-800">
+            <span data-lucide="history" class="mx-auto mb-3 block h-8 w-8 text-muted"></span>
+            <p class="text-sm font-medium">No finished runs for these dates.</p>
         </div>
     @endif
 
     {{-- ══ Finished: the last week, so yesterday's run is still checkable ══ --}}
     @if($recent->isNotEmpty())
-        <div x-data="{ open: false }" class="pt-2">
-            <button type="button" @click="open = !open"
-                    class="flex w-full touch-manipulation items-center justify-between gap-2 rounded-xl border border-border bg-white px-4 py-3 text-left dark:border-gray-800 dark:bg-gray-900">
-                <span class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                    <span data-lucide="history" class="h-3.5 w-3.5"></span>
-                    Finished this week &middot; {{ $recent->count() }}
-                </span>
-                <span data-lucide="chevron-down" class="h-4 w-4 text-muted transition-transform" :class="open && 'rotate-180'"></span>
-            </button>
+        <div x-show="activeTab === 'done'" x-cloak class="pt-2">
+            <h2 class="flex items-center gap-2 px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                <span data-lucide="history" class="h-3.5 w-3.5"></span>
+                Finished in range &middot; {{ $recent->count() }}
+            </h2>
 
-            <ul x-show="open" x-cloak x-transition class="mt-2 space-y-2">
+            <ul class="space-y-2">
                 @foreach ($recent as $job)
                     @php
                         $wasCancelled = $job->status === 'cancelled';

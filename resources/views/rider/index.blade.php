@@ -2,11 +2,6 @@
 
 @section('page_title', 'My runs')
 
-@php
-    // The layout's location tracker pins itself to whatever run is live.
-    $trackerJobId = $toDeliver->first()?->id ?? $toCollect->first()?->id;
-@endphp
-
 @section('content')
 {{--
     The rider's home screen. One job to a card, biggest thing on screen is the
@@ -19,17 +14,42 @@
 <div
     x-data="riderRuns({
             feedUrl: @js(route('rider.runs')),
+            indexUrl: @js(route('rider.index')),
             signature: @js($runsSignature),
-            availableIds: @js($available->pluck('id')->values()),
-            assignedIds: @js($toCollect->pluck('id')->merge($toDeliver->pluck('id'))->values()),
+            collectIds: @js($available->pluck('id')->merge($toCollect->pluck('id'))->values()),
+            activeTab: @js($selectedTab),
+            rangeFrom: @js($rangeFrom),
+            rangeTo: @js($rangeTo),
+            defaultToday: @js($defaultToday),
         })"
     x-init="start()"
 >
-    <div x-show="newRunMessage" x-cloak role="status" class="mb-3 flex items-start justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
-        <span x-text="newRunMessage"></span>
-        <button type="button" @click="newRunMessage = ''" aria-label="Dismiss new run notice" class="shrink-0 rounded p-1 hover:bg-sky-100 dark:hover:bg-sky-900">Dismiss</button>
-    </div>
+    <span class="sr-only" role="status" aria-live="polite" x-text="screenReaderMessage"></span>
     <p x-show="offline" x-cloak role="status" class="mb-3 text-xs text-amber-700">Could not check for new runs. Showing the last list and retrying automatically.</p>
+
+    <form method="GET" action="{{ route('rider.index') }}" class="mb-3 rounded-xl border border-border bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+        <div class="mb-2 flex items-center justify-between gap-2">
+            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Show runs for</p>
+            <button type="button" @click="showToday()" class="text-xs font-semibold text-primary underline underline-offset-2">Today</button>
+        </div>
+        <input type="hidden" name="tab" value="{{ $selectedTab }}" :value="activeTab">
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <label class="min-w-0 text-xs font-medium text-muted">
+                From
+                <input type="date" name="from" required value="{{ $rangeFrom }}" x-model="rangeFrom"
+                       @change="if (rangeFrom && rangeTo && rangeFrom > rangeTo) rangeTo = rangeFrom"
+                       class="mt-1 h-11 w-full min-w-0 rounded-lg border border-border bg-white px-2 text-sm text-dark dark:border-gray-700 dark:bg-gray-950 dark:text-white">
+            </label>
+            <label class="min-w-0 text-xs font-medium text-muted">
+                To
+                <input type="date" name="to" required value="{{ $rangeTo }}" x-model="rangeTo"
+                       @change="if (rangeFrom && rangeTo && rangeTo < rangeFrom) rangeFrom = rangeTo"
+                       class="mt-1 h-11 w-full min-w-0 rounded-lg border border-border bg-white px-2 text-sm text-dark dark:border-gray-700 dark:bg-gray-950 dark:text-white">
+            </label>
+            <button type="submit" class="h-11 rounded-lg bg-primary px-4 text-sm font-semibold text-white">Apply dates</button>
+        </div>
+        <p class="mt-2 text-[11px] leading-4 text-muted">Unscheduled deliveries appear when the range includes Today.</p>
+    </form>
     <div x-ref="runs">
         @include('rider.partials.runs')
     </div>
