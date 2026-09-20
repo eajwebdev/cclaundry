@@ -109,29 +109,38 @@
                             <div class="space-y-4">
                                 @foreach(['dry' => 'Dry Machines', 'wash' => 'Wash Machines'] as $machineType => $machineLabel)
                                     <div>
-                                        <div class="mb-2 flex items-center justify-between gap-2">
-                                            <div class="flex items-center gap-2">
-                                                <span class="h-2.5 w-2.5 rounded-full {{ $machineType === 'wash' ? 'bg-sky-500' : 'bg-violet-500' }}"></span>
-                                                <h4 class="text-sm font-semibold uppercase tracking-[0.14em] text-muted">{{ $machineLabel }}</h4>
-                                            </div>
-                                            <span class="text-xs font-semibold text-emerald-700 dark:text-emerald-300">{{ max(0, $machineTotal - count($branchActiveMachines[$machineType] ?? [])) }}/{{ $machineTotal }} available</span>
+                                        <div class="mb-2 flex items-center gap-2">
+                                            <span class="h-2.5 w-2.5 rounded-full {{ $machineType === 'wash' ? 'bg-sky-500' : 'bg-violet-500' }}"></span>
+                                            <h4 class="text-sm font-semibold uppercase tracking-[0.14em] text-muted">{{ $machineLabel }}</h4>
                                         </div>
-                                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5 2xl:grid-cols-3">
+                                        <div class="overflow-x-auto pb-1" role="region" aria-label="{{ $machineLabel }} at {{ $machineBranch->name }}" tabindex="0">
+                                            <div class="grid gap-2" style="grid-template-columns: repeat({{ $machineTotal }}, minmax(104px, 1fr)); min-width: {{ $machineTotal * 104 + max(0, $machineTotal - 1) * 8 }}px;">
                                             @for($machine = 1; $machine <= $machineTotal; $machine++)
                                                 @php($activeMachine = data_get($branchActiveMachines, $machineType.'.'.$machine))
                                                 @php($isAvailable = ! $activeMachine)
                                                 @php($activityCount = (int) data_get($branchMachineActivity, $machine.'.'.$machineType, 0))
-                                                <div class="min-w-0 rounded-xl border px-3 py-2.5 {{ $isAvailable ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/20' : 'border-red-200 bg-red-50/60 dark:border-red-900 dark:bg-red-950/20' }}">
-                                                    <div class="flex items-center justify-between gap-2">
+                                                <div class="machine-status-card min-w-0 overflow-hidden rounded-xl border border-border bg-gradient-to-b from-white to-slate-50 shadow-sm dark:border-gray-800 dark:from-gray-900 dark:to-gray-950">
+                                                    <div class="flex items-center justify-between px-2.5 py-2">
                                                         <span class="truncate text-sm font-semibold">{{ $machineType === 'wash' ? 'Wash' : 'Dry' }} #{{ $machine }}</span>
-                                                        <span class="h-2.5 w-2.5 shrink-0 rounded-full {{ $isAvailable ? 'bg-emerald-500' : 'machine-status-dot-running bg-red-500' }}"></span>
+                                                        <span class="h-2.5 w-2.5 rounded-full {{ $isAvailable ? 'bg-emerald-500' : 'machine-status-dot-running bg-red-500' }}" title="{{ $isAvailable ? 'Available' : 'In use' }}"></span>
                                                     </div>
-                                                    <p class="mt-1 text-xs font-semibold {{ $isAvailable ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300' }}">{{ $isAvailable ? 'Available' : 'In use' }}</p>
-                                                        <p class="mt-1 text-xs text-muted">{{ $activityCount }} {{ \Illuminate\Support\Str::plural('cycle', $activityCount) }} in range</p>
+                                                    <img
+                                                        src="{{ asset($isAvailable ? 'available.png' : 'unavailable.png') }}"
+                                                        alt="{{ $machineType === 'wash' ? 'Wash' : 'Dry' }} machine #{{ $machine }} {{ $isAvailable ? 'available' : 'unavailable' }}"
+                                                        width="112"
+                                                        height="112"
+                                                        loading="lazy"
+                                                        decoding="async"
+                                                        class="machine-status-image {{ $isAvailable ? 'machine-status-image-ready' : 'machine-status-image-running' }} mx-auto h-20 w-20 rounded-lg object-cover"
+                                                    >
+                                                    <div class="border-t border-border px-1.5 py-1.5 text-center dark:border-gray-800">
+                                                        <p class="text-base font-bold {{ $machineType === 'wash' ? 'text-sky-600' : 'text-violet-600' }}">{{ $activityCount }}</p>
+                                                        <p class="text-[10px] font-semibold uppercase tracking-wide text-muted">{{ $machineType === 'wash' ? 'Washing cycles' : 'Drying cycles' }}</p>
+                                                    </div>
                                                     @if(! $isAvailable)
-                                                        <div class="mt-2 border-t border-red-200 pt-2 text-[11px] dark:border-red-900" title="{{ $activeMachine['job_order_number'] }}">
-                                                            <p class="truncate font-medium">{{ $activeMachine['customer_name'] }}</p>
-                                                            <p class="truncate font-semibold">{{ $activeMachine['job_order_number'] }}</p>
+                                                        <div class="border-t border-border px-2 py-1.5 text-center text-[11px] font-medium text-red-600 dark:border-gray-800" title="{{ $activeMachine['job_order_number'] }}">
+                                                            <p class="truncate">{{ $activeMachine['customer_name'] }}</p>
+                                                            <p class="mt-0.5 truncate font-semibold">{{ $activeMachine['job_order_number'] }}</p>
                                                             @if($activeMachine['is_rush'] || $activeMachine['is_loyal'])
                                                                 <div class="mt-1 flex justify-center gap-1">
                                                                     @if($activeMachine['is_rush'])
@@ -146,6 +155,7 @@
                                                     @endif
                                                 </div>
                                             @endfor
+                                            </div>
                                         </div>
                                     </div>
                                 @endforeach

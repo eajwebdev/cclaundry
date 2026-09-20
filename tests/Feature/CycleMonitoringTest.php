@@ -623,12 +623,12 @@ class CycleMonitoringTest extends TestCase
         ]);
     }
 
-    public function test_machine_overview_shows_compact_availability_and_filtered_daily_activity(): void
+    public function test_machine_overview_keeps_images_and_one_row_per_machine_type(): void
     {
         $this->completeSystemSettings();
         $this->activeTrial();
 
-        $branch = $this->createBranch(['machine_count' => 5]);
+        $branch = $this->createBranch(['machine_count' => 6]);
         $customer = $this->createCustomer($branch);
         $user = User::factory()->create([
             'role' => 'admin',
@@ -680,10 +680,12 @@ class CycleMonitoringTest extends TestCase
             ->assertSee('2xl:grid-cols-[minmax(21rem,0.85fr)_minmax(0,1.4fr)]', false)
             ->assertSee('Wash Machines')
             ->assertSee('Dry Machines')
-            ->assertSee('Wash #5')
-            ->assertSee('Dry #5')
+            ->assertSee('Wash #6')
+            ->assertSee('Dry #6')
             ->assertSee('Job Orders')
-            ->assertSee('md:grid-cols-5 2xl:grid-cols-3', false)
+            ->assertSee('grid-template-columns: repeat(6, minmax(104px, 1fr)); min-width: 664px;', false)
+            ->assertSee('available.png')
+            ->assertSee('unavailable.png')
             ->assertSee('In use')
             ->assertSee($customer->name)
             ->assertSee('JO-MACHINE-MATCH')
@@ -693,16 +695,18 @@ class CycleMonitoringTest extends TestCase
             ->assertSeeInOrder([
                 'Dry Machines',
                 'Dry #1',
-                '1 cycle in range',
+                '>1</p>',
+                'Drying cycles',
                 'Wash Machines',
                 'Wash #1',
-                'In use',
-                '1 cycle in range',
+                'unavailable.png',
+                '>1</p>',
+                'Washing cycles',
             ], false)
             ->assertDontSee('JO-MACHINE-HIDDEN');
 
-        $this->assertSame(5, substr_count($response->getContent(), 'text-sm font-semibold">Wash #'));
-        $this->assertSame(5, substr_count($response->getContent(), 'text-sm font-semibold">Dry #'));
+        $this->assertSame(6, substr_count($response->getContent(), 'text-sm font-semibold">Wash #'));
+        $this->assertSame(6, substr_count($response->getContent(), 'text-sm font-semibold">Dry #'));
     }
 
     public function test_machine_usage_counts_ignore_search_customer_and_status_filters(): void
@@ -752,7 +756,8 @@ class CycleMonitoringTest extends TestCase
             ->assertDontSee('JO-USAGE-HIDDEN')
             ->assertSeeInOrder([
                 'Wash #1',
-                '2 cycles in range',
+                '>2</p>',
+                'Washing cycles',
             ], false)
             ->assertSee('Usage counts by cycle date only');
     }
