@@ -47,7 +47,11 @@ use Illuminate\Support\Str;
 | maintenance or subscription gates apply to a customer booking a pickup.
 */
 Route::get('/', [LandingController::class, 'index'])->name('landing');
+Route::get('/track', fn () => redirect()->to(route('landing').'#track'))->name('track.form');
 Route::post('/track', [LandingController::class, 'track'])->name('track');
+Route::post('/track/status', [LandingController::class, 'trackStatus'])
+    ->middleware('throttle:60,1')
+    ->name('track.status');
 
 /*
 | Map support for the public booking form. The geocoder is proxied rather than

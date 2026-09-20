@@ -623,7 +623,7 @@ class CycleMonitoringTest extends TestCase
         ]);
     }
 
-    public function test_machine_overview_shows_live_image_and_filtered_daily_activity(): void
+    public function test_machine_overview_shows_compact_availability_and_filtered_daily_activity(): void
     {
         $this->completeSystemSettings();
         $this->activeTrial();
@@ -677,14 +677,14 @@ class CycleMonitoringTest extends TestCase
             ->get(route('admin.cycles.index', ['search' => 'JO-MACHINE-MATCH']))
             ->assertOk()
             ->assertSee('Machine overview')
-            ->assertSee('lg:grid-cols-[minmax(28rem,34rem)_minmax(22rem,1fr)]', false)
+            ->assertSee('2xl:grid-cols-[minmax(21rem,0.85fr)_minmax(0,1.4fr)]', false)
             ->assertSee('Wash Machines')
             ->assertSee('Dry Machines')
             ->assertSee('Wash #5')
             ->assertSee('Dry #5')
             ->assertSee('Job Orders')
-            ->assertSee('xl:h-[42rem] xl:overflow-y-auto', false)
-            ->assertSee('unavailable.png')
+            ->assertSee('md:grid-cols-5 2xl:grid-cols-3', false)
+            ->assertSee('In use')
             ->assertSee($customer->name)
             ->assertSee('JO-MACHINE-MATCH')
             ->assertDontSee('Wash - JO-MACHINE-MATCH')
@@ -693,13 +693,11 @@ class CycleMonitoringTest extends TestCase
             ->assertSeeInOrder([
                 'Dry Machines',
                 'Dry #1',
-                '>1</p>',
-                'Drying cycles',
+                '1 cycle in range',
                 'Wash Machines',
                 'Wash #1',
-                'unavailable.png',
-                '>1</p>',
-                'Washing cycles',
+                'In use',
+                '1 cycle in range',
             ], false)
             ->assertDontSee('JO-MACHINE-HIDDEN');
 
@@ -754,8 +752,7 @@ class CycleMonitoringTest extends TestCase
             ->assertDontSee('JO-USAGE-HIDDEN')
             ->assertSeeInOrder([
                 'Wash #1',
-                '>2</p>',
-                'Washing cycles',
+                '2 cycles in range',
             ], false)
             ->assertSee('Usage counts by cycle date only');
     }

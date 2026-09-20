@@ -43,7 +43,7 @@ class RiderController extends Controller
         $toDeliver = PickupRequest::query()
             ->where('rider_id', $rider->id)
             ->where('status', 'picked_up')
-            ->with(['items', 'customer:id,name,phone', 'branch:id,name,address', 'jobOrder:id,job_order_number,status'])
+            ->with(['items', 'customer:id,name,phone', 'branch:id,name,address', 'jobOrder:id,job_order_number,status,updated_at'])
             ->orderByRaw('CASE WHEN delivery_date IS NULL THEN 1 ELSE 0 END')
             ->orderBy('delivery_date')
             ->orderBy('id')
@@ -109,10 +109,14 @@ class RiderController extends Controller
         $rider = $request->user();
         $page = $this->index($request);
         $data = $page->getData();
+        $signature = $data['runsSignature'];
+        $unchanged = hash_equals($signature, (string) $request->query('signature', ''));
 
         return response()->json([
-            'signature' => $data['runsSignature'],
-            'html' => view('rider.partials.runs', $data)->render(),
+            'signature' => $signature,
+            'html' => $unchanged ? null : view('rider.partials.runs', $data)->render(),
+            'available_ids' => $data['available']->pluck('id')->values(),
+            'assigned_ids' => $data['toCollect']->concat($data['toDeliver'])->pluck('id')->values(),
             'fetched_at' => now()->toIso8601String(),
         ]);
     }
@@ -131,6 +135,8 @@ class RiderController extends Controller
                     $job->rider_id,
                     $job->tag_code,
                     $job->updated_at?->getTimestamp(),
+                    $key === 'toDeliver' ? $job->jobOrder?->status : null,
+                    $key === 'toDeliver' ? $job->jobOrder?->updated_at?->format('Y-m-d H:i:s.u') : null,
                 ]))
                 ->all())
             ->push('done:'.$data['completedToday']);

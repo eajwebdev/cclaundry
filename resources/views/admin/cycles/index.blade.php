@@ -28,22 +28,23 @@
                 Operations board
             </div>
             <h1 class="text-xl font-semibold">Cycle Monitoring</h1>
+            <p class="mt-1 text-sm text-muted">Find an order, choose an available machine, and update its laundry stage.</p>
         </div>
 
         {{-- Filters wrap 1 -> 2 -> 3 -> 6 columns so they never overflow a tablet viewport. --}}
         <form method="GET" class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
             <div class="flex h-11 items-center gap-2 rounded-md border border-border bg-white px-3 dark:border-gray-800 dark:bg-gray-950 xl:h-10">
                 <span data-lucide="search" class="h-4 w-4 shrink-0 text-muted"></span>
-                <input name="search" value="{{ request('search') }}" type="search" placeholder="Search job or customer..." class="w-full min-w-0 bg-transparent text-sm outline-none">
+                <input name="search" value="{{ request('search') }}" type="search" aria-label="Search job order or customer" placeholder="Search job or customer..." class="w-full min-w-0 bg-transparent text-sm outline-none">
             </div>
             @if($canChooseBranch)
-                <select name="branch_id" onchange="this.form.customer_id.value = ''; this.form.submit()" class="h-11 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950 xl:h-10">
+                <select name="branch_id" aria-label="Branch" onchange="this.form.customer_id.value = ''; this.form.submit()" class="h-11 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950 xl:h-10">
                     @foreach($branches as $branch)
                         <option value="{{ $branch->id }}" @selected((int) $selectedBranchId === (int) $branch->id)>{{ $branch->name }}</option>
                     @endforeach
                 </select>
             @endif
-            <select name="customer_id" class="h-11 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950 xl:h-10">
+            <select name="customer_id" aria-label="Customer" class="h-11 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950 xl:h-10">
                 <option value="">All customers</option>
                 @if($customers->isEmpty())
                     <option value="" disabled>No customers in selected branch</option>
@@ -59,9 +60,9 @@
             </select>
             <div class="flex h-11 items-center gap-2 rounded-md border border-border bg-white px-3 dark:border-gray-800 dark:bg-gray-950 xl:h-10">
                 <span data-lucide="calendar" class="h-4 w-4 shrink-0 text-muted"></span>
-                <input x-ref="dateRange" x-model="dateRange" name="date_range" type="text" placeholder="Date range" autocomplete="off" class="w-full min-w-0 bg-transparent text-sm outline-none">
+                <input x-ref="dateRange" x-model="dateRange" name="date_range" type="text" aria-label="Date range" placeholder="Date range" autocomplete="off" class="w-full min-w-0 bg-transparent text-sm outline-none">
             </div>
-            <select name="status" class="h-11 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950 xl:h-10">
+            <select name="status" aria-label="Order status" class="h-11 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950 xl:h-10">
                 <option value="">In Progress Status</option>
                 @foreach($statusFilters as $status)
                     <option value="{{ $status }}" @selected(request('status') === $status)>{{ $statusLabels[$status] ?? str_replace('_', ' ', ucfirst($status)) }}</option>
@@ -69,18 +70,18 @@
             </select>
             <button type="submit" aria-label="Filter cycles" class="inline-flex h-11 w-full touch-manipulation items-center justify-center gap-2 rounded-md border border-border text-sm font-medium hover:bg-smoke dark:border-gray-800 dark:hover:bg-gray-950 xl:h-10">
                 <span data-lucide="search" class="h-4 w-4"></span>
-                Filter
+                Apply filters
             </button>
         </form>
     </div>
 
-    <div class="grid items-start gap-4 lg:grid-cols-[minmax(28rem,34rem)_minmax(22rem,1fr)]">
+    <div class="grid min-w-0 items-start gap-4 2xl:grid-cols-[minmax(21rem,0.85fr)_minmax(0,1.4fr)]">
     @if($machineOverviewBranches->isNotEmpty())
-        <section class="rounded-xl border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <section class="order-2 min-w-0 rounded-xl border border-border bg-white p-4 shadow-sm 2xl:order-1 dark:border-gray-800 dark:bg-gray-900">
             <div class="mb-4 flex flex-wrap items-end justify-between gap-2">
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Machine overview</p>
-                    <h2 class="mt-1 text-lg font-semibold">Live availability</h2>
+                    <h2 class="mt-1 text-lg font-semibold">Machine availability</h2>
                 </div>
                 <p class="text-xs text-muted">
                     Usage counts by cycle date only:
@@ -108,37 +109,29 @@
                             <div class="space-y-4">
                                 @foreach(['dry' => 'Dry Machines', 'wash' => 'Wash Machines'] as $machineType => $machineLabel)
                                     <div>
-                                        <div class="mb-2 flex items-center gap-2">
-                                            <span class="h-2.5 w-2.5 rounded-full {{ $machineType === 'wash' ? 'bg-sky-500' : 'bg-violet-500' }}"></span>
-                                            <h4 class="text-sm font-semibold uppercase tracking-[0.14em] text-muted">{{ $machineLabel }}</h4>
+                                        <div class="mb-2 flex items-center justify-between gap-2">
+                                            <div class="flex items-center gap-2">
+                                                <span class="h-2.5 w-2.5 rounded-full {{ $machineType === 'wash' ? 'bg-sky-500' : 'bg-violet-500' }}"></span>
+                                                <h4 class="text-sm font-semibold uppercase tracking-[0.14em] text-muted">{{ $machineLabel }}</h4>
+                                            </div>
+                                            <span class="text-xs font-semibold text-emerald-700 dark:text-emerald-300">{{ max(0, $machineTotal - count($branchActiveMachines[$machineType] ?? [])) }}/{{ $machineTotal }} available</span>
                                         </div>
-                                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4">
+                                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5 2xl:grid-cols-3">
                                             @for($machine = 1; $machine <= $machineTotal; $machine++)
                                                 @php($activeMachine = data_get($branchActiveMachines, $machineType.'.'.$machine))
                                                 @php($isAvailable = ! $activeMachine)
                                                 @php($activityCount = (int) data_get($branchMachineActivity, $machine.'.'.$machineType, 0))
-                                                <div class="machine-status-card min-w-0 overflow-hidden rounded-xl border border-border bg-gradient-to-b from-white to-slate-50 shadow-sm dark:border-gray-800 dark:from-gray-900 dark:to-gray-950">
-                                                    <div class="flex items-center justify-between px-2.5 py-2">
+                                                <div class="min-w-0 rounded-xl border px-3 py-2.5 {{ $isAvailable ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/20' : 'border-red-200 bg-red-50/60 dark:border-red-900 dark:bg-red-950/20' }}">
+                                                    <div class="flex items-center justify-between gap-2">
                                                         <span class="truncate text-sm font-semibold">{{ $machineType === 'wash' ? 'Wash' : 'Dry' }} #{{ $machine }}</span>
-                                                        <span class="h-2.5 w-2.5 rounded-full {{ $isAvailable ? 'bg-emerald-500' : 'machine-status-dot-running bg-red-500' }}" title="{{ $isAvailable ? 'Available' : 'In use' }}"></span>
+                                                        <span class="h-2.5 w-2.5 shrink-0 rounded-full {{ $isAvailable ? 'bg-emerald-500' : 'machine-status-dot-running bg-red-500' }}"></span>
                                                     </div>
-                                                    <img
-                                                        src="{{ asset($isAvailable ? 'available.png' : 'unavailable.png') }}"
-                                                        alt="{{ $machineType === 'wash' ? 'Wash' : 'Dry' }} machine #{{ $machine }} {{ $isAvailable ? 'available' : 'unavailable' }}"
-                                                        width="112"
-                                                        height="112"
-                                                        loading="lazy"
-                                                        decoding="async"
-                                                        class="machine-status-image {{ $isAvailable ? 'machine-status-image-ready' : 'machine-status-image-running' }} mx-auto h-20 w-20 rounded-lg object-cover"
-                                                    >
-                                                    <div class="border-t border-border px-1.5 py-1.5 text-center dark:border-gray-800">
-                                                        <p class="text-base font-bold {{ $machineType === 'wash' ? 'text-sky-600' : 'text-violet-600' }}">{{ $activityCount }}</p>
-                                                        <p class="text-[10px] font-semibold uppercase tracking-wide text-muted">{{ $machineType === 'wash' ? 'Washing cycles' : 'Drying cycles' }}</p>
-                                                    </div>
+                                                    <p class="mt-1 text-xs font-semibold {{ $isAvailable ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300' }}">{{ $isAvailable ? 'Available' : 'In use' }}</p>
+                                                        <p class="mt-1 text-xs text-muted">{{ $activityCount }} {{ \Illuminate\Support\Str::plural('cycle', $activityCount) }} in range</p>
                                                     @if(! $isAvailable)
-                                                        <div class="border-t border-border px-2 py-1.5 text-center text-[11px] font-medium text-red-600 dark:border-gray-800" title="{{ $activeMachine['job_order_number'] }}">
-                                                            <p class="truncate">{{ $activeMachine['customer_name'] }}</p>
-                                                            <p class="mt-0.5 truncate font-semibold">{{ $activeMachine['job_order_number'] }}</p>
+                                                        <div class="mt-2 border-t border-red-200 pt-2 text-[11px] dark:border-red-900" title="{{ $activeMachine['job_order_number'] }}">
+                                                            <p class="truncate font-medium">{{ $activeMachine['customer_name'] }}</p>
+                                                            <p class="truncate font-semibold">{{ $activeMachine['job_order_number'] }}</p>
                                                             @if($activeMachine['is_rush'] || $activeMachine['is_loyal'])
                                                                 <div class="mt-1 flex justify-center gap-1">
                                                                     @if($activeMachine['is_rush'])
@@ -166,7 +159,7 @@
         </section>
     @endif
 
-    <section class="min-w-0 overflow-hidden rounded-xl border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+    <section class="order-1 min-w-0 overflow-hidden rounded-xl border border-border bg-white shadow-sm 2xl:order-2 dark:border-gray-800 dark:bg-gray-900">
         <div class="flex items-center justify-between border-b border-border px-4 py-3 dark:border-gray-800">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Job Orders</p>
@@ -175,8 +168,8 @@
             <span class="rounded-md bg-smoke px-2 py-1 text-xs font-medium text-muted dark:bg-gray-950">{{ $orders->total() }} orders</span>
         </div>
 
-        <div class="p-3 xl:h-[42rem] xl:overflow-y-auto">
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-1">
+        <div class="p-3">
+        <div class="grid grid-cols-1 gap-3">
         @forelse($orders as $order)
             @php($processingBranch = $order->processingBranch ?: $order->branch)
             @php($processingBranchId = $order->processing_branch_id ?: $order->branch_id)
@@ -246,7 +239,7 @@
                 --}}
 
                 @if(! in_array($order->status, ['ready_for_pickup', 'ready_for_delivery', 'completed'], true))
-                    <div class="mb-2 space-y-1">
+                    <div class="mb-3 grid gap-2 lg:grid-cols-2">
                         @foreach(['wash' => $cycleTypes['wash'], 'dry' => $cycleTypes['dry']] as $type => $label)
                             <form method="POST" action="{{ route('admin.cycles.store', $order) }}">
                                 @csrf
@@ -277,7 +270,7 @@
                             <form method="POST" action="{{ route('admin.cycles.store', $order) }}">
                                 @csrf
                                 <input type="hidden" name="cycle_type" value="{{ $type }}">
-                                <button type="submit" title="Start {{ $label }}" class="inline-flex h-11 w-full touch-manipulation items-center justify-center gap-1.5 rounded-md bg-primary px-2 text-xs font-semibold text-white hover:opacity-90">
+                                <button type="submit" title="Start {{ $label }}" class="inline-flex h-11 w-full touch-manipulation items-center justify-center gap-1.5 rounded-md bg-primary px-2 text-sm font-semibold text-white hover:opacity-90">
                                     <span data-lucide="plus" class="h-4 w-4"></span>
                                     {{ $label }}
                                 </button>
@@ -295,7 +288,7 @@
                                     <button
                                         type="button"
                                         x-on:click="Swal.fire({ title: 'Cycle still running', text: @js('This job order still has '.$order->active_cycles_count.' active '.\Illuminate\Support\Str::plural('cycle', $order->active_cycles_count).'. End all cycles before marking it as '.$readyAction['label'].'.'), icon: 'warning', confirmButtonColor: '#dc2626' })"
-                                        class="inline-flex h-11 w-full cursor-not-allowed touch-manipulation items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold text-white opacity-50 {{ $readyAction['classes'] }}"
+                                        class="inline-flex h-11 w-full cursor-not-allowed touch-manipulation items-center justify-center gap-1.5 rounded-md px-2 text-sm font-semibold text-white opacity-50 {{ $readyAction['classes'] }}"
                                         title="End all active cycles first"
                                     >
                                         <span data-lucide="{{ $readyAction['icon'] }}" class="h-4 w-4"></span>
@@ -305,7 +298,7 @@
                                     <button
                                         type="submit"
                                         x-on:click.prevent="Swal.fire({ title: @js($readyAction['label'].'?'), text: 'This will finish production and notify the customer that the laundry is ready.', icon: 'question', showCancelButton: true, confirmButtonColor: @js($readyAction['color']), confirmButtonText: 'Mark as Ready' }).then((result) => { if (result.isConfirmed) $el.closest('form').submit(); })"
-                                        class="inline-flex h-11 w-full touch-manipulation items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold text-white {{ $readyAction['classes'] }}"
+                                        class="inline-flex h-11 w-full touch-manipulation items-center justify-center gap-1.5 rounded-md px-2 text-sm font-semibold text-white {{ $readyAction['classes'] }}"
                                     >
                                         <span data-lucide="{{ $readyAction['icon'] }}" class="h-4 w-4"></span>
                                         {{ $readyAction['label'] }}

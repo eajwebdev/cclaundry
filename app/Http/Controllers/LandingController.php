@@ -70,16 +70,9 @@ class LandingController extends Controller
             'phone' => ['required', 'string', 'max:40'],
         ]);
 
-        $requestRecord = PickupRequest::query()
-            ->with(['items', 'branch', 'jobOrder.latestCycle'])
-            ->where('reference_no', trim($validated['reference_no']))
-            ->first();
+        $requestRecord = $this->trackedRequest($validated, true);
 
-        $phoneMatches = $requestRecord
-            && Customer::normalizePhone($requestRecord->contact_phone)
-                === Customer::normalizePhone($validated['phone']);
-
-        if (! $phoneMatches) {
+        if (! $requestRecord) {
             return back()
                 ->withInput()
                 ->withErrors(['reference_no' => 'We could not find a booking with that reference and mobile number.']);
@@ -88,6 +81,58 @@ class LandingController extends Controller
         return view('tracking', [
             'settings' => SystemSetting::current(),
             'pickupRequest' => $requestRecord,
+            'trackingPhone' => $validated['phone'],
+            'trackingVersion' => $this->trackingVersion($requestRecord),
         ]);
+    }
+
+    public function trackStatus(Request $request)
+    {
+        $validated = $request->validate([
+            'reference_no' => ['required', 'string', 'max:40'],
+            'phone' => ['required', 'string', 'max:40'],
+        ]);
+
+        $requestRecord = $this->trackedRequest($validated);
+        if (! $requestRecord) {
+            return response()->json(['message' => 'Booking not found.'], 404);
+        }
+
+        return response()->json([
+            'status' => $requestRecord->customerProgressStatus(),
+            'version' => $this->trackingVersion($requestRecord),
+            'checked_at' => now()->toIso8601String(),
+        ])->header('Cache-Control', 'no-store');
+    }
+
+    private function trackedRequest(array $validated, bool $withDetails = false): ?PickupRequest
+    {
+        $requestRecord = PickupRequest::query()
+            ->with($withDetails ? ['items', 'branch', 'jobOrder.latestCycle'] : ['jobOrder.latestCycle'])
+            ->where('reference_no', trim($validated['reference_no']))
+            ->first();
+
+        return $requestRecord
+            && Customer::normalizePhone($requestRecord->contact_phone) === Customer::normalizePhone($validated['phone'])
+                ? $requestRecord
+                : null;
+    }
+
+    private function trackingVersion(PickupRequest $requestRecord): string
+    {
+        $order = $requestRecord->jobOrder;
+
+        return hash('sha256', implode('|', [
+            $requestRecord->customerProgressStatus(),
+            $requestRecord->updated_at?->format('Y-m-d H:i:s.u'),
+            $requestRecord->tag_code,
+            $requestRecord->collected_amount,
+            $order?->updated_at?->format('Y-m-d H:i:s.u'),
+            $order?->job_order_number,
+            $order?->total,
+            $order?->balance,
+            $order?->latestCycle?->updated_at?->format('Y-m-d H:i:s.u'),
+            $order?->latestCycle?->id,
+        ]));
     }
 }

@@ -46,6 +46,11 @@
             @endforeach
         </div>
 
+        <div x-show="newRunMessage" x-cloak role="status" class="pointer-events-auto mt-2 flex items-start justify-between gap-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-900 shadow-sm dark:border-sky-900 dark:bg-sky-950/70 dark:text-sky-200">
+            <span x-text="newRunMessage"></span>
+            <button type="button" @click="newRunMessage = ''" aria-label="Dismiss new run notice" class="shrink-0 underline">Dismiss</button>
+        </div>
+
         {{-- Only ever shown when something is actually wrong. --}}
         <p x-show="error" x-cloak
            class="pointer-events-auto mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 shadow-sm dark:bg-amber-500/15 dark:text-amber-300"

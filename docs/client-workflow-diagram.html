@@ -78,36 +78,6 @@
             cursor: pointer;
         }
 
-        .legend {
-            display: grid;
-            grid-template-columns: repeat(5, minmax(130px, 1fr));
-            gap: 10px;
-            margin: 20px 0;
-        }
-
-        .legend-item {
-            border: 1px solid var(--line);
-            border-radius: 10px;
-            padding: 10px;
-            background: var(--soft);
-            font-size: 13px;
-        }
-
-        .dot {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            margin-right: 6px;
-            border-radius: 50%;
-            vertical-align: -1px;
-        }
-
-        .dot.customer { background: var(--customer); }
-        .dot.admin { background: var(--admin); }
-        .dot.driver { background: var(--driver); }
-        .dot.system { background: var(--system); }
-        .dot.danger { background: var(--danger); }
-
         .status-line {
             display: grid;
             grid-template-columns: repeat(8, 1fr);
@@ -279,7 +249,6 @@
         }
 
         @media (max-width: 980px) {
-            .legend,
             .status-line,
             .diagram,
             .handoff-grid,
@@ -324,29 +293,20 @@
                 <h1>Laundry Pickup & Delivery Workflow</h1>
                 <p class="subtitle">
                     Client presentation diagram for the main system users: Customer, Admin/Staff, and Driver/Rider.
-                    The flow covers online booking, pickup, processing, payment, tracking, and final release.
+                    From online booking to rider collection, POS job order, live laundry progress, and final release.
                 </p>
             </div>
-            <button class="print" onclick="window.print()">Print / Save PDF</button>
         </header>
 
-        <section class="legend" aria-label="Legend">
-            <div class="legend-item"><span class="dot customer"></span>Customer action</div>
-            <div class="legend-item"><span class="dot admin"></span>Admin or staff action</div>
-            <div class="legend-item"><span class="dot driver"></span>Driver/Rider action</div>
-            <div class="legend-item"><span class="dot system"></span>System update or alert</div>
-            <div class="legend-item"><span class="dot danger"></span>Exception path</div>
-        </section>
-
         <section class="status-line" aria-label="Status flow">
-            <div class="status">Booking<br><small>pending</small></div>
-            <div class="status">Pickup Confirmed<br><small>confirmed</small></div>
-            <div class="status">Collected<br><small>picked_up</small></div>
-            <div class="status">Job Order<br><small>pending</small></div>
-            <div class="status">Production<br><small>washing / drying / folding</small></div>
+            <div class="status">Booking<br><small>request sent</small></div>
+            <div class="status">Pickup Confirmed<br><small>rider assigned</small></div>
+            <div class="status">Collected<br><small>bag tagged</small></div>
+            <div class="status">POS Job Order<br><small>load by bag tag</small></div>
+            <div class="status">Washing<br><small>customer can track</small></div>
+            <div class="status">Drying &amp; Finishing<br><small>folding / steaming</small></div>
             <div class="status">Ready<br><small>pickup or delivery</small></div>
             <div class="status">Released<br><small>completed</small></div>
-            <div class="status">Cancelled<br><small>exception</small></div>
         </section>
 
         <section class="diagram" aria-label="Main workflow swimlanes">
@@ -370,8 +330,8 @@
                     </article>
                     <article class="card">
                         <span class="step">4</span>
-                        <h3>Track booking status</h3>
-                        <p>Customer checks the booking timeline and, when assigned, sees live rider location for the pickup or delivery leg.</p>
+                        <h3>Track every stage</h3>
+                        <p>Customer sees collection, washing, drying, folding or steaming, and ready status. Rider location appears during active pickup or delivery.</p>
                     </article>
                     <article class="card">
                         <span class="step">5</span>
@@ -401,18 +361,18 @@
                     </article>
                     <article class="card">
                         <span class="step">4</span>
-                        <h3>Create job order</h3>
-                        <p>After the bag reaches the branch, staff converts the pickup request to a job order, verifies weight, prices items, records payment, and prints receipt/tag.</p>
+                        <h3>Load bag in POS</h3>
+                        <p>Cashier taps Load tag # beside Walk-in / Delivery. Search by tag, booking, or customer, or choose from the 9 oldest waiting bags.</p>
                     </article>
                     <article class="card">
                         <span class="step">5</span>
-                        <h3>Process laundry</h3>
-                        <p>Staff updates the job order through washing, drying, folding, then marks it ready for pickup or ready for delivery.</p>
+                        <h3>Create &amp; process job order</h3>
+                        <p>Verify weight, services, price, and payment in the same POS used for walk-ins. Create the job order; track washing, drying, and folding or steaming.</p>
                     </article>
                     <article class="card">
                         <span class="step">6</span>
-                        <h3>Close order</h3>
-                        <p>Admin/staff releases the job order at the counter or the rider delivery marks the order completed automatically when eligible.</p>
+                        <h3>Mark ready &amp; release</h3>
+                        <p>Mark ready for pickup or delivery. Staff releases counter orders; rider completion releases eligible delivery orders.</p>
                     </article>
                 </div>
             </div>
@@ -437,13 +397,13 @@
                     </article>
                     <article class="card">
                         <span class="step">4</span>
-                        <h3>Collect laundry</h3>
-                        <p>Rider enters the bag tag code, records optional cash/GCash/unpaid collection details, and marks the booking as collected.</p>
+                        <h3>Collect &amp; tag bag</h3>
+                        <p>Rider records a bag tag and any payment at collection. A tag already used today, or still on an active bag, cannot be reused.</p>
                     </article>
                     <article class="card">
                         <span class="step">5</span>
                         <h3>Return to branch</h3>
-                        <p>The collected bag is handed to staff for weighing, job order creation, payment reconciliation, and laundry processing.</p>
+                        <p>Rider hands the tagged bag to staff. Its booking joins the POS waiting tag list until a job order is created.</p>
                     </article>
                     <article class="card">
                         <span class="step">6</span>
@@ -467,11 +427,11 @@
                 </div>
                 <div class="handoff-item">
                     <strong>Driver -> Admin</strong>
-                    Driver collects the bag, records tag/payment details, then brings it to the branch.
+                    Rider returns a tagged bag; cashier finds it in POS and creates the job order.
                 </div>
                 <div class="handoff-item">
                     <strong>Admin/Driver -> Customer</strong>
-                    Customer is notified/tracks progress, then receives laundry by delivery or branch pickup.
+                    Customer tracks washing, drying, finishing, and ready status before delivery or branch pickup.
                 </div>
             </div>
         </section>
@@ -484,14 +444,14 @@
                     <li>Admin can cancel a booking or job order when it cannot proceed.</li>
                     <li>Driver can release a run back to the branch list before collection.</li>
                     <li>Driver can cancel from the road with a required reason if pickup fails.</li>
-                    <li>Completed or cancelled records stay visible for reporting and accountability.</li>
+                    <li>Cancelled requests leave the active flow; completed or cancelled records remain available for reporting.</li>
                 </ul>
             </div>
             <div class="panel">
                 <h2>System Records Created</h2>
                 <ul>
                     <li>Customer profile or matched existing customer record.</li>
-                    <li>Pickup request with booking reference and service items.</li>
+                    <li>Pickup request with booking reference, service items, and collection bag tag.</li>
                     <li>Rider assignment and location pings when sharing is active.</li>
                     <li>Job order, job items, payments, customer ledger, and inventory movements.</li>
                     <li>Activity logs and optional SMS notifications for status changes.</li>

@@ -15,9 +15,13 @@ export default function installRiderRuns() {
         timer: null,
         loading: false,
         offline: false,
+        newRunMessage: '',
+        availableIds: config.availableIds ?? [],
+        assignedIds: config.assignedIds ?? [],
 
         start() {
             this.schedule();
+            this.$nextTick(() => this.check());
 
             // Coming back to the app is the moment a stale list is most
             // obvious, so check then rather than waiting for the next tick.
@@ -36,7 +40,7 @@ export default function installRiderRuns() {
 
         schedule() {
             this.stop();
-            this.timer = window.setInterval(() => this.check(), config.everyMs ?? 20000);
+            this.timer = window.setInterval(() => this.check(), config.everyMs ?? 10000);
         },
 
         stop() {
@@ -54,7 +58,10 @@ export default function installRiderRuns() {
             this.loading = true;
 
             try {
-                const response = await fetch(config.feedUrl, {
+                const url = new URL(config.feedUrl, window.location.href);
+                url.searchParams.set('signature', this.signature);
+                const response = await fetch(url, {
+                    cache: 'no-store',
                     headers: { Accept: 'application/json' },
                 });
 
@@ -62,10 +69,24 @@ export default function installRiderRuns() {
                     const body = await response.json();
                     this.offline = false;
 
+                    const availableIds = body.available_ids ?? [];
+                    const assignedIds = body.assigned_ids ?? [];
+                    const newAssigned = assignedIds.some((id) => !this.assignedIds.includes(id));
+                    const newAvailable = availableIds.some((id) => !this.availableIds.includes(id));
+                    this.availableIds = availableIds;
+                    this.assignedIds = assignedIds;
+
                     if (body.signature !== this.signature) {
                         this.signature = body.signature;
-                        this.apply(body.html);
+                        if (body.html) this.apply(body.html);
                     }
+                    if (newAssigned || newAvailable) {
+                        this.newRunMessage = newAssigned
+                            ? 'A new run was assigned to you. It is in your list below.'
+                            : 'A new pickup is available to claim below.';
+                    }
+                } else {
+                    this.offline = true;
                 }
             } catch {
                 // A dead spot is not an error worth shouting about; the list
@@ -85,7 +106,7 @@ export default function installRiderRuns() {
 
             // Alpine picks up the new nodes through its own observer; the
             // icons are drawn once per page and need asking again.
-            window.renderLucideIcons?.();
+            this.$nextTick(() => window.renderLucideIcons?.());
         },
     });
 }

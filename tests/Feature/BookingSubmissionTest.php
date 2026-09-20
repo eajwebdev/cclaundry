@@ -822,6 +822,49 @@ class BookingSubmissionTest extends TestCase
             ->assertSee('Ready for pickup');
     }
 
+    public function test_public_tracking_checks_current_status_without_exposing_another_booking(): void
+    {
+        $this->get(route('track.form'))->assertRedirect(route('landing').'#track');
+
+        $this->post(route('booking.store'), $this->payload())->assertSessionHasNoErrors();
+        $booking = PickupRequest::query()->firstOrFail();
+        $credentials = ['reference_no' => $booking->reference_no, 'phone' => $booking->contact_phone];
+
+        $this->post(route('track'), $credentials)
+            ->assertOk()
+            ->assertSee('Checking for updates automatically every 15 seconds');
+
+        $initial = $this->postJson(route('track.status'), $credentials)
+            ->assertOk()
+            ->assertJsonPath('status', 'pending');
+        $this->postJson(route('track.status'), ['reference_no' => $booking->reference_no, 'phone' => '09000000000'])
+            ->assertNotFound()
+            ->assertDontSee($booking->reference_no);
+
+        $booking->update(['status' => 'picked_up', 'picked_up_at' => now()]);
+        $collected = $this->postJson(route('track.status'), $credentials)
+            ->assertOk()
+            ->assertJsonPath('status', 'picked_up');
+        $this->assertNotSame($initial->json('version'), $collected->json('version'));
+
+        $order = JobOrder::query()->create([
+            'branch_id' => $this->branch->id,
+            'customer_id' => $booking->customer_id,
+            'job_order_number' => 'JO-LIVE-TRACK',
+            'status' => 'washing',
+        ]);
+        $booking->jobOrder()->associate($order)->save();
+        $washing = $this->postJson(route('track.status'), $credentials)
+            ->assertOk()
+            ->assertJsonPath('status', 'washing');
+        $this->assertNotSame($collected->json('version'), $washing->json('version'));
+
+        $order->update(['status' => 'drying']);
+        $this->postJson(route('track.status'), $credentials)
+            ->assertOk()
+            ->assertJsonPath('status', 'drying');
+    }
+
     public function test_the_tag_lookup_only_loads_collected_pickups_from_the_cashiers_branch(): void
     {
         $this->post(route('booking.store'), $this->payload())

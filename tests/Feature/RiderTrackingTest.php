@@ -426,13 +426,18 @@ class RiderTrackingTest extends TestCase
     {
         $branch = $this->branch();
         $rider = $this->rider($branch);
-        $this->booking($branch, ['rider_id' => $rider->id]);
+        $assigned = $this->booking($branch, ['rider_id' => $rider->id]);
 
         $first = $this->actingAs($rider)->getJson(route('rider.runs'))->assertOk();
         $before = $first->json('signature');
+        $this->assertContains($assigned->id, $first->json('assigned_ids'));
 
         // Nothing has happened, so the phone should be told to leave the list be.
         $this->assertSame($before, $this->actingAs($rider)->getJson(route('rider.runs'))->json('signature'));
+        $this->actingAs($rider)
+            ->getJson(route('rider.runs', ['signature' => $before]))
+            ->assertOk()
+            ->assertJsonPath('html', null);
 
         $fresh = $this->booking($branch, ['status' => 'pending']);
 
@@ -440,6 +445,26 @@ class RiderTrackingTest extends TestCase
 
         $this->assertNotSame($before, $after->json('signature'));
         $this->assertStringContainsString($fresh->reference_no, $after->json('html'));
+        $this->assertContains($fresh->id, $after->json('available_ids'));
+    }
+
+    public function test_the_runs_feed_refreshes_when_a_delivery_becomes_ready(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $booking = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'picked_up']);
+        $order = $this->jobOrder($branch, 'washing');
+        $booking->jobOrder()->associate($order)->save();
+
+        $before = $this->actingAs($rider)->getJson(route('rider.runs'))->assertOk()->json('signature');
+
+        $order->update(['status' => 'ready_for_delivery']);
+
+        $after = $this->actingAs($rider)
+            ->getJson(route('rider.runs', ['signature' => $before]))
+            ->assertOk();
+        $this->assertNotSame($before, $after->json('signature'));
+        $this->assertStringContainsString('Ready for delivery', $after->json('html'));
     }
 
     /** Another rider's work must not arrive through the refresh either. */

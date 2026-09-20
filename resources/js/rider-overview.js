@@ -24,6 +24,7 @@ export default function installRiderOverview() {
         failed: false,
         loading: false,
         error: null,
+        newRunMessage: '',
 
         jobs: config.jobs ?? [],
         markers: new Map(),
@@ -46,7 +47,7 @@ export default function installRiderOverview() {
 
             // Keep the board current without the rider pulling to refresh: a
             // run they collect is a pin that should stop asking to be picked up.
-            this.poll = window.setInterval(() => this.refresh(), config.pollMs ?? 60000);
+            this.poll = window.setInterval(() => this.refresh(), config.pollMs ?? 15000);
             document.addEventListener('visibilitychange', () => {
                 if (!document.hidden) this.refresh();
             });
@@ -94,7 +95,7 @@ export default function installRiderOverview() {
         // ── data ──────────────────────────────────────────────────────────
 
         async refresh() {
-            if (this.loading) return;
+            if (this.loading || document.hidden) return;
 
             this.loading = true;
 
@@ -105,7 +106,16 @@ export default function installRiderOverview() {
 
                 if (response.ok) {
                     const body = await response.json();
-                    this.jobs = body.jobs ?? [];
+                    const previousStages = new Map(this.jobs.map((job) => [job.id, job.stage]));
+                    const freshJobs = body.jobs ?? [];
+                    const newlyAssigned = freshJobs.find((job) => ['pickup', 'delivery'].includes(job.stage) && previousStages.get(job.id) !== job.stage);
+                    const newAvailable = freshJobs.find((job) => job.stage === 'available' && !previousStages.has(job.id));
+                    if (newlyAssigned || newAvailable) {
+                        this.newRunMessage = newlyAssigned
+                            ? 'A run is ready for you. Check its pin below.'
+                            : 'A new pickup is available. Check its pin below.';
+                    }
+                    this.jobs = freshJobs;
                     this.error = null;
                     this.drawJobs();
                     this.paintIcons();
