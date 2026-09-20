@@ -769,6 +769,53 @@ class RiderTrackingTest extends TestCase
         $this->assertNull($second->tag_code);
     }
 
+    public function test_a_completed_bags_tag_cannot_be_reused_until_the_next_day(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $first = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+        $second = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.status', $first), ['status' => 'picked_up', 'tag_code' => 'CC-DAILY'])
+            ->assertOk();
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.status', $first), ['status' => 'completed'])
+            ->assertOk();
+
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.status', $second), ['status' => 'picked_up', 'tag_code' => 'cc-daily'])
+            ->assertUnprocessable()
+            ->assertJsonPath('ok', false);
+        $this->assertSame('confirmed', $second->fresh()->status);
+
+        $this->travelTo(now()->addDay());
+
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.status', $second), ['status' => 'picked_up', 'tag_code' => 'cc-daily'])
+            ->assertOk();
+        $this->assertSame('CC-DAILY', $second->fresh()->tag_code);
+        $this->assertSame(now()->toDateString(), $second->fresh()->tag_date->toDateString());
+    }
+
+    public function test_an_active_bag_keeps_its_tag_reserved_on_later_days(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $first = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+        $second = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'confirmed']);
+
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.status', $first), ['status' => 'picked_up', 'tag_code' => 'CC-ACTIVE'])
+            ->assertOk();
+        $this->travelTo(now()->addDay());
+
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.status', $second), ['status' => 'picked_up', 'tag_code' => 'CC-ACTIVE'])
+            ->assertUnprocessable();
+        $this->assertSame('confirmed', $second->fresh()->status);
+    }
+
     public function test_rider_cannot_open_another_riders_job(): void
     {
         $branch = $this->branch();

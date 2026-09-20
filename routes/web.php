@@ -247,6 +247,7 @@ Route::middleware(['auth', 'settings.completed', 'system.maintenance', 'billing.
         Route::middleware('menu.access:job_orders')->group(function () {
             Route::get('/job-orders', [JobOrderController::class, 'index'])->name('job-orders.index');
             Route::get('/job-orders/create', [JobOrderController::class, 'create'])->name('job-orders.create');
+            Route::get('/job-orders/pickup-tags', [JobOrderController::class, 'pickupTags'])->name('job-orders.pickup-tags');
             Route::post('/job-orders', [JobOrderController::class, 'store'])->name('job-orders.store');
             Route::post('/job-orders/customers', [CustomerController::class, 'store'])->name('job-orders.customers.store');
             Route::get('/job-orders/{jobOrder}/edit', [JobOrderController::class, 'edit'])->name('job-orders.edit');

@@ -122,6 +122,8 @@ class JobOrderController extends Controller
                 ->where('status', 'picked_up')
                 ->whereHas('branch', fn ($query) => $query->where('is_active', true))
                 ->when(! $canChooseBranch, fn ($query) => $query->where('branch_id', $user->branch_id))
+                ->orderByRaw('CASE WHEN job_order_id IS NULL THEN 0 ELSE 1 END')
+                ->oldest('created_at')
                 ->first();
 
             if (! $taggedRequest) {
@@ -149,7 +151,7 @@ class JobOrderController extends Controller
             ->where('status', 'picked_up')
             ->whereNull('job_order_id')
             ->whereNotNull('tag_code')
-            ->where('tag_code', '!=', '')
+            ->whereRaw("TRIM(tag_code) <> ''")
             ->whereIn('branch_id', $canChooseBranch ? $branches->pluck('id') : [$user->branch_id])
             ->selectRaw('branch_id, COUNT(*) as total')
             ->groupBy('branch_id')
@@ -222,6 +224,13 @@ class JobOrderController extends Controller
             : null);
 
         $bookedRequest?->loadMissing(['items', 'rider:id,name']);
+        if ($bookedRequest?->job_order_id) {
+            return redirect()->route('admin.job-orders.show', $bookedRequest->job_order_id)
+                ->with('info', 'This pickup already has a job order.');
+        }
+        if ($bookedRequest) {
+            $selectedCustomerId = (string) $bookedRequest->customer_id;
+        }
 
         $bookedItems = $bookedRequest
             ? $bookedRequest->items
@@ -262,6 +271,55 @@ class JobOrderController extends Controller
             : collect();
 
         return view('admin.job-orders.create', compact('branches', 'processingBranches', 'customers', 'services', 'serviceCategories', 'servicePresets', 'branchId', 'selectedCustomerId', 'bookedRequest', 'bookedItems', 'tagCode', 'tagLookupError', 'waitingTagCounts'));
+    }
+
+    public function pickupTags(Request $request)
+    {
+        $validated = $request->validate([
+            'branch_id' => ['nullable', 'integer'],
+            'search' => ['nullable', 'string', 'max:40'],
+        ]);
+
+        $user = $request->user();
+        $canChooseBranch = in_array($user->role, ['super_admin', 'admin'], true);
+        $branchId = $canChooseBranch
+            ? (int) ($validated['branch_id'] ?? Branch::where('is_active', true)->value('id'))
+            : (int) $user->branch_id;
+
+        abort_unless(Branch::whereKey($branchId)->where('is_active', true)->exists(), 404);
+
+        $waiting = PickupRequest::query()
+            ->where('branch_id', $branchId)
+            ->where('status', 'picked_up')
+            ->whereNull('job_order_id')
+            ->whereNotNull('tag_code')
+            ->whereRaw("TRIM(tag_code) <> ''");
+
+        $count = (clone $waiting)->count();
+        $search = strtoupper(trim((string) ($validated['search'] ?? '')));
+
+        $tags = $waiting
+            ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
+                ->whereRaw('UPPER(tag_code) LIKE ?', ["%{$search}%"])
+                ->orWhereRaw('UPPER(reference_no) LIKE ?', ["%{$search}%"])
+                ->orWhereRaw('UPPER(contact_name) LIKE ?', ["%{$search}%"])))
+            ->oldest('created_at')
+            ->oldest('id')
+            ->limit(9)
+            ->get(['id', 'branch_id', 'tag_code', 'reference_no', 'contact_name', 'created_at'])
+            ->map(fn (PickupRequest $pickup) => [
+                'id' => $pickup->id,
+                'tag_code' => $pickup->tag_code,
+                'reference_no' => $pickup->reference_no,
+                'contact_name' => $pickup->contact_name,
+                'booked_at' => $pickup->created_at?->format('M j, g:i A'),
+                'url' => route('admin.job-orders.create', [
+                    'branch_id' => $pickup->branch_id,
+                    'pickup_request_id' => $pickup->id,
+                ]),
+            ]);
+
+        return response()->json(['count' => $count, 'tags' => $tags]);
     }
 
     public function edit(Request $request, JobOrder $jobOrder)

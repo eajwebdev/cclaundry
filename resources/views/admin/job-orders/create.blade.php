@@ -199,9 +199,9 @@
                         </label>
                     </div>
                     @unless($isEditing)
-                        <button type="button" @click="tagModalOpen = true; $nextTick(() => $refs.pickupTagInput?.focus())"
+                        <button type="button" @click="openTagModal()"
                                 class="inline-flex h-9 items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 text-xs font-semibold text-primary hover:bg-primary/10"
-                                aria-label="Load rider pickup bag tag" title="Tags waiting for a job order at this branch">
+                                :aria-label="`Load rider pickup bag tag, ${waitingTagCounts[branchId] ?? 0} waiting at this branch`" title="Tags waiting for a job order at this branch">
                             <span data-lucide="tag" class="h-3.5 w-3.5"></span>
                             Load tag #
                             <span class="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-white"
@@ -552,28 +552,52 @@
         <div x-cloak x-show="tagModalOpen" x-transition.opacity @keydown.escape.window="tagModalOpen = false"
              class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
              role="dialog" aria-modal="true" aria-labelledby="pickup-tag-title" @click.self="tagModalOpen = false">
-            <div class="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl dark:bg-gray-900">
+            <div class="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-5 shadow-2xl dark:bg-gray-900">
                 <div class="flex items-start justify-between gap-3">
                     <div>
                         <h2 id="pickup-tag-title" class="text-base font-semibold">Load a pickup by bag tag</h2>
-                        <p class="mt-1 text-xs text-muted">Enter the tag on the returned laundry bag to load its booking into the POS.</p>
+                        <p class="mt-1 text-xs text-muted">Search a bag tag, booking number, or customer, then choose the right pickup.</p>
                     </div>
                     <button type="button" @click="tagModalOpen = false" class="rounded-lg p-1.5 hover:bg-smoke dark:hover:bg-gray-800" aria-label="Close tag lookup">
                         <span data-lucide="x" class="h-5 w-5"></span>
                     </button>
                 </div>
-                <form method="GET" action="{{ route('admin.job-orders.create') }}" class="mt-4 space-y-3">
+                <form x-ref="tagLookupForm" method="GET" action="{{ route('admin.job-orders.create') }}" class="mt-4 space-y-3">
                     <input type="hidden" name="branch_id" :value="branchId">
-                    <label for="pickup_tag_code" class="block text-xs font-semibold">Rider pickup bag tag #</label>
-                    <input id="pickup_tag_code" x-ref="pickupTagInput" name="tag_code" type="text" maxlength="24" autocomplete="off" required
-                           value="{{ $tagCode }}" placeholder="Example: CC-123456"
+                    <label for="pickup_tag_code" class="block text-xs font-semibold">Bag tag # or search</label>
+                    <input id="pickup_tag_code" x-ref="pickupTagInput" name="tag_code" type="text" maxlength="40" autocomplete="off" required
+                           x-model="tagSearch" @input="queueTagSearch()"
+                           @keydown.enter.prevent="loadTagSelection()"
+                           placeholder="Search tag, booking, or customer"
                            class="h-10 w-full rounded-md border border-border bg-white px-3 font-mono text-sm uppercase dark:border-gray-700 dark:bg-gray-950">
+                    <div class="rounded-lg border border-border dark:border-gray-700">
+                        <div class="flex items-center justify-between border-b border-border px-3 py-2 text-xs font-semibold dark:border-gray-700">
+                            <span x-text="tagSearch.trim() ? 'Matching pickups' : 'Oldest 9 waiting pickups'"></span>
+                            <span class="text-muted"><span x-text="waitingTagCounts[branchId] ?? 0"></span> waiting</span>
+                        </div>
+                        <div class="max-h-60 overflow-y-auto p-1">
+                            <p x-show="tagSuggestionsLoading" class="px-3 py-4 text-center text-xs text-muted">Searching tags...</p>
+                            <p x-show="!tagSuggestionsLoading && tagSuggestionsError" x-text="tagSuggestionsError" class="px-3 py-4 text-center text-xs text-red-600"></p>
+                            <p x-show="!tagSuggestionsLoading && !tagSuggestionsError && tagSuggestions.length === 0" class="px-3 py-4 text-center text-xs text-muted">No waiting pickups found.</p>
+                            <template x-for="tag in tagSuggestions" :key="tag.id">
+                                <button type="button" @click="window.location.assign(tag.url)"
+                                        class="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left hover:bg-smoke focus:bg-smoke focus:outline-none dark:hover:bg-gray-800 dark:focus:bg-gray-800">
+                                    <span class="min-w-0">
+                                        <span class="block font-mono text-sm font-semibold text-primary" x-text="tag.tag_code"></span>
+                                        <span class="block truncate text-xs text-muted" x-text="`${tag.contact_name} · ${tag.reference_no}`"></span>
+                                    </span>
+                                    <span class="shrink-0 text-[10px] text-muted" x-text="tag.booked_at"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
                     @if($tagLookupError)
-                        <p class="text-sm font-medium text-red-600" role="alert">{{ $tagLookupError }}</p>
+                        <p x-show="tagSearch.trim().toUpperCase() === @js($tagCode)" class="text-sm font-medium text-red-600" role="alert">{{ $tagLookupError }}</p>
                     @endif
+                    <p x-show="tagSelectionHint" x-text="tagSelectionHint" class="text-xs font-medium text-amber-700" role="status"></p>
                     <div class="flex justify-end gap-2 pt-1">
                         <button type="button" @click="tagModalOpen = false" class="h-10 rounded-md border border-border px-4 text-sm font-semibold hover:bg-smoke dark:border-gray-700 dark:hover:bg-gray-800">Cancel</button>
-                        <button type="submit" class="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-white hover:opacity-90">Load pickup</button>
+                        <button type="button" @click="loadTagSelection()" class="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-white hover:opacity-90">Load pickup</button>
                     </div>
                 </form>
             </div>
@@ -622,6 +646,13 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         paid: Number(initialState.paid || 0),
         showPaymentPanel: false,
         tagModalOpen: @js((bool) ($tagLookupError ?? null)),
+        tagSearch: @js($tagCode ?? ''),
+        tagSuggestions: [],
+        tagSuggestionsLoading: false,
+        tagSuggestionsError: '',
+        tagSelectionHint: '',
+        tagRequestId: 0,
+        tagSearchTimer: null,
         waitingTagCounts: @js($waitingTagCounts ?? []),
         quickCustomerOpen: @js($errors->any() && old('redirect_to') === 'pos'),
         customerOpen: false,
@@ -643,11 +674,19 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
                 this.setDefaultProcessingBranch();
             }
             this.syncSelectedCustomer();
+            if (this.tagModalOpen) {
+                this.loadTagSuggestions();
+                this.$nextTick(() => this.$refs.pickupTagInput?.focus());
+            }
             
             // Watch for branch changes
             this.$watch('branchId', () => {
                 if (this.isEditing) {
                     return;
+                }
+
+                if (this.tagModalOpen) {
+                    this.loadTagSuggestions();
                 }
 
                 this.items = [];
@@ -683,6 +722,74 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
 
             // Initial icon render
             this.$nextTick(() => this.refreshIcons());
+        },
+        openTagModal() {
+            this.tagModalOpen = true;
+            this.tagSelectionHint = '';
+            this.loadTagSuggestions();
+            this.$nextTick(() => this.$refs.pickupTagInput?.focus());
+        },
+        queueTagSearch() {
+            ++this.tagRequestId;
+            this.tagSuggestions = [];
+            this.tagSuggestionsLoading = true;
+            this.tagSelectionHint = '';
+            clearTimeout(this.tagSearchTimer);
+            this.tagSearchTimer = setTimeout(() => this.loadTagSuggestions(), 250);
+        },
+        loadTagSelection() {
+            const value = this.tagSearch.trim().toUpperCase();
+            if (!value) {
+                this.$refs.pickupTagInput?.focus();
+                return;
+            }
+            if (this.tagSuggestionsLoading) {
+                this.tagSelectionHint = 'Wait for the search results, then choose a pickup.';
+                return;
+            }
+
+            const exact = this.tagSuggestions.filter(tag => tag.tag_code.toUpperCase() === value);
+            const match = exact.length === 1 ? exact[0] : (this.tagSuggestions.length === 1 ? this.tagSuggestions[0] : null);
+            if (match) {
+                window.location.assign(match.url);
+                return;
+            }
+            if (this.tagSuggestions.length > 1) {
+                this.tagSelectionHint = 'Several pickups match. Select the correct bag from the list.';
+                return;
+            }
+
+            this.$refs.tagLookupForm.requestSubmit();
+        },
+        async loadTagSuggestions() {
+            clearTimeout(this.tagSearchTimer);
+            const requestId = ++this.tagRequestId;
+            this.tagSuggestions = [];
+            this.tagSuggestionsError = '';
+            this.tagSuggestionsLoading = true;
+
+            const url = new URL(@js(route('admin.job-orders.pickup-tags')), window.location.origin);
+            url.searchParams.set('branch_id', this.branchId);
+            if (this.tagSearch.trim()) {
+                url.searchParams.set('search', this.tagSearch.trim());
+            }
+
+            try {
+                const response = await fetch(url, { headers: { Accept: 'application/json' } });
+                if (!response.ok) throw new Error('Could not load waiting tags. Try again.');
+                const result = await response.json();
+                if (requestId !== this.tagRequestId) return;
+                this.tagSuggestions = result.tags || [];
+                this.waitingTagCounts[this.branchId] = result.count || 0;
+            } catch (error) {
+                if (requestId === this.tagRequestId) {
+                    this.tagSuggestionsError = error.message;
+                }
+            } finally {
+                if (requestId === this.tagRequestId) {
+                    this.tagSuggestionsLoading = false;
+                }
+            }
         },
         get selectedBranch() {
             return this.branches.find(branch => String(branch.id) === String(this.branchId));

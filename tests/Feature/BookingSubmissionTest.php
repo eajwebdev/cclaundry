@@ -638,7 +638,7 @@ class BookingSubmissionTest extends TestCase
         $this->actingAs($cashier)
             ->get(route('admin.job-orders.create'))
             ->assertOk()
-            ->assertSee('Rider pickup bag tag #');
+            ->assertSee('Bag tag # or search');
 
         $this->actingAs($cashier)
             ->get(route('admin.job-orders.create', ['tag_code' => 'cc-123456']))
@@ -890,6 +890,106 @@ class BookingSubmissionTest extends TestCase
             ->assertSee('role="dialog"', false);
 
         $this->assertSame(1, (int) $response->viewData('waitingTagCounts')->get($this->branch->id));
+    }
+
+    public function test_pos_tag_suggestions_show_nine_oldest_waiting_pickups_and_search_beyond_them(): void
+    {
+        $bookings = collect();
+        foreach (range(1, 10) as $number) {
+            $this->post(route('booking.store'), $this->payload())->assertSessionHasNoErrors();
+            $booking = PickupRequest::query()->latest('id')->firstOrFail();
+            $booking->forceFill([
+                'status' => 'picked_up',
+                'tag_code' => sprintf('CC-%03d', $number),
+                'created_at' => now()->subMinutes(11 - $number),
+            ])->save();
+            $bookings->push($booking);
+        }
+
+        $otherBranch = Branch::query()->create(['name' => 'Other Branch', 'code' => 'OTHER', 'is_active' => true]);
+        $bookings[0]->replicate()->forceFill([
+            'branch_id' => $otherBranch->id,
+            'reference_no' => 'PU-OTHER-1',
+            'tag_code' => 'CC-OTHER',
+        ])->save();
+
+        $cashier = User::factory()->create([
+            'role' => 'cashier',
+            'branch_id' => $this->branch->id,
+            'access' => ['job_orders'],
+        ]);
+
+        $initial = $this->actingAs($cashier)
+            ->getJson(route('admin.job-orders.pickup-tags', ['branch_id' => $otherBranch->id]))
+            ->assertOk()
+            ->assertJsonPath('count', 10)
+            ->assertJsonCount(9, 'tags');
+
+        $this->assertSame('CC-001', $initial->json('tags.0.tag_code'));
+        $this->assertSame('CC-009', $initial->json('tags.8.tag_code'));
+
+        $shortcut = $this->actingAs($cashier)
+            ->get($initial->json('tags.0.url'))
+            ->assertOk()
+            ->assertSee('Loaded '.$bookings[0]->reference_no);
+        $this->assertSame((string) $bookings[0]->customer_id, $shortcut->viewData('selectedCustomerId'));
+
+        $this->actingAs($cashier)
+            ->getJson(route('admin.job-orders.pickup-tags', ['search' => 'cc-010']))
+            ->assertOk()
+            ->assertJsonPath('count', 10)
+            ->assertJsonCount(1, 'tags')
+            ->assertJsonPath('tags.0.tag_code', 'CC-010');
+
+        $order = JobOrder::query()->create([
+            'branch_id' => $this->branch->id,
+            'customer_id' => $bookings[0]->customer_id,
+            'job_order_number' => 'JO-STALE-SHORTCUT',
+            'status' => 'pending',
+        ]);
+        $bookings[0]->jobOrder()->associate($order)->save();
+        $this->actingAs($cashier)
+            ->get($initial->json('tags.0.url'))
+            ->assertRedirect(route('admin.job-orders.show', $order));
+    }
+
+    public function test_pos_tag_lookup_prefers_todays_waiting_bag_over_an_older_converted_bag(): void
+    {
+        $this->post(route('booking.store'), $this->payload())->assertSessionHasNoErrors();
+        $older = PickupRequest::query()->firstOrFail();
+        $older->update([
+            'status' => 'picked_up',
+            'tag_code' => 'CC-REUSED',
+            'tag_date' => now()->subDay()->toDateString(),
+            'picked_up_at' => now()->subDay(),
+        ]);
+        $order = JobOrder::query()->create([
+            'branch_id' => $this->branch->id,
+            'customer_id' => $older->customer_id,
+            'job_order_number' => 'JO-OLDER-TAG',
+            'status' => 'completed',
+        ]);
+        $older->jobOrder()->associate($order)->save();
+
+        $this->post(route('booking.store'), $this->payload())->assertSessionHasNoErrors();
+        $current = PickupRequest::query()->latest('id')->firstOrFail();
+        $current->update([
+            'status' => 'picked_up',
+            'tag_code' => 'CC-REUSED',
+            'tag_date' => now()->toDateString(),
+            'picked_up_at' => now(),
+        ]);
+        $cashier = User::factory()->create([
+            'role' => 'cashier',
+            'branch_id' => $this->branch->id,
+            'access' => ['job_orders'],
+        ]);
+
+        $this->actingAs($cashier)
+            ->get(route('admin.job-orders.create', ['tag_code' => 'CC-REUSED']))
+            ->assertOk()
+            ->assertSee('name="pickup_request_id" value="'.$current->id.'"', false)
+            ->assertSee('Loaded '.$current->reference_no);
     }
 
     public function test_tag_lookup_includes_a_booked_service_bundle_in_the_pos_cart(): void

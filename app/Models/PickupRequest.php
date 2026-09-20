@@ -13,7 +13,7 @@ class PickupRequest extends Model
     public const STATUSES = ['pending', 'confirmed', 'picked_up', 'completed', 'cancelled'];
 
     protected $fillable = [
-        'reference_no', 'tag_code', 'customer_id', 'branch_id', 'laundry_service_id', 'service_preset_id',
+        'reference_no', 'tag_code', 'tag_date', 'customer_id', 'branch_id', 'laundry_service_id', 'service_preset_id',
         'service_name', 'service_price', 'service_pricing_type', 'estimated_kilos',
         'contact_name', 'contact_phone', 'contact_email',
         'pickup_address', 'pickup_landmark', 'pickup_date', 'pickup_slot',
@@ -43,6 +43,7 @@ class PickupRequest extends Model
         'cancelled_at' => 'datetime',
         'assigned_at' => 'datetime',
         'picked_up_at' => 'datetime',
+        'tag_date' => 'date',
         'delivered_at' => 'datetime',
     ];
 

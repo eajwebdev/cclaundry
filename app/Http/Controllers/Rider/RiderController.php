@@ -11,6 +11,7 @@ use App\Support\Geocoder;
 use App\Support\RiderMapStages;
 use App\Support\Routing;
 use App\Support\SmsNotifier;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -492,49 +493,74 @@ class RiderController extends Controller
         }
 
         $tagCode = null;
+        $collectedAt = null;
 
         if ($target === 'picked_up') {
             $tagCode = strtoupper(trim((string) $validated['tag_code']));
+            $collectedAt = now();
+            $tagDate = $collectedAt->toDateString();
 
-            // The whole point of the tag is that it belongs to one load. If it
-            // is already on another bag in play, the rider has to use a
-            // different one rather than create the mix-up we are preventing.
-            $inUse = PickupRequest::query()
-                ->where('tag_code', $tagCode)
+            if ($tagCode === '') {
+                return $this->riderStatusError($request, 'Enter the bag tag number before confirming collection.');
+            }
+
+            // An active bag still needs its tag on later days. A completed or
+            // cancelled bag keeps it reserved through its collection day.
+            $inUse = PickupRequest::withTrashed()
+                ->whereRaw('UPPER(tag_code) = ?', [$tagCode])
                 ->whereKeyNot($pickupRequest->getKey())
-                ->whereIn('status', ['confirmed', 'picked_up'])
+                ->where(fn ($query) => $query
+                    ->where(fn ($query) => $query
+                        ->whereNull('deleted_at')
+                        ->where('status', 'picked_up'))
+                    ->orWhereDate('tag_date', $tagDate)
+                    ->orWhereDate('picked_up_at', $tagDate)
+                    ->orWhere(fn ($query) => $query
+                        ->whereNull('picked_up_at')
+                        ->whereDate('created_at', $tagDate)))
                 ->exists();
 
             if ($inUse) {
-                return $this->riderStatusError($request, 'Tag '.$tagCode.' is already on another load. Use a different tag number.');
+                return $this->riderStatusError($request, 'Tag '.$tagCode.' is already used today or is still on another load. Use a different tag number.');
             }
         }
 
-        DB::transaction(function () use ($request, $pickupRequest, $target, $tagCode, $validated, $token) {
-            $pickupRequest->update([
-                'status' => $target,
-                'rider_action_token' => $this->boundActionToken($request, $token),
-                'tag_code' => $tagCode ?: $pickupRequest->tag_code,
-                'picked_up_at' => $target === 'picked_up' ? now() : $pickupRequest->picked_up_at,
-                'delivered_at' => $target === 'completed' ? now() : null,
-                // Payment is taken at the door, so what the rider took is
-                // recorded with the collection rather than after the fact.
-                'collected_amount' => $target === 'picked_up'
-                    ? ($validated['collected_amount'] ?? null)
-                    : $pickupRequest->collected_amount,
-                'collected_payment_method' => $target === 'picked_up'
-                    ? ($validated['collected_payment_method'] ?? null)
-                    : $pickupRequest->collected_payment_method,
-            ]);
+        try {
+            DB::transaction(function () use ($request, $pickupRequest, $target, $tagCode, $collectedAt, $validated, $token) {
+                $pickupRequest->update([
+                    'status' => $target,
+                    'rider_action_token' => $this->boundActionToken($request, $token),
+                    'tag_code' => $tagCode ?: $pickupRequest->tag_code,
+                    'tag_date' => $collectedAt?->toDateString() ?: $pickupRequest->tag_date,
+                    'picked_up_at' => $collectedAt ?: $pickupRequest->picked_up_at,
+                    'delivered_at' => $target === 'completed' ? now() : null,
+                    // Payment is taken at the door, so what the rider took is
+                    // recorded with the collection rather than after the fact.
+                    'collected_amount' => $target === 'picked_up'
+                        ? ($validated['collected_amount'] ?? null)
+                        : $pickupRequest->collected_amount,
+                    'collected_payment_method' => $target === 'picked_up'
+                        ? ($validated['collected_payment_method'] ?? null)
+                        : $pickupRequest->collected_payment_method,
+                ]);
 
-            Activity::log($request, 'pickup_request_rider_status', $pickupRequest, [
-                'reference_no' => $pickupRequest->reference_no,
-                'status' => $target,
-                'tag_code' => $tagCode,
-                'collected_amount' => $validated['collected_amount'] ?? null,
-                'rider_id' => $request->user()->id,
-            ], $pickupRequest->branch_id);
-        });
+                Activity::log($request, 'pickup_request_rider_status', $pickupRequest, [
+                    'reference_no' => $pickupRequest->reference_no,
+                    'status' => $target,
+                    'tag_code' => $tagCode,
+                    'collected_amount' => $validated['collected_amount'] ?? null,
+                    'rider_id' => $request->user()->id,
+                ], $pickupRequest->branch_id);
+            });
+        } catch (QueryException $exception) {
+            // The unique daily tag index also protects two riders collecting
+            // at the same instant, after both have passed the readable check.
+            if ($target === 'picked_up' && (str_contains($exception->getMessage(), 'daily_tag_unique') || str_contains($exception->getMessage(), 'tag_date'))) {
+                return $this->riderStatusError($request, 'Tag '.$tagCode.' was just used on another load. Use a different tag number.');
+            }
+
+            throw $exception;
+        }
 
         $released = $target === 'completed' ? $this->releaseDeliveredJobOrder($request, $pickupRequest) : null;
 
