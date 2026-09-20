@@ -20,7 +20,7 @@
                     this.$nextTick(() => window.scrollTo(0, Number(saved) || 0));
                 }
             } catch (_) {}
-            this.liveTimer = window.setInterval(() => this.checkLive(), 15000);
+            this.liveTimer = window.setInterval(() => this.checkLive(), 5000);
             document.addEventListener('visibilitychange', () => {
                 if (!document.hidden) this.checkLive();
             });

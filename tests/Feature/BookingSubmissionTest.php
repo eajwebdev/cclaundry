@@ -845,12 +845,12 @@ class BookingSubmissionTest extends TestCase
 
         $this->get(route('booking.confirmed', $booking->reference_no))
             ->assertOk()
-            ->assertSee('Checking for updates automatically every 15 seconds')
+            ->assertSee('Checking for updates automatically every 5 seconds')
             ->assertSee($booking->trackingVersion());
 
         $this->post(route('track'), $credentials)
             ->assertOk()
-            ->assertSee('Checking for updates automatically every 15 seconds');
+            ->assertSee('Checking for updates automatically every 5 seconds');
 
         $initial = $this->postJson(route('track.status'), $credentials)
             ->assertOk()
@@ -881,6 +881,68 @@ class BookingSubmissionTest extends TestCase
         $this->postJson(route('track.status'), $credentials)
             ->assertOk()
             ->assertJsonPath('status', 'drying');
+    }
+
+    public function test_a_customer_booking_reaches_cashier_admin_and_rider_even_when_pickup_is_later(): void
+    {
+        $cashier = User::factory()->create([
+            'role' => 'cashier',
+            'branch_id' => $this->branch->id,
+            'access' => ['job_orders', 'pickup_requests'],
+        ]);
+        $adminBranch = Branch::query()->create([
+            'name' => 'Second Branch',
+            'code' => 'SECOND',
+            'is_active' => true,
+        ]);
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'branch_id' => $adminBranch->id,
+            'access' => ['job_orders', 'pickup_requests'],
+        ]);
+        $rider = User::factory()->create([
+            'role' => 'rider',
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+            'access' => [],
+        ]);
+
+        $this->actingAs($cashier)->get(route('admin.job-orders.create'))
+            ->assertOk()
+            ->assertSee('Pickup booking alerts');
+        $this->actingAs($admin)->get(route('admin.job-orders.create'))
+            ->assertOk()
+            ->assertSee('Pickup booking alerts');
+
+        $this->post(route('booking.store'), $this->payload())
+            ->assertSessionHasNoErrors();
+        $booking = PickupRequest::query()->firstOrFail();
+
+        foreach ([$cashier, $admin] as $staff) {
+            $this->actingAs($staff)
+                ->getJson(route('admin.pickup-requests.feed'))
+                ->assertOk()
+                ->assertJsonPath('pending', 1)
+                ->assertJsonPath('waiting.0.id', $booking->id)
+                ->assertJsonPath('waiting.0.reference_no', $booking->reference_no);
+        }
+
+        $riderFeed = $this->actingAs($rider)
+            ->getJson(route('rider.runs'))
+            ->assertOk();
+        $this->assertContains($booking->id, $riderFeed->json('collect_ids'));
+        $this->assertContains($booking->id, $riderFeed->json('available_ids'));
+        $this->assertStringContainsString($booking->reference_no, $riderFeed->json('html'));
+
+        $this->actingAs($rider)
+            ->get(route('rider.index'))
+            ->assertOk()
+            ->assertSee('Pickup booking alerts');
+        $this->actingAs($rider)
+            ->getJson(route('rider.booking-alerts'))
+            ->assertOk()
+            ->assertJsonPath('count', 1)
+            ->assertJsonPath('waiting.0.id', $booking->id);
     }
 
     public function test_the_tag_lookup_only_loads_collected_pickups_from_the_cashiers_branch(): void

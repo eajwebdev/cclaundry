@@ -47,7 +47,7 @@ export default function installRiderOverview() {
 
             // Keep the board current without the rider pulling to refresh: a
             // run they collect is a pin that should stop asking to be picked up.
-            this.poll = window.setInterval(() => this.refresh(), config.pollMs ?? 15000);
+            this.poll = window.setInterval(() => this.refresh(), config.pollMs ?? 5000);
             document.addEventListener('visibilitychange', () => {
                 if (!document.hidden) this.refresh();
             });

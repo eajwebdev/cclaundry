@@ -5,6 +5,7 @@ import Chart from 'chart.js/auto';
 import Alpine from 'alpinejs';
 import installRiderOverview from './rider-overview';
 import installRiderRuns from './rider-runs';
+import installRiderBookingAlerts from './rider-booking-alerts';
 import riderOutboxStore from './rider-outbox';
 import Swal from 'sweetalert2';
 import {
@@ -113,6 +114,7 @@ import {
 // map has to render its address list even when the map bundle never arrives.
 installRiderOverview();
 installRiderRuns();
+installRiderBookingAlerts();
 
 // The rider's queue of unsent taps. A store, not a component, because it has
 // to survive navigating between the run list and a job.

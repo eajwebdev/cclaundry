@@ -56,6 +56,8 @@
                 <span x-text="sharing ? 'Live' : 'Off'"></span>
             </button>
 
+            @include('rider.partials.booking-alerts')
+
             <button type="button" @click="$store.theme.toggle()"
                     aria-label="Toggle theme"
                     class="inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-border dark:border-gray-800">

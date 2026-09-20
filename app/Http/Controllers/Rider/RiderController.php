@@ -15,6 +15,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * The rider's own console, built for a phone held in one hand.
@@ -29,13 +30,32 @@ class RiderController extends Controller
     {
         $rider = $request->user();
         $filters = $request->validate([
+            'date_range' => ['nullable', 'string', 'max:30'],
             'from' => ['nullable', 'date_format:Y-m-d'],
             'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
             'tab' => ['nullable', Rule::in(['collect', 'deliver', 'done'])],
         ]);
         $today = today()->toDateString();
-        $rangeFrom = $filters['from'] ?? $filters['to'] ?? $today;
-        $rangeTo = $filters['to'] ?? $rangeFrom;
+        $dateRangeValue = trim($filters['date_range'] ?? '');
+        if ($dateRangeValue !== '') {
+            if (! preg_match('/^(\d{4}-\d{2}-\d{2})(?: to (\d{4}-\d{2}-\d{2}))?$/', $dateRangeValue, $matches)) {
+                throw ValidationException::withMessages(['date_range' => 'Choose a valid date or date range.']);
+            }
+            $rangeFrom = $matches[1];
+            $rangeTo = $matches[2] ?? $rangeFrom;
+            if (validator(['from' => $rangeFrom, 'to' => $rangeTo], [
+                'from' => ['date_format:Y-m-d'],
+                'to' => ['date_format:Y-m-d', 'after_or_equal:from'],
+            ])->fails()) {
+                throw ValidationException::withMessages(['date_range' => 'Choose a valid date range in order.']);
+            }
+        } else {
+            $rangeFrom = $filters['from'] ?? $filters['to'] ?? $today;
+            $rangeTo = $filters['to'] ?? $rangeFrom;
+            if ($request->filled('from') || $request->filled('to')) {
+                $dateRangeValue = $rangeFrom === $rangeTo ? $rangeFrom : $rangeFrom.' to '.$rangeTo;
+            }
+        }
         $selectedTab = $filters['tab'] ?? 'collect';
         $includesToday = $rangeFrom <= $today && $rangeTo >= $today;
 
@@ -45,8 +65,6 @@ class RiderController extends Controller
         $toCollect = PickupRequest::query()
             ->where('rider_id', $rider->id)
             ->where('status', 'confirmed')
-            ->whereDate('pickup_date', '>=', $rangeFrom)
-            ->whereDate('pickup_date', '<=', $rangeTo)
             ->with(['items', 'customer:id,name,phone', 'branch:id,name,address'])
             ->orderBy('pickup_date')
             ->orderBy('id')
@@ -93,8 +111,6 @@ class RiderController extends Controller
             ->whereNull('rider_id')
             ->where('branch_id', $rider->branch_id)
             ->whereIn('status', ['pending', 'confirmed'])
-            ->whereDate('pickup_date', '>=', $rangeFrom)
-            ->whereDate('pickup_date', '<=', $rangeTo)
             ->with(['items', 'customer:id,name,phone', 'branch:id,name,address'])
             ->orderByDesc('is_rush')
             ->orderBy('pickup_date')
@@ -119,9 +135,10 @@ class RiderController extends Controller
             'completedCount' => $recent->where('status', 'completed')->count(),
             'rangeFrom' => $rangeFrom,
             'rangeTo' => $rangeTo,
+            'dateRangeValue' => $dateRangeValue,
             'selectedTab' => $selectedTab,
             'today' => $today,
-            'defaultToday' => ! $request->filled('from') && ! $request->filled('to'),
+            'defaultToday' => $dateRangeValue === '',
         ];
 
         return view('rider.index', $data + [
@@ -154,6 +171,40 @@ class RiderController extends Controller
             'range_from' => $data['rangeFrom'],
             'range_to' => $data['rangeTo'],
             'fetched_at' => now()->toIso8601String(),
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
+    /** New and still-open pickups visible to this rider, regardless of date. */
+    public function bookingAlerts(Request $request)
+    {
+        $rider = $request->user();
+        $after = max(0, $request->integer('after'));
+        $branchBookings = PickupRequest::query()->where('branch_id', $rider->branch_id);
+        $visible = (clone $branchBookings)
+            ->whereIn('status', ['pending', 'confirmed'])
+            ->where(fn ($query) => $query
+                ->whereNull('rider_id')
+                ->orWhere('rider_id', $rider->id));
+
+        $newBookings = $after > 0
+            ? (clone $visible)->where('id', '>', $after)->oldest('id')->limit(10)->get()
+            : collect();
+        $waiting = (clone $visible)->latest('id')->limit(10)->get();
+        $latestId = (int) (clone $branchBookings)->max('id');
+        $bookingData = fn (PickupRequest $booking) => [
+            'id' => $booking->id,
+            'reference_no' => $booking->reference_no,
+            'contact_name' => $booking->contact_name,
+            'pickup' => $booking->pickup_date?->format('M j, Y').' · '.$booking->pickupSlotLabel(),
+            'url' => route('rider.jobs.show', $booking),
+        ];
+
+        return response()->json([
+            'latest_id' => $latestId,
+            'next_after' => (int) ($newBookings->last()?->id ?? $latestId),
+            'count' => (clone $visible)->count(),
+            'bookings' => $newBookings->map($bookingData)->values(),
+            'waiting' => $waiting->map($bookingData)->values(),
         ])->header('Cache-Control', 'private, no-store');
     }
 

@@ -175,6 +175,9 @@ Route::middleware(['auth', 'rider'])->prefix('rider')->name('rider.')->group(fun
     Route::get('/runs', [RiderController::class, 'runsFeed'])
         ->middleware('throttle:120,1')
         ->name('runs');
+    Route::get('/booking-alerts', [RiderController::class, 'bookingAlerts'])
+        ->middleware('throttle:120,1')
+        ->name('booking-alerts');
 
     // Every run on one map, so a rider can pick their next stop by looking
     // rather than by reading down a list.

@@ -180,7 +180,7 @@
                 <h2 class="cc-title text-[1.6rem] sm:text-3xl">Laundry Status</h2>
                 <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-cc-muted">
                     <span class="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true"></span>
-                    <span id="tracking-refresh-label" role="status">Checking for updates automatically every 15 seconds</span>
+                    <span id="tracking-refresh-label" role="status">Checking for updates automatically every 5 seconds</span>
                     <button id="tracking-refresh-button" type="button" class="rounded-full border border-cc-line px-2.5 py-1 font-semibold text-cc-brown hover:bg-cc-surface">Check now</button>
                 </div>
 

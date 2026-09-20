@@ -6,10 +6,8 @@
 
 @php
     /**
-     * A run is worked by date: collect on the pickup day, deliver on the
-     * delivery day (which is often the next day, or "when the branch says so").
-     * These chips are what let a rider scan the list and know what is theirs
-     * *today* without reading every card.
+     * Show pickup dates on every card even though To collect is unfiltered.
+     * A rider can spot work due today, tomorrow, or already overdue.
      */
     // Built here rather than inline in the template: Blade's directive parser
     // does not survive a multi-line array literal with list destructuring.
@@ -72,7 +70,7 @@
             <h2 class="flex items-center gap-2 px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-muted">
                 <span data-lucide="hand-helping" class="h-3.5 w-3.5"></span>
                 To collect &middot; {{ $available->count() + $toCollect->count() }}
-                <button type="button" x-show="soundBlocked" x-cloak @click="enableSound()"
+                <button type="button" x-show="soundBlocked && !window.riderBookingAlertsActive" x-cloak @click="enableSound()"
                         class="ml-auto rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold normal-case tracking-normal text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
                     Enable sound
                 </button>
@@ -176,7 +174,7 @@
                         <span data-lucide="{{ $headingIcon }}" class="h-3.5 w-3.5"></span>
                         {{ $heading }} &middot; {{ $group->count() }}
                         @if($mode === 'collect')
-                            <button type="button" x-show="soundBlocked" x-cloak @click="enableSound()"
+                            <button type="button" x-show="soundBlocked && !window.riderBookingAlertsActive" x-cloak @click="enableSound()"
                                     class="ml-auto rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold normal-case tracking-normal text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
                                 Enable sound
                             </button>
@@ -283,12 +281,8 @@
     @if($toCollect->isEmpty() && $available->isEmpty())
         <div x-show="activeTab === 'collect'" x-cloak class="rounded-xl border border-dashed border-border py-14 text-center dark:border-gray-800">
             <span data-lucide="coffee" class="mx-auto mb-3 block h-8 w-8 text-muted"></span>
-            <p class="text-sm font-medium">No pickups for these dates.</p>
-            <p class="mt-1 text-xs text-muted">
-                {{ $rangeFrom <= $today && $rangeTo >= $today
-                    ? 'New pickups for these dates will appear automatically.'
-                    : 'Choose another date range to see more pickups.' }}
-            </p>
+            <p class="text-sm font-medium">No pickups to collect.</p>
+            <p class="mt-1 text-xs text-muted">New bookings from your branch will appear automatically.</p>
         </div>
     @endif
 

@@ -15,6 +15,7 @@ export default function installRiderRuns() {
         activeTab: config.activeTab ?? 'collect',
         rangeFrom: config.rangeFrom ?? '',
         rangeTo: config.rangeTo ?? '',
+        dateRange: config.dateRangeValue ?? '',
         timer: null,
         loading: false,
         offline: false,
@@ -28,12 +29,15 @@ export default function installRiderRuns() {
         start() {
             this.schedule();
             this.$nextTick(() => this.check());
+            this.$nextTick(() => this.initDatePicker());
 
             // Browsers permit sound only after a gesture. The first gesture
             // prepares the same two-note chime used for admin bookings.
-            const unlock = () => this.unlockSound();
-            window.addEventListener('pointerdown', unlock, { once: true, capture: true });
-            window.addEventListener('keydown', unlock, { once: true, capture: true });
+            if (!window.riderBookingAlertsActive) {
+                const unlock = () => this.unlockSound();
+                window.addEventListener('pointerdown', unlock, { once: true, capture: true });
+                window.addEventListener('keydown', unlock, { once: true, capture: true });
+            }
 
             // Coming back to the app is the moment a stale list is most
             // obvious, so check then rather than waiting for the next tick.
@@ -48,6 +52,17 @@ export default function installRiderRuns() {
             });
 
             window.addEventListener('online', () => this.check());
+        },
+
+        initDatePicker() {
+            if (!window.flatpickr || !this.$refs.dateRange) return;
+            window.flatpickr(this.$refs.dateRange, {
+                mode: 'range',
+                dateFormat: 'Y-m-d',
+                disableMobile: true,
+                defaultDate: this.dateRange ? this.dateRange.split(' to ') : null,
+                onChange: (_dates, value) => { this.dateRange = value; },
+            });
         },
 
         schedule() {
@@ -67,7 +82,7 @@ export default function installRiderRuns() {
             window.history.replaceState(null, '', url);
         },
 
-        showToday() {
+        clearDateRange() {
             const url = new URL(config.indexUrl, window.location.href);
             url.searchParams.set('tab', this.activeTab);
             window.location.assign(url);
@@ -85,9 +100,8 @@ export default function installRiderRuns() {
             try {
                 const url = new URL(config.feedUrl, window.location.href);
                 url.searchParams.set('signature', this.signature);
-                if (!config.defaultToday && config.rangeFrom && config.rangeTo) {
-                    url.searchParams.set('from', config.rangeFrom);
-                    url.searchParams.set('to', config.rangeTo);
+                if (config.dateRangeValue) {
+                    url.searchParams.set('date_range', config.dateRangeValue);
                 }
                 const response = await fetch(url, {
                     cache: 'no-store',
@@ -118,7 +132,7 @@ export default function installRiderRuns() {
                             this.screenReaderMessage = fresh.length === 1
                                 ? 'New pickup in To collect.'
                                 : `${fresh.length} new pickups in To collect.`;
-                            this.ring(3);
+                            if (!window.riderBookingAlertsActive) this.ring(3);
                         }
                     }
                 } else {

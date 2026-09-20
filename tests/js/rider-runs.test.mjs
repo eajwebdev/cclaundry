@@ -88,6 +88,7 @@ test('the live feed keeps the selected date range while status cards change the 
             activeTab: 'collect',
             rangeFrom: '2026-09-20',
             rangeTo: '2026-09-22',
+            dateRangeValue: '2026-09-20 to 2026-09-22',
             defaultToday: false,
         });
 
@@ -96,8 +97,8 @@ test('the live feed keeps the selected date range while status cards change the 
 
         assert.equal(runs.activeTab, 'done');
         assert.equal(selectedUrl.searchParams.get('tab'), 'done');
-        assert.equal(requestedUrl.searchParams.get('from'), '2026-09-20');
-        assert.equal(requestedUrl.searchParams.get('to'), '2026-09-22');
+        assert.equal(requestedUrl.searchParams.get('date_range'), '2026-09-20 to 2026-09-22');
+        assert.equal(requestedUrl.searchParams.has('from'), false);
     } finally {
         globalThis.window = originalWindow;
         globalThis.document = originalDocument;

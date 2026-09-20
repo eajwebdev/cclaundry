@@ -681,7 +681,7 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
                 this.$nextTick(() => this.$refs.pickupTagInput?.focus());
             }
             if (!this.isEditing) {
-                this.tagPollTimer = window.setInterval(() => this.pollTags(), 10000);
+                this.tagPollTimer = window.setInterval(() => this.pollTags(), 5000);
                 document.addEventListener('visibilitychange', () => {
                     if (!document.hidden) this.pollTags();
                 });

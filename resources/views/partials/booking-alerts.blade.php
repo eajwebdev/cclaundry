@@ -65,7 +65,7 @@
                 <span data-lucide="sms" class="h-4 w-4 text-muted"></span>
                 Ring for new bookings
             </span>
-            <input type="checkbox" x-model="soundOn" @change="saveSound(); if (soundOn) ring(1)" class="rounded border-border text-primary">
+            <input type="checkbox" x-model="soundOn" @change="saveSound(); if (soundOn) unlockSound().then(() => ring(1))" class="rounded border-border text-primary">
         </label>
     </div>
 
@@ -89,7 +89,7 @@
                             · <span x-text="booking.pickup"></span><span x-show="booking.branch" x-text="' · ' + booking.branch"></span>
                         </p>
                     </template>
-                    <button type="button" x-show="soundOn && soundBlocked" @click="unlockSound(); ring(1)"
+                    <button type="button" x-show="soundOn && soundBlocked" @click="unlockSound()"
                             class="mt-2 inline-flex items-center gap-1.5 rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">
                         <span data-lucide="sms" class="h-3.5 w-3.5"></span>
                         Tap to turn on the ringtone
@@ -122,14 +122,18 @@
             // Arrived and nobody has looked yet: drives the pop-up and the re-ring.
             unacknowledged: [],
             soundOn: true,
-            soundBlocked: false,
+            soundBlocked: true,
+            missedRing: false,
             audio: null,
             rings: 0,
             reringTimer: null,
+            pollTimer: null,
+            polling: false,
+            stopped: false,
             baseTitle: document.title,
 
             // Seconds between checks, and between re-rings of an ignored alert.
-            pollEvery: 10,
+            pollEvery: 5,
             reringEvery: 30,
             maxRerings: 5,
 
@@ -142,7 +146,20 @@
                 window.addEventListener('pointerdown', unlock, { once: true, capture: true });
                 window.addEventListener('keydown', unlock, { once: true, capture: true });
 
+                document.addEventListener('visibilitychange', () => {
+                    if (document.hidden) clearTimeout(this.pollTimer);
+                    else this.poll();
+                });
+                window.addEventListener('online', () => this.poll());
+
                 this.poll();
+            },
+
+            schedulePoll() {
+                clearTimeout(this.pollTimer);
+                if (!document.hidden && !this.stopped) {
+                    this.pollTimer = setTimeout(() => this.poll(), this.pollEvery * 1000);
+                }
             },
 
             read(key) {
@@ -158,37 +175,48 @@
             },
 
             async poll() {
+                if (this.polling || this.stopped || document.hidden) return;
+                this.polling = true;
                 try {
-                    const lastSeen = parseInt(this.read('lastSeen') || '0', 10);
+                    const lastSeen = Math.max(0, Number.parseInt(this.read('lastSeen') || '0', 10) || 0);
                     const response = await fetch(this.feedUrl + '?after=' + lastSeen, {
+                        cache: 'no-store',
                         headers: { Accept: 'application/json' },
                         credentials: 'same-origin',
                     });
 
                     // Signed out or lost access: stop quietly rather than spin.
-                    if (response.status === 401 || response.status === 403 || response.redirected) return;
+                    if (response.status === 401 || response.status === 403 || response.redirected) {
+                        this.stopped = true;
+                        return;
+                    }
 
                     if (response.ok) {
                         const data = await response.json();
                         this.pending = data.pending;
+                        this.recent = data.waiting || [];
 
                         // Another tab may have claimed these while we waited.
-                        const stillUnseen = parseInt(this.read('lastSeen') || '0', 10);
-                        const fresh = lastSeen > 0 ? data.bookings.filter((booking) => booking.id > stillUnseen) : [];
+                        const stillUnseen = Math.max(0, Number.parseInt(this.read('lastSeen') || '0', 10) || 0);
+                        const resetCursor = data.latest_id < stillUnseen;
+                        const fresh = lastSeen > 0 && !resetCursor
+                            ? data.bookings.filter((booking) => booking.id > stillUnseen)
+                            : [...(data.waiting || [])].reverse();
 
-                        if (data.latest_id > stillUnseen) this.write('lastSeen', data.latest_id);
+                        const nextSeen = lastSeen > 0 && !resetCursor ? data.next_after : data.latest_id;
+                        if (resetCursor || nextSeen > stillUnseen) this.write('lastSeen', nextSeen);
                         if (fresh.length) this.announce(fresh);
                     }
                 } catch {
                     // Offline for a moment; the next check catches up.
+                } finally {
+                    this.polling = false;
+                    this.schedulePoll();
                 }
-
-                setTimeout(() => this.poll(), this.pollEvery * 1000);
             },
 
             announce(bookings) {
                 const newestFirst = [...bookings].reverse();
-                this.recent = [...newestFirst, ...this.recent].slice(0, 20);
                 this.unacknowledged = [...newestFirst, ...this.unacknowledged];
                 this.open = false;
                 document.title = '(' + this.unacknowledged.length + ') New booking · ' + this.baseTitle;
@@ -212,14 +240,19 @@
                 clearInterval(this.reringTimer);
             },
 
-            unlockSound() {
+            async unlockSound() {
                 try {
                     this.audio = this.audio || new (window.AudioContext || window.webkitAudioContext)();
-                    if (this.audio.state === 'suspended') this.audio.resume();
-                    this.soundBlocked = false;
+                    if (this.audio.state === 'suspended') await this.audio.resume();
+                    this.soundBlocked = this.audio.state !== 'running';
+                    if (!this.soundBlocked && this.missedRing) {
+                        this.missedRing = false;
+                        this.playChime(3);
+                    }
                 } catch {
                     this.soundBlocked = true;
                 }
+                return !this.soundBlocked;
             },
 
             /** A two-note door chime, built in the browser so no sound file is needed. */
@@ -227,13 +260,15 @@
                 if (! this.soundOn) return;
 
                 if (! this.audio || this.audio.state !== 'running') {
-                    this.unlockSound();
-                    if (! this.audio || this.audio.state !== 'running') {
-                        this.soundBlocked = true;
-                        return;
-                    }
+                    this.soundBlocked = true;
+                    this.missedRing = true;
+                    return;
                 }
 
+                this.playChime(times);
+            },
+
+            playChime(times) {
                 const start = this.audio.currentTime + 0.05;
                 for (let i = 0; i < times; i++) {
                     const at = start + i * 1.1;

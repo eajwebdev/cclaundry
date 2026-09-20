@@ -243,7 +243,9 @@ class BookingOperationsSettingsTest extends TestCase
         $this->actingAs($cashier)
             ->getJson(route('admin.pickup-requests.feed'))
             ->assertOk()
-            ->assertJson(['latest_id' => $seen->id, 'pending' => 1, 'bookings' => []]);
+            ->assertJson(['latest_id' => $seen->id, 'pending' => 1, 'bookings' => []])
+            ->assertJsonCount(1, 'waiting')
+            ->assertJsonPath('waiting.0.id', $seen->id);
 
         $mine = $this->booking(['contact_name' => 'New Customer']);
         $this->booking(['branch_id' => $other->id, 'contact_name' => 'Other Branch']);
@@ -255,6 +257,7 @@ class BookingOperationsSettingsTest extends TestCase
             ->assertJsonCount(1, 'bookings')
             ->assertJsonPath('bookings.0.id', $mine->id)
             ->assertJsonPath('bookings.0.contact_name', 'New Customer')
+            ->assertJsonCount(2, 'waiting')
             ->assertJsonPath('pending', 2);
 
         // Staff without the Pickup Bookings module neither poll nor see the bell.

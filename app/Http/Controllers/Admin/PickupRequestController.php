@@ -90,8 +90,16 @@ class PickupRequestController extends Controller
                 ->get()
             : collect();
 
+        $waiting = (clone $base)
+            ->with('branch:id,name')
+            ->where('status', 'pending')
+            ->latest('id')
+            ->limit(10)
+            ->get();
+
         return response()->json([
             'latest_id' => (int) (clone $base)->max('id'),
+            'next_after' => (int) ($bookings->last()?->id ?? (clone $base)->max('id')),
             'pending' => (clone $base)->where('status', 'pending')->count(),
             'bookings' => $bookings->map(fn (PickupRequest $booking) => [
                 'id' => $booking->id,
@@ -101,7 +109,15 @@ class PickupRequestController extends Controller
                 'pickup' => $booking->pickup_date?->format('M j').' · '.$booking->pickupSlotLabel(),
                 'url' => route('admin.pickup-requests.index', ['search' => $booking->reference_no]),
             ])->values(),
-        ]);
+            'waiting' => $waiting->map(fn (PickupRequest $booking) => [
+                'id' => $booking->id,
+                'reference_no' => $booking->reference_no,
+                'contact_name' => $booking->contact_name,
+                'branch' => $user->canManageAllBranches() ? $booking->branch?->name : null,
+                'pickup' => $booking->pickup_date?->format('M j').' · '.$booking->pickupSlotLabel(),
+                'url' => route('admin.pickup-requests.index', ['search' => $booking->reference_no]),
+            ])->values(),
+        ])->header('Cache-Control', 'no-store');
     }
 
     public function updateStatus(Request $request, PickupRequest $pickupRequest)

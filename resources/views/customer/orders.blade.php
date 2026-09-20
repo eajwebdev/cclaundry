@@ -166,7 +166,7 @@
 
     const schedule = () => {
         clearTimeout(timer);
-        if (!document.hidden) timer = setTimeout(check, 15000);
+        if (!document.hidden) timer = setTimeout(check, 5000);
     };
 
     async function check() {
