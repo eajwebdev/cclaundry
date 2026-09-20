@@ -22,6 +22,16 @@ class JobOrder extends Model
     public function items() { return $this->hasMany(JobOrderItem::class); }
     public function payments() { return $this->hasMany(Payment::class); }
     public function cycles() { return $this->hasMany(CycleRecord::class); }
+    public function latestCycle() { return $this->hasOne(CycleRecord::class)->latestOfMany(); }
+
+    public function customerProgressStatus(): string
+    {
+        if ($this->status === 'folding' && $this->latestCycle?->cycle_type === 'iron') {
+            return 'ironing';
+        }
+
+        return $this->status;
+    }
 
     public function allCyclesDone()
     {

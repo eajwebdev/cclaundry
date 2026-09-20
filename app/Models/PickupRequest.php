@@ -52,6 +52,25 @@ class PickupRequest extends Model
     public function service() { return $this->belongsTo(LaundryService::class, 'laundry_service_id'); }
     public function preset() { return $this->belongsTo(ServicePreset::class, 'service_preset_id'); }
     public function jobOrder() { return $this->belongsTo(JobOrder::class); }
+
+    public function customerProgressStatus(): string
+    {
+        if (in_array($this->status, ['cancelled', 'completed'], true)) {
+            return $this->status;
+        }
+
+        if ($this->status !== 'picked_up' || ! $this->jobOrder) {
+            return $this->status;
+        }
+
+        $orderStatus = $this->jobOrder->customerProgressStatus();
+
+        return match ($orderStatus) {
+            'pending' => 'picked_up',
+            'completed' => $this->wantsDelivery() ? 'out_for_delivery' : 'completed',
+            default => $orderStatus,
+        };
+    }
     public function handler() { return $this->belongsTo(User::class, 'handled_by'); }
     public function rider() { return $this->belongsTo(User::class, 'rider_id'); }
     public function locationPings() { return $this->hasMany(RiderLocationPing::class); }
@@ -101,8 +120,17 @@ class PickupRequest extends Model
     /** Is this booking at a stage where a live rider map is worth showing? */
     public function isTrackable(): bool
     {
-        return $this->rider_id !== null
-            && in_array($this->status, ['confirmed', 'picked_up'], true);
+        if ($this->rider_id === null) {
+            return false;
+        }
+
+        if ($this->status === 'confirmed') {
+            return true;
+        }
+
+        return $this->status === 'picked_up'
+            && $this->wantsDelivery()
+            && in_array($this->jobOrder?->status, ['ready_for_delivery', 'completed'], true);
     }
 
     /** The washing on this booking, without the detergent and fabcon extras. */

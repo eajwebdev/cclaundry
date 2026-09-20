@@ -6,6 +6,7 @@
      * the steps between. Expects $pickupRequest with its jobOrder loaded.
      */
     $wantsDelivery = $pickupRequest->wantsDelivery();
+    $progressStatus = $pickupRequest->customerProgressStatus();
     $stamp = fn ($moment) => $moment?->format('M j, Y · g:i A');
 
     $steps = [
@@ -15,8 +16,8 @@
         ['label' => 'Laundry received', 'note' => $stamp($pickupRequest->picked_up_at)],
         ['label' => 'Washing'],
         ['label' => 'Drying'],
-        ['label' => 'Folding'],
-        ['label' => $wantsDelivery ? 'Ready for delivery' : 'Ready to claim'],
+        ['label' => $pickupRequest->jobOrder?->latestCycle?->cycle_type === 'iron' ? 'Ironing / Steaming' : 'Folding'],
+        ['label' => $wantsDelivery ? 'Ready for delivery' : 'Ready for pickup'],
     ];
 
     if ($wantsDelivery) {
@@ -30,18 +31,15 @@
 
     $lastStep = count($steps) - 1;
 
-    $current = match ($pickupRequest->status) {
+    $current = match ($progressStatus) {
         'pending' => 0,
         'confirmed' => 1,
-        'picked_up' => match ($pickupRequest->jobOrder?->status) {
-            'washing' => 3,
-            'drying' => 4,
-            'folding' => 5,
-            'ready_for_pickup', 'ready_for_delivery' => 6,
-            // Released by the branch but not yet marked delivered: it is on the road.
-            'completed' => $wantsDelivery ? 7 : 6,
-            default => 2,
-        },
+        'picked_up' => 2,
+        'washing' => 3,
+        'drying' => 4,
+        'folding', 'ironing' => 5,
+        'ready_for_pickup', 'ready_for_delivery' => 6,
+        'out_for_delivery' => 7,
         'completed' => $lastStep,
         default => -1,
     };

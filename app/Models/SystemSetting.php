@@ -107,4 +107,9 @@ class SystemSetting extends Model
             && filled($this->job_order_prefix)
             && filled($this->invoice_prefix);
     }
+
+    public function hasCompletedSetup(): bool
+    {
+        return $this->is_completed || $this->isComplete();
+    }
 }

@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\JobOrder;
 use App\Models\LaundryService;
 use App\Models\LaundryServiceCategory;
 use App\Models\PickupRequest;
+use App\Models\ServicePreset;
 use App\Models\SystemSetting;
 use App\Models\SystemTrialSetting;
 use App\Models\User;
@@ -613,6 +615,280 @@ class BookingSubmissionTest extends TestCase
         // The line itself reaches the cart, so nothing is retyped from paper.
         $response->assertSee('8 kg', false);
         $response->assertSee('pickup_request_id', false);
+    }
+
+    public function test_the_cashier_loads_a_collected_bag_by_tag_and_creates_its_job_order_in_pos(): void
+    {
+        $this->post(route('booking.store'), $this->payload())
+            ->assertSessionHasNoErrors();
+
+        $booking = PickupRequest::query()->firstOrFail();
+        $booking->update([
+            'status' => 'picked_up',
+            'tag_code' => 'CC-123456',
+            'collected_amount' => 150,
+            'collected_payment_method' => 'cash',
+        ]);
+        $cashier = User::factory()->create([
+            'role' => 'cashier',
+            'branch_id' => $this->branch->id,
+            'access' => ['job_orders'],
+        ]);
+
+        $this->actingAs($cashier)
+            ->get(route('admin.job-orders.create'))
+            ->assertOk()
+            ->assertSee('Rider pickup bag tag #');
+
+        $this->actingAs($cashier)
+            ->get(route('admin.job-orders.create', ['tag_code' => 'cc-123456']))
+            ->assertOk()
+            ->assertSee('Loaded '.$booking->reference_no, false)
+            ->assertSee('name="pickup_request_id" value="'.$booking->id.'"', false)
+            ->assertSee('The customer declared 8 kg in total', false)
+            ->assertSee('collected PHP 150.00 (Cash) at pickup', false);
+
+        $orderPayload = [
+            'branch_id' => $this->branch->id,
+            'customer_id' => $booking->customer_id,
+            'pickup_request_id' => $booking->id,
+            'transaction_type' => 'delivery',
+            'items' => [[
+                'laundry_service_id' => $this->service->id,
+                'description' => $this->service->name,
+                'quantity' => 7,
+                'unit_price' => 60,
+            ]],
+            'payment_type' => 'cash',
+            'paid_amount' => 150,
+            'send_sms' => 0,
+        ];
+
+        $this->post(route('admin.job-orders.store'), $orderPayload)
+            ->assertRedirect(route('admin.job-orders.index'));
+
+        $order = JobOrder::query()->firstOrFail();
+        $this->assertSame($order->id, $booking->fresh()->job_order_id);
+        $this->assertEquals(7, $order->items()->firstOrFail()->quantity);
+        $this->assertEquals(150, $order->paid_amount);
+        $this->assertEquals(270, $order->balance);
+
+        $this->get(route('admin.job-orders.create', ['tag_code' => 'CC-123456']))
+            ->assertRedirect(route('admin.job-orders.show', $order));
+
+        $this->post(route('admin.job-orders.store'), $orderPayload)
+            ->assertSessionHasErrors('pickup_request_id');
+        $this->assertSame(1, JobOrder::query()->count());
+    }
+
+    public function test_customer_sees_each_stage_from_booking_through_delivery(): void
+    {
+        $this->post(route('booking.store'), $this->payload())->assertSessionHasNoErrors();
+        $booking = PickupRequest::query()->firstOrFail();
+        $this->get(route('booking.confirmed', $booking->reference_no))
+            ->assertOk()
+            ->assertSee('Pickup Booked!');
+
+        $rider = User::factory()->create([
+            'role' => 'rider',
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+            'access' => [],
+        ]);
+        $this->actingAs($rider)
+            ->postJson(route('rider.jobs.claim', $booking), ['client_token' => 'take-bag'])
+            ->assertOk();
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.status', $booking), [
+                'status' => 'picked_up',
+                'tag_code' => 'CC-FLOW-1',
+                'client_token' => 'collect-bag',
+            ])->assertOk();
+
+        $cashier = User::factory()->create([
+            'role' => 'cashier',
+            'branch_id' => $this->branch->id,
+            'access' => ['job_orders', 'cycles'],
+        ]);
+        $this->actingAs($cashier)
+            ->get(route('admin.job-orders.create', ['tag_code' => 'CC-FLOW-1']))
+            ->assertOk()
+            ->assertSee('Loaded '.$booking->reference_no);
+        $this->actingAs($cashier)
+            ->post(route('admin.job-orders.store'), [
+                'branch_id' => $this->branch->id,
+                'customer_id' => $booking->customer_id,
+                'pickup_request_id' => $booking->id,
+                'transaction_type' => 'delivery',
+                'items' => [[
+                    'laundry_service_id' => $this->service->id,
+                    'description' => $this->service->name,
+                    'quantity' => 8,
+                    'unit_price' => 60,
+                ]],
+                'paid_amount' => 0,
+                'send_sms' => 0,
+            ])->assertRedirect(route('admin.job-orders.index'));
+
+        $order = JobOrder::query()->firstOrFail();
+        $this->assertSame($order->id, $booking->fresh()->job_order_id);
+
+        foreach ([
+            'wash' => ['washing', 'Your Laundry Is Washing'],
+            'dry' => ['drying', 'Your Laundry Is Drying'],
+            'iron' => ['ironing', 'Your Laundry Is Being Steamed'],
+        ] as $cycleType => [$progress, $headline]) {
+            $payload = ['cycle_type' => $cycleType];
+            if ($cycleType !== 'iron') {
+                $payload['machine_numbers'] = [1];
+            }
+
+            $this->actingAs($cashier)
+                ->post(route('admin.cycles.store', $order), $payload)
+                ->assertSessionHasNoErrors();
+
+            $this->assertSame($progress, $booking->fresh()->customerProgressStatus());
+            $this->get(route('booking.confirmed', $booking->reference_no))
+                ->assertOk()
+                ->assertSee($headline);
+            $this->post(route('track'), [
+                'reference_no' => $booking->reference_no,
+                'phone' => $booking->contact_phone,
+            ])->assertOk()->assertSee(ucfirst($progress) === 'Ironing' ? 'Ironing / Steaming' : ucfirst($progress));
+            $this->actingAs($booking->customer, 'customer')
+                ->get(route('customer.bookings.index'))
+                ->assertOk()
+                ->assertSee($progress === 'ironing' ? 'Ironing / Steaming' : ucfirst($progress));
+
+            $cycle = $order->cycles()->where('cycle_type', $cycleType)->latest('id')->firstOrFail();
+            $this->actingAs($cashier)
+                ->patch(route('admin.cycles.end', $cycle))
+                ->assertRedirect();
+        }
+
+        $this->actingAs($cashier)
+            ->patch(route('admin.cycles.status', $order), ['status' => 'ready_for_delivery'])
+            ->assertRedirect();
+        $this->get(route('booking.confirmed', $booking->reference_no))
+            ->assertOk()
+            ->assertSee('Ready for Delivery')
+            ->assertSee('Ironing / Steaming');
+
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.status', $booking), [
+                'status' => 'completed',
+                'client_token' => 'deliver-bag',
+            ])->assertOk();
+        $this->assertSame('completed', $order->fresh()->status);
+        $this->get(route('booking.confirmed', $booking->reference_no))
+            ->assertOk()
+            ->assertSee('All Done!');
+        $this->actingAs($booking->customer, 'customer')
+            ->get(route('customer.bookings.index'))
+            ->assertOk()
+            ->assertSee($booking->reference_no)
+            ->assertSee('Completed');
+    }
+
+    public function test_customer_sees_ready_for_pickup_when_branch_claim_was_chosen(): void
+    {
+        $this->post(route('booking.store'), $this->payload([
+            'delivery_preference' => 'branch_pickup',
+        ]))->assertSessionHasNoErrors();
+
+        $booking = PickupRequest::query()->firstOrFail();
+        $booking->update(['status' => 'picked_up', 'picked_up_at' => now()]);
+        $order = JobOrder::query()->create([
+            'branch_id' => $this->branch->id,
+            'customer_id' => $booking->customer_id,
+            'job_order_number' => 'JO-CLAIM-1',
+            'status' => 'ready_for_pickup',
+            'total' => 480,
+            'balance' => 480,
+        ]);
+        $booking->jobOrder()->associate($order)->save();
+
+        $this->assertSame('ready_for_pickup', $booking->fresh()->customerProgressStatus());
+        $this->get(route('booking.confirmed', $booking->reference_no))
+            ->assertOk()
+            ->assertSee('Ready for Pickup');
+        $this->post(route('track'), [
+            'reference_no' => $booking->reference_no,
+            'phone' => $booking->contact_phone,
+        ])->assertOk()->assertSee('Ready for pickup');
+        $this->actingAs($booking->customer, 'customer')
+            ->get(route('customer.bookings.index'))
+            ->assertOk()
+            ->assertSee('Ready for pickup');
+    }
+
+    public function test_the_tag_lookup_only_loads_collected_pickups_from_the_cashiers_branch(): void
+    {
+        $this->post(route('booking.store'), $this->payload())
+            ->assertSessionHasNoErrors();
+
+        $booking = PickupRequest::query()->firstOrFail();
+        $booking->update(['status' => 'picked_up', 'tag_code' => 'CC-654321']);
+        $otherBranch = Branch::query()->create(['name' => 'Other Branch', 'code' => 'OTHER', 'is_active' => true]);
+        $otherCashier = User::factory()->create([
+            'role' => 'cashier',
+            'branch_id' => $otherBranch->id,
+            'access' => ['job_orders'],
+        ]);
+
+        $this->actingAs($otherCashier)
+            ->get(route('admin.job-orders.create', ['tag_code' => 'CC-654321']))
+            ->assertOk()
+            ->assertSee('No collected pickup with that bag tag was found for your branch.')
+            ->assertDontSee('From booking '.$booking->reference_no);
+
+        $booking->update(['status' => 'confirmed']);
+        $homeCashier = User::factory()->create([
+            'role' => 'cashier',
+            'branch_id' => $this->branch->id,
+            'access' => ['job_orders'],
+        ]);
+
+        $this->actingAs($homeCashier)
+            ->get(route('admin.job-orders.create', ['tag_code' => 'CC-654321']))
+            ->assertOk()
+            ->assertSee('No collected pickup with that bag tag was found for your branch.');
+    }
+
+    public function test_tag_lookup_includes_a_booked_service_bundle_in_the_pos_cart(): void
+    {
+        $preset = ServicePreset::query()->create([
+            'branch_id' => $this->branch->id,
+            'name' => 'Full Service Bundle',
+            'is_active' => true,
+            'show_on_landing' => true,
+        ]);
+        $preset->items()->create([
+            'laundry_service_id' => $this->service->id,
+            'quantity' => 1,
+        ]);
+
+        $this->post(route('booking.store'), $this->payload([
+            'items' => [['key' => 'preset:'.$preset->id, 'quantity' => 1]],
+        ]))->assertSessionHasNoErrors();
+
+        $booking = PickupRequest::query()->firstOrFail();
+        $booking->update(['status' => 'picked_up', 'tag_code' => 'CC-BUNDLE']);
+        $cashier = User::factory()->create([
+            'role' => 'cashier',
+            'branch_id' => $this->branch->id,
+            'access' => ['job_orders'],
+        ]);
+
+        $response = $this->actingAs($cashier)
+            ->get(route('admin.job-orders.create', ['tag_code' => 'CC-BUNDLE']))
+            ->assertOk();
+
+        $item = $response->viewData('bookedItems')->first();
+        $this->assertSame('preset', $item['type']);
+        $this->assertSame($preset->id, $item['id']);
+        $this->assertSame('Full Service Bundle', $item['name']);
+        $this->assertSame(60.0, (float) $item['price']);
     }
 
     /**

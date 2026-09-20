@@ -27,7 +27,7 @@ class EnsureSystemSettingsCompleted
 
         $settings = SystemSetting::current();
 
-        if (!$settings->is_completed) {
+        if (! $settings->hasCompletedSetup()) {
             return redirect()
                 ->route('admin.settings.edit')
                 ->with('error', 'Please complete your business settings first before using the system.');

@@ -24,7 +24,7 @@
             <p class="text-muted text-sm">{{ $canManageGlobal ? 'Configure global system settings and branch defaults.' : 'Configure branch settings for receipts and operations.' }}</p>
         </div>
 
-        @if(!$settings->is_completed)
+        @if(! $settings->hasCompletedSetup())
             <div class="rounded-md bg-amber-50 border border-amber-200 text-amber-700 px-3 py-2 text-sm font-medium">
                 Business setup is incomplete.
             </div>

@@ -5,7 +5,7 @@
 
 @php
     $businessName = $appBusinessName ?: config('app.name');
-    $status = $pickupRequest->status;
+    $status = $pickupRequest->customerProgressStatus();
     $cancelled = $status === 'cancelled';
 
     // Reachable without an account, so the account-only actions (the booking
@@ -16,6 +16,13 @@
     [$headline, $headlineIcon] = match ($status) {
         'cancelled' => ['Booking Cancelled', 'x'],
         'picked_up' => ['We Have Your Laundry', 'laundry'],
+        'washing' => ['Your Laundry Is Washing', 'laundry'],
+        'drying' => ['Your Laundry Is Drying', 'wind'],
+        'folding' => ['Your Laundry Is Being Folded', 'shirt'],
+        'ironing' => ['Your Laundry Is Being Steamed', 'shirt'],
+        'ready_for_pickup' => ['Ready for Pickup', 'package-check'],
+        'ready_for_delivery' => ['Ready for Delivery', 'package-check'],
+        'out_for_delivery' => ['Out for Delivery', 'truck'],
         'completed' => ['All Done!', 'check-check'],
         default => ['Pickup Booked!', 'check'],
     };

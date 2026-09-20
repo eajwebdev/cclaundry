@@ -84,7 +84,7 @@ class BookingController extends Controller
     public function confirmed(Request $request, string $reference)
     {
         $pickupRequest = PickupRequest::query()
-            ->with(['items', 'branch', 'jobOrder'])
+            ->with(['items', 'branch', 'jobOrder.latestCycle'])
             ->where('reference_no', $reference)
             ->firstOrFail();
 
@@ -112,7 +112,7 @@ class BookingController extends Controller
 
         return view('customer.booking-confirmed', [
             'settings' => SystemSetting::current(),
-            'pickupRequest' => $pickupRequest->load(['items', 'branch', 'jobOrder']),
+            'pickupRequest' => $pickupRequest->load(['items', 'branch', 'jobOrder.latestCycle']),
         ]);
     }
 
@@ -124,12 +124,12 @@ class BookingController extends Controller
             'settings' => SystemSetting::current(),
             'customer' => $customer,
             'requests' => PickupRequest::query()
-                ->with(['items', 'branch', 'jobOrder'])
+                ->with(['items', 'branch', 'jobOrder.latestCycle'])
                 ->where('customer_id', $customer->id)
                 ->latest()
                 ->paginate(10),
             'jobOrders' => $customer->jobOrders()
-                ->with('branch')
+                ->with(['branch', 'latestCycle'])
                 ->latest()
                 ->limit(10)
                 ->get(),

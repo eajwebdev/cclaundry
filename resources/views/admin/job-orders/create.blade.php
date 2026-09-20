@@ -29,6 +29,30 @@
 <div
     x-data="posPage(@js($branches), @js($processingBranches), @js($services), @js($customers), @js($serviceCategories), @js($servicePresets), @js((float) ($appSettings?->vat_rate ?? 0)), @js((bool) ($appSettings?->vat_enabled ?? false)), @js($initialState))"
 >
+    @unless($isEditing)
+        <form method="GET" action="{{ route('admin.job-orders.create') }}" class="mb-3 rounded-lg border border-border bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <label for="pickup_tag_code" class="block text-sm font-semibold">Rider pickup bag tag #</label>
+            <p class="mt-0.5 text-xs text-muted">Enter the tag on the returned laundry bag to load its booking into this POS.</p>
+            <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+                <input id="pickup_tag_code" name="tag_code" type="text" maxlength="24" autocomplete="off"
+                       value="{{ $tagCode }}" placeholder="Example: CC-123456"
+                       class="h-10 min-w-0 flex-1 rounded-md border border-border bg-white px-3 font-mono text-sm uppercase dark:border-gray-700 dark:bg-gray-950">
+                <button type="submit" class="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-white hover:opacity-90">Load pickup</button>
+            </div>
+            @if($tagLookupError)
+                <p class="mt-2 text-sm font-medium text-red-600" role="alert">{{ $tagLookupError }}</p>
+            @elseif($bookedRequest)
+                <div class="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <p class="font-medium text-primary">Loaded {{ $bookedRequest->reference_no }}@if($bookedRequest->tag_code) · Tag {{ $bookedRequest->tag_code }}@endif</p>
+                    <a href="{{ route('admin.job-orders.create') }}" class="font-semibold text-muted hover:text-primary">Start a walk-in order</a>
+                </div>
+            @endif
+            @error('pickup_request_id')
+                <p class="mt-2 text-sm font-medium text-red-600" role="alert">{{ $message }}</p>
+            @enderror
+        </form>
+    @endunless
+
     <form
         method="POST"
         action="{{ $isEditing ? route('admin.job-orders.update', $jobOrder) : route('admin.job-orders.store') }}"
@@ -43,8 +67,8 @@
         @endif
 
         {{-- Set when staff open this form from a customer's online pickup booking. --}}
-        @if(! $isEditing && request()->filled('pickup_request_id'))
-            <input type="hidden" name="pickup_request_id" value="{{ request()->integer('pickup_request_id') }}">
+        @if(! $isEditing && ($bookedRequest ?? null))
+            <input type="hidden" name="pickup_request_id" value="{{ $bookedRequest->id }}">
         @endif
 
         <!-- LEFT SIDE -->
@@ -80,6 +104,12 @@
                                     <option value="{{ $status }}" @selected(old('status', $jobOrder->status) === $status)>{{ \App\Support\StatusBadge::label($status) }}</option>
                                 @endforeach
                             </select>
+                        </div>
+                    @elseif($bookedRequest ?? null)
+                        <input type="hidden" name="branch_id" value="{{ $branchId }}">
+                        <div class="flex items-center gap-2 rounded-md bg-primary/10 px-3 py-1">
+                            <span data-lucide="store" class="h-3.5 w-3.5 text-primary"></span>
+                            <span class="text-xs font-medium text-primary">{{ $branches->firstWhere('id', (int) $branchId)?->name }}</span>
                         </div>
                     @elseif(in_array(auth()->user()->role, ['super_admin', 'admin'], true))
                         <div class="flex items-center gap-2">
@@ -136,16 +166,20 @@
                         <input
                             type="search"
                             x-model="customerSearch"
+                            @if(! ($bookedRequest ?? null))
                             @focus="customerOpen = true"
                             @input="selectedCustomerId = ''; customerOpen = true"
+                            @else
+                            readonly
+                            @endif
                             placeholder="Search or select customer..."
                             class="min-w-0 flex-1 bg-transparent text-sm outline-none"
                             autocomplete="off"
                         >
-                        <button type="button" x-show="!isEditing" @click="quickCustomerOpen = true; refreshIcons()" title="Add new customer" class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-primary hover:bg-primary/10">
+                        <button type="button" x-show="!isEditing && !@js((bool) ($bookedRequest ?? null))" @click="quickCustomerOpen = true; refreshIcons()" title="Add new customer" class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-primary hover:bg-primary/10">
                             <span data-lucide="plus" class="h-4 w-4"></span>
                         </button>
-                        <button type="button" x-show="selectedCustomerId" @click="clearCustomer()" title="Clear customer" class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-smoke dark:hover:bg-gray-900">
+                        <button type="button" x-show="selectedCustomerId && !@js((bool) ($bookedRequest ?? null))" @click="clearCustomer()" title="Clear customer" class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-smoke dark:hover:bg-gray-900">
                             <span data-lucide="x" class="h-4 w-4"></span>
                         </button>
                     </div>
@@ -166,24 +200,24 @@
                 <!-- Notes -->
                 <div>
                     <label class="mb-1 block text-[10px] font-medium text-muted">Notes / Instructions</label>
-                    <textarea name="notes" rows="1" placeholder="Add notes..." class="h-9 w-full rounded-md border border-border bg-white px-3 py-1.5 text-sm shadow-sm dark:border-gray-800 dark:bg-gray-950">{{ old('notes', $isEditing ? $jobOrder->notes : '') }}</textarea>
+                    <textarea name="notes" rows="1" placeholder="Add notes..." class="h-9 w-full rounded-md border border-border bg-white px-3 py-1.5 text-sm shadow-sm dark:border-gray-800 dark:bg-gray-950">{{ old('notes', $isEditing ? $jobOrder->notes : ($bookedRequest->notes ?? '')) }}</textarea>
                 </div>
 
                 <!-- Options -->
                 <div class="flex flex-wrap items-center gap-2 md:mt-3">
                     <label class="flex h-9 cursor-pointer items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-800 dark:border-amber-900/60 dark:bg-amber-500/10 dark:text-amber-300">
-                        <input type="checkbox" name="is_rush" value="1" @checked(old('is_rush', $isEditing ? $jobOrder->is_rush : request()->boolean('is_rush'))) class="rounded border-amber-300 text-amber-600">
+                        <input type="checkbox" name="is_rush" value="1" @checked(old('is_rush', $isEditing ? $jobOrder->is_rush : ($bookedRequest->is_rush ?? request()->boolean('is_rush')))) class="rounded border-amber-300 text-amber-600">
                         <span data-lucide="zap" class="h-4 w-4"></span>
                         Rush
                     </label>
                     <div class="flex h-9 shrink-0 rounded-md bg-smoke p-0.5 dark:bg-gray-950">
                         <label class="flex cursor-pointer items-center gap-1.5 rounded-sm px-3 text-xs font-medium has-[:checked]:bg-white has-[:checked]:text-primary has-[:checked]:shadow-sm dark:has-[:checked]:bg-gray-900">
-                            <input type="radio" name="transaction_type" value="walk_in" @checked(old('transaction_type', $isEditing ? $jobOrder->transaction_type : request('transaction_type', 'walk_in')) !== 'delivery') class="sr-only">
+                            <input type="radio" name="transaction_type" value="walk_in" @checked(old('transaction_type', $isEditing ? $jobOrder->transaction_type : (($bookedRequest ?? null) && $bookedRequest->wantsDelivery() ? 'delivery' : request('transaction_type', 'walk_in'))) !== 'delivery') class="sr-only">
                             <span data-lucide="user" class="h-3.5 w-3.5"></span>
-                            Walk-in
+                            {{ ($bookedRequest ?? null) ? 'Collect at branch' : 'Walk-in' }}
                         </label>
                         <label class="flex cursor-pointer items-center gap-1.5 rounded-sm px-3 text-xs font-medium has-[:checked]:bg-orange-100 has-[:checked]:text-orange-700 has-[:checked]:shadow-sm dark:has-[:checked]:bg-orange-500/10 dark:has-[:checked]:text-orange-300">
-                            <input type="radio" name="transaction_type" value="delivery" @checked(old('transaction_type', $isEditing ? $jobOrder->transaction_type : request('transaction_type', 'walk_in')) === 'delivery') class="sr-only">
+                            <input type="radio" name="transaction_type" value="delivery" @checked(old('transaction_type', $isEditing ? $jobOrder->transaction_type : (($bookedRequest ?? null) && $bookedRequest->wantsDelivery() ? 'delivery' : request('transaction_type', 'walk_in'))) === 'delivery') class="sr-only">
                             <span data-lucide="truck" class="h-3.5 w-3.5"></span>
                             Delivery
                         </label>

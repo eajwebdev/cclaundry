@@ -955,6 +955,31 @@ class RiderTrackingTest extends TestCase
             ]);
     }
 
+    public function test_customer_does_not_track_rider_during_processing_and_can_track_ready_delivery(): void
+    {
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $job = $this->booking($branch, ['rider_id' => $rider->id, 'status' => 'picked_up']);
+        $order = $this->jobOrder($branch, 'washing');
+        $job->jobOrder()->associate($order)->save();
+
+        $this->actingAs($rider)->postJson(route('rider.ping'), [
+            'latitude' => 9.9950, 'longitude' => 122.8200, 'accuracy' => 15,
+        ])->assertOk();
+
+        $this->get(route('track.location', $job->reference_no))
+            ->assertOk()
+            ->assertJson(['tracking' => false, 'leg' => null, 'destination' => null])
+            ->assertJsonMissingPath('rider.latitude');
+
+        $order->update(['status' => 'ready_for_delivery']);
+
+        $this->get(route('track.location', $job->reference_no))
+            ->assertOk()
+            ->assertJson(['tracking' => true, 'leg' => 'delivery'])
+            ->assertJsonStructure(['rider' => ['latitude', 'longitude']]);
+    }
+
     public function test_tracking_feed_hides_a_stale_position(): void
     {
         $branch = $this->branch();

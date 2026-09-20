@@ -71,7 +71,7 @@ class LandingController extends Controller
         ]);
 
         $requestRecord = PickupRequest::query()
-            ->with(['items', 'branch', 'jobOrder'])
+            ->with(['items', 'branch', 'jobOrder.latestCycle'])
             ->where('reference_no', trim($validated['reference_no']))
             ->first();
 

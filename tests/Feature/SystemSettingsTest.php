@@ -277,6 +277,34 @@ class SystemSettingsTest extends TestCase
             ->assertSee('Create an account');
     }
 
+    public function test_filled_business_settings_show_complete_without_saving_again(): void
+    {
+        $this->activeTrial();
+        $branch = $this->createBranch();
+        $settings = SystemSetting::current();
+        $settings->update([
+            'business_name' => 'Cane & Cotton Laundry',
+            'contact_number' => '09555471090',
+            'business_address' => 'GUANZON ST KABANKALAN CITY',
+            'is_completed' => false,
+        ]);
+
+        $manager = User::factory()->create([
+            'role' => 'branch_manager',
+            'branch_id' => $branch->id,
+            'access' => ['settings'],
+        ]);
+
+        $this->actingAs($manager)
+            ->get(route('admin.settings.edit'))
+            ->assertOk()
+            ->assertSee('Business setup completed.')
+            ->assertDontSee('Business setup is incomplete.');
+
+        $this->get(route('dashboard'))->assertOk();
+        $this->assertFalse($settings->fresh()->is_completed);
+    }
+
     private function completeSystemSettings(): void
     {
         SystemSetting::query()->create([

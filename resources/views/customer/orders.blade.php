@@ -58,7 +58,7 @@
                         </div>
 
                         <div class="mt-2 flex flex-wrap items-center gap-2">
-                            @include('partials.booking-status', ['status' => $pickupRequest->status])
+                            @include('partials.booking-status', ['status' => $pickupRequest->customerProgressStatus()])
                             @if($pickupRequest->is_rush)
                                 <span class="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
                                     <span data-lucide="zap" class="h-2.5 w-2.5"></span> Rush
@@ -116,7 +116,7 @@
                         <div class="min-w-0">
                             <p class="font-mono text-xs font-bold text-cc-brown">{{ $order->job_order_number }}</p>
                             <p class="mt-0.5 truncate text-xs text-cc-muted capitalize">
-                                {{ str_replace('_', ' ', $order->status) }}
+                                {{ ucfirst(str_replace('_', ' ', $order->customerProgressStatus())) }}
                                 &middot; {{ $order->branch?->name ?? '--' }}
                                 &middot; {{ $order->created_at->format('M j, Y') }}
                             </p>

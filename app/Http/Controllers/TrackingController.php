@@ -28,12 +28,13 @@ class TrackingController extends Controller
             return response()->json(['tracking' => false], 404);
         }
 
-        $destination = $pickupRequest->destinationCoordinates();
+        $trackable = $pickupRequest->isTrackable();
+        $destination = $trackable ? $pickupRequest->destinationCoordinates() : null;
 
         $payload = [
             'tracking' => false,
             'status' => $pickupRequest->status,
-            'leg' => $pickupRequest->activeLeg(),
+            'leg' => $trackable ? $pickupRequest->activeLeg() : null,
             'destination' => $destination
                 ? ['latitude' => $destination[0], 'longitude' => $destination[1]]
                 : null,
@@ -42,7 +43,7 @@ class TrackingController extends Controller
 
         $rider = $pickupRequest->rider;
 
-        if (! $pickupRequest->isTrackable() || ! $rider || ! $rider->is_sharing_location) {
+        if (! $trackable || ! $rider || ! $rider->is_sharing_location) {
             return response()->json($payload);
         }
 

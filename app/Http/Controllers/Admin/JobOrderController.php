@@ -112,7 +112,30 @@ class JobOrderController extends Controller
     {
         $user = $request->user();
         $canChooseBranch = in_array($user->role, ['super_admin', 'admin'], true);
-        $requestedBranchId = $request->integer('branch_id');
+        $tagCode = strtoupper(trim((string) $request->query('tag_code', '')));
+        $tagLookupError = null;
+        $taggedRequest = null;
+
+        if ($tagCode !== '') {
+            $taggedRequest = PickupRequest::query()
+                ->whereRaw('UPPER(tag_code) = ?', [$tagCode])
+                ->where('status', 'picked_up')
+                ->whereHas('branch', fn ($query) => $query->where('is_active', true))
+                ->when(! $canChooseBranch, fn ($query) => $query->where('branch_id', $user->branch_id))
+                ->first();
+
+            if (! $taggedRequest) {
+                $tagLookupError = $canChooseBranch
+                    ? 'No collected pickup with that bag tag was found.'
+                    : 'No collected pickup with that bag tag was found for your branch.';
+                $taggedRequest = null;
+            } elseif ($taggedRequest->job_order_id) {
+                return redirect()->route('admin.job-orders.show', $taggedRequest->job_order_id)
+                    ->with('info', 'This bag tag already has a job order.');
+            }
+        }
+
+        $requestedBranchId = $taggedRequest?->branch_id ?? $request->integer('branch_id');
         $branchId = $canChooseBranch
             ? Branch::where('is_active', true)
                 ->when($requestedBranchId, fn ($query) => $query->whereKey($requestedBranchId))
@@ -126,7 +149,10 @@ class JobOrderController extends Controller
             ->where('branch_type', 'full_service')
             ->orderBy('name')
             ->get(['id', 'name', 'code', 'branch_type', 'machine_count']);
-        $customers = Customer::where('is_active', true)
+        $customers = Customer::query()
+            ->where(fn ($query) => $query
+                ->where('is_active', true)
+                ->when($taggedRequest, fn ($query) => $query->orWhere('id', $taggedRequest->customer_id)))
             ->when(! in_array($user->role, ['super_admin', 'admin'], true), fn ($q) => $q->where('branch_id', $user->branch_id))
             ->orderBy('name')
             ->get(['id', 'branch_id', 'name', 'phone', 'billing_type']);
@@ -167,8 +193,8 @@ class JobOrderController extends Controller
             ])
             ->values();
 
-        $selectedCustomerId = '';
-        if ($request->filled('customer_id')) {
+        $selectedCustomerId = $taggedRequest ? (string) $taggedRequest->customer_id : '';
+        if (! $taggedRequest && $request->filled('customer_id')) {
             $selectedCustomerId = (string) Customer::where('is_active', true)
                 ->whereKey($request->integer('customer_id'))
                 ->where('branch_id', $branchId)
@@ -178,41 +204,55 @@ class JobOrderController extends Controller
         // Opened from an online booking: the cart starts as what the customer
         // said they were sending, each line carrying the amount they entered so
         // the cashier can check it against the scale rather than retype it.
-        $bookedRequest = $request->filled('pickup_request_id')
+        $bookedRequest = $taggedRequest ?: ($request->filled('pickup_request_id')
             ? PickupRequest::query()
                 ->with(['items', 'rider:id,name'])
                 ->whereKey($request->integer('pickup_request_id'))
                 ->where('branch_id', $branchId)
                 ->first()
-            : null;
+            : null);
+
+        $bookedRequest?->loadMissing(['items', 'rider:id,name']);
 
         $bookedItems = $bookedRequest
             ? $bookedRequest->items
-                ->filter(fn ($item) => $item->laundry_service_id)
-                ->map(fn ($item) => [
-                    'id' => $item->laundry_service_id,
-                    'type' => 'service',
-                    'name' => $item->service_name,
-                    // Priced units, so a 12 kg load-priced line arrives as 2 loads.
-                    'quantity' => (float) $item->billable_quantity,
-                    'price' => (float) $item->service_price,
-                    'booked' => [
-                        'label' => $item->quantityLabel(),
+                ->filter(fn ($item) => $item->laundry_service_id || $item->service_preset_id)
+                ->map(function ($item) use ($servicePresets) {
+                    $preset = $item->service_preset_id
+                        ? $servicePresets->firstWhere('id', (int) $item->service_preset_id)
+                        : null;
+                    $components = collect($preset['items'] ?? []);
+
+                    return [
+                        'id' => $item->service_preset_id ?: $item->laundry_service_id,
+                        'type' => $item->service_preset_id ? 'preset' : 'service',
+                        'name' => $item->service_name,
+                        'summary' => $components->map(fn ($component) => $component['name'])->implode(', '),
+                        // Presets expand to component services at current POS
+                        // prices when saved, so show that same total up front.
+                        'price' => $preset
+                            ? $components->sum(fn ($component) => (float) $component['price'] * (float) $component['quantity'])
+                            : (float) $item->service_price,
+                        // Priced units, so a 12 kg load-priced line arrives as 2 loads.
                         'quantity' => (float) $item->billable_quantity,
-                        'weighed' => $item->isWeighed(),
-                        // Declared less than the service's minimum, so the line
-                        // is priced at the minimum. Said out loud, or a cashier
-                        // weighing a 3 kg bag reads "5" as a mistake.
-                        'minimum' => $item->pricing_type === 'kilo'
-                            && (float) $item->billable_quantity > (float) $item->quantity
-                            ? (float) $item->billable_quantity
-                            : null,
-                    ],
-                ])
+                        'booked' => [
+                            'label' => $item->quantityLabel(),
+                            'quantity' => (float) $item->billable_quantity,
+                            'weighed' => $item->isWeighed(),
+                            // Declared less than the service's minimum, so the line
+                            // is priced at the minimum. Said out loud, or a cashier
+                            // weighing a 3 kg bag reads "5" as a mistake.
+                            'minimum' => $item->pricing_type === 'kilo'
+                                && (float) $item->billable_quantity > (float) $item->quantity
+                                ? (float) $item->billable_quantity
+                                : null,
+                        ],
+                    ];
+                })
                 ->values()
             : collect();
 
-        return view('admin.job-orders.create', compact('branches', 'processingBranches', 'customers', 'services', 'serviceCategories', 'servicePresets', 'branchId', 'selectedCustomerId', 'bookedRequest', 'bookedItems'));
+        return view('admin.job-orders.create', compact('branches', 'processingBranches', 'customers', 'services', 'serviceCategories', 'servicePresets', 'branchId', 'selectedCustomerId', 'bookedRequest', 'bookedItems', 'tagCode', 'tagLookupError'));
     }
 
     public function edit(Request $request, JobOrder $jobOrder)
@@ -367,6 +407,23 @@ class JobOrderController extends Controller
 
         $createdOrder = null;
         $response = DB::transaction(function () use ($request, $validated, $selectedServices, $user, &$createdOrder) {
+            $pickupRequest = null;
+            if (! empty($validated['pickup_request_id'])) {
+                $pickupRequest = PickupRequest::query()
+                    ->lockForUpdate()
+                    ->find($validated['pickup_request_id']);
+
+                if (! $pickupRequest
+                    || (int) $pickupRequest->branch_id !== (int) $validated['branch_id']
+                    || (int) $pickupRequest->customer_id !== (int) $validated['customer_id']
+                    || $pickupRequest->job_order_id
+                    || in_array($pickupRequest->status, ['cancelled', 'completed'], true)) {
+                    throw ValidationException::withMessages([
+                        'pickup_request_id' => 'This pickup can no longer be used for a new job order. Reload it from the bag tag.',
+                    ]);
+                }
+            }
+
             $settings = SystemSetting::current();
             $subtotal = collect($validated['items'])->sum(fn ($item) => (float) $item['quantity'] * (float) $item['unit_price']);
             $discount = min((float) ($validated['discount'] ?? 0), $subtotal);
@@ -468,17 +525,13 @@ class JobOrderController extends Controller
 
             // A pickup booked from the public site closes out the moment the
             // load is actually received at the counter.
-            if (! empty($validated['pickup_request_id'])) {
-                PickupRequest::query()
-                    ->whereKey($validated['pickup_request_id'])
-                    ->whereNull('job_order_id')
-                    ->update([
-                        'job_order_id' => $order->id,
-                        'status' => 'picked_up',
-                        'handled_by' => $user->id,
-                        'confirmed_at' => now(),
-                        'updated_at' => now(),
-                    ]);
+            if ($pickupRequest) {
+                $pickupRequest->update([
+                    'job_order_id' => $order->id,
+                    'status' => 'picked_up',
+                    'handled_by' => $user->id,
+                    'confirmed_at' => now(),
+                ]);
             }
 
             $createdOrder = $order;

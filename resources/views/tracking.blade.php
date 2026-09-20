@@ -43,7 +43,7 @@
                         Pickup: {{ $pickupRequest->pickup_date->format('M j, Y') }}
                     </p>
                 </div>
-                @include('partials.booking-status', ['status' => $pickupRequest->status])
+                @include('partials.booking-status', ['status' => $pickupRequest->customerProgressStatus()])
             </div>
 
             <div class="mt-5">
