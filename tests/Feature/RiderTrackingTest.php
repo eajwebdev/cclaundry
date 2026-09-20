@@ -579,6 +579,67 @@ class RiderTrackingTest extends TestCase
         $this->assertStringContainsString('Ready for delivery', $after->json('html'));
     }
 
+    public function test_every_branch_rider_sees_a_ready_delivery_and_another_rider_can_finish_it(): void
+    {
+        $branch = $this->branch();
+        $collector = $this->rider($branch);
+        $deliverer = $this->rider($branch);
+        $outsider = $this->rider($this->secondBranch());
+        $ready = $this->booking($branch, [
+            'rider_id' => $collector->id,
+            'status' => 'picked_up',
+            'delivery_date' => today()->addWeeks(2),
+        ]);
+        $order = $this->jobOrder($branch, 'ready_for_delivery');
+        $ready->jobOrder()->associate($order)->save();
+
+        $page = $this->actingAs($deliverer)->get(route('rider.index', ['tab' => 'deliver']))->assertOk();
+        $page->assertViewHas('toDeliver', fn ($jobs) => $jobs->contains('id', $ready->id));
+        $page->assertSee('Ready now')->assertSee($ready->reference_no);
+        $this->actingAs($deliverer)->getJson(route('rider.runs'))
+            ->assertOk()->assertSee($ready->reference_no);
+        $this->actingAs($deliverer)->getJson(route('rider.map.jobs'))
+            ->assertOk()->assertJsonFragment(['reference' => $ready->reference_no, 'stage' => 'delivery']);
+        $this->actingAs($deliverer)->get(route('rider.jobs.show', $ready))
+            ->assertOk()->assertSee('Mark as delivered?');
+
+        $this->actingAs($outsider)->get(route('rider.jobs.show', $ready))->assertForbidden();
+        $this->actingAs($outsider)->patchJson(route('rider.jobs.status', $ready), ['status' => 'completed'])->assertForbidden();
+
+        $this->actingAs($deliverer)
+            ->patchJson(route('rider.jobs.status', $ready), ['status' => 'completed', 'client_token' => 'delivered-by-second-rider'])
+            ->assertOk()->assertJsonPath('status', 'completed');
+
+        $this->assertSame($deliverer->id, $ready->fresh()->rider_id);
+        $this->assertSame('completed', $order->fresh()->status);
+        $this->assertNotNull($ready->fresh()->delivered_at);
+        $this->actingAs($deliverer)
+            ->patchJson(route('rider.jobs.status', $ready), ['status' => 'completed', 'client_token' => 'delivered-by-second-rider'])
+            ->assertOk()->assertJsonPath('status', 'completed');
+        $this->assertSame(1, \App\Models\ActivityLog::query()
+            ->where('action', 'job_order_released')
+            ->where('subject_id', $order->id)
+            ->count());
+        $this->actingAs($deliverer)->get(route('rider.index', ['tab' => 'done']))
+            ->assertOk()->assertViewHas('completedCount', 1);
+        $this->actingAs($collector)->get(route('rider.index', ['tab' => 'deliver']))
+            ->assertOk()->assertViewHas('toDeliver', fn ($jobs) => ! $jobs->contains('id', $ready->id));
+        $this->actingAs($collector)->patchJson(route('rider.jobs.status', $ready), ['status' => 'completed'])->assertForbidden();
+    }
+
+    public function test_another_rider_cannot_deliver_a_bag_still_being_washed(): void
+    {
+        $branch = $this->branch();
+        $collector = $this->rider($branch);
+        $otherRider = $this->rider($branch);
+        $washing = $this->booking($branch, ['rider_id' => $collector->id, 'status' => 'picked_up']);
+        $washing->jobOrder()->associate($this->jobOrder($branch, 'washing'))->save();
+
+        $this->actingAs($otherRider)->get(route('rider.jobs.show', $washing))->assertForbidden();
+        $this->actingAs($otherRider)->patchJson(route('rider.jobs.status', $washing), ['status' => 'completed'])->assertForbidden();
+        $this->assertSame('picked_up', $washing->fresh()->status);
+    }
+
     /** Another rider's work must not arrive through the refresh either. */
     public function test_the_runs_feed_never_returns_another_riders_work(): void
     {

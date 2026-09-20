@@ -144,7 +144,7 @@
                                         })"
                                         class="inline-flex h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-white shadow-sm transition hover:opacity-90">
                                     <span data-lucide="check" class="h-4 w-4"></span>
-                                    Confirm pickup
+                                    Accept pickup
                                 </button>
                             </form>
 
@@ -253,6 +253,9 @@
                                             With the branch, not started yet
                                         @endif
                                     </p>
+                                    @if($job->jobOrder?->status === 'ready_for_delivery' && (int) $job->rider_id !== (int) $rider->id)
+                                        <p class="text-xs font-semibold text-primary">Ready now · You can deliver this bag</p>
+                                    @endif
                                 @endif
                             </div>
 
@@ -290,6 +293,7 @@
         <div x-show="activeTab === 'deliver'" x-cloak class="rounded-xl border border-dashed border-border py-14 text-center dark:border-gray-800">
             <span data-lucide="package-check" class="mx-auto mb-3 block h-8 w-8 text-muted"></span>
             <p class="text-sm font-medium">No deliveries for these dates.</p>
+            <p class="mt-1 text-xs text-muted">Ready deliveries from your branch appear here automatically, whatever their date.</p>
         </div>
     @endif
 

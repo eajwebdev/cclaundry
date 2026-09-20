@@ -7,6 +7,7 @@
     // Unclaimed bookings open here too, so a rider can see where one is before
     // taking it. Confirming is what puts it on their list.
     $isMine = $isMine ?? true;
+    $canDeliverReady = $canDeliverReady ?? false;
     $isCollected = $job->status === 'picked_up';
     $destination = $job->destinationCoordinates();
     $address = $isCollected && $job->delivery_address ? $job->delivery_address : $job->pickup_address;
@@ -213,7 +214,7 @@
             </div>
 
             {{-- The action, pinned above the home indicator --}}
-            @if(! $isMine)
+            @if(! $isMine && ! $canDeliverReady)
                 {{-- Nobody has taken this one yet. --}}
                 <form method="POST" action="{{ route('rider.jobs.claim', $job) }}"
                       class="px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
@@ -229,7 +230,7 @@
                             })"
                             class="inline-flex h-14 w-full touch-manipulation items-center justify-center gap-2 rounded-xl bg-primary text-base font-semibold text-white shadow-sm transition hover:opacity-90">
                         <span data-lucide="check" class="h-5 w-5"></span>
-                        Confirm pickup and take this run
+                        Accept pickup request
                     </button>
                 </form>
             @elseif(in_array($job->status, ['confirmed', 'picked_up'], true))

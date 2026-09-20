@@ -319,7 +319,8 @@ class JobOrderController extends Controller
                 ]),
             ]);
 
-        return response()->json(['count' => $count, 'tags' => $tags]);
+        return response()->json(['count' => $count, 'tags' => $tags])
+            ->header('Cache-Control', 'private, no-store');
     }
 
     public function edit(Request $request, JobOrder $jobOrder)

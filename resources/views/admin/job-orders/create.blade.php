@@ -556,7 +556,7 @@
                 <div class="flex items-start justify-between gap-3">
                     <div>
                         <h2 id="pickup-tag-title" class="text-base font-semibold">Load a pickup by bag tag</h2>
-                        <p class="mt-1 text-xs text-muted">Search a bag tag, booking number, or customer, then choose the right pickup.</p>
+                        <p class="mt-1 text-xs text-muted">Search a bag tag, booking number, or customer. A rider's tag appears here within 5 seconds after they mark the bag collected.</p>
                     </div>
                     <button type="button" @click="tagModalOpen = false" class="rounded-lg p-1.5 hover:bg-smoke dark:hover:bg-gray-800" aria-label="Close tag lookup">
                         <span data-lucide="x" class="h-5 w-5"></span>

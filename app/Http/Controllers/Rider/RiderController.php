@@ -71,14 +71,21 @@ class RiderController extends Controller
             ->get();
 
         $toDeliver = PickupRequest::query()
-            ->where('rider_id', $rider->id)
+            ->where('branch_id', $rider->branch_id)
             ->where('status', 'picked_up')
-            ->where(function ($query) use ($rangeFrom, $rangeTo, $includesToday) {
-                $query->whereDate('delivery_date', '>=', $rangeFrom)
-                    ->whereDate('delivery_date', '<=', $rangeTo);
-                if ($includesToday) {
-                    $query->orWhereNull('delivery_date');
-                }
+            ->where(function ($query) use ($rider, $rangeFrom, $rangeTo, $includesToday) {
+                // The rider who collected a bag can still see its progress.
+                $query->where(fn ($mine) => $mine
+                    ->where('rider_id', $rider->id)
+                    ->where(fn ($dates) => $dates
+                        ->whereDate('delivery_date', '>=', $rangeFrom)
+                        ->whereDate('delivery_date', '<=', $rangeTo)
+                        ->when($includesToday, fn ($dates) => $dates->orWhereNull('delivery_date'))))
+                    // Finished bags are available to every rider at this branch,
+                    // even if a future delivery date is on the booking.
+                    ->orWhere(fn ($ready) => $ready
+                        ->where('delivery_preference', 'deliver')
+                        ->whereHas('jobOrder', fn ($order) => $order->where('status', 'ready_for_delivery')));
             })
             ->with(['items', 'customer:id,name,phone', 'branch:id,name,address', 'jobOrder:id,job_order_number,status,updated_at'])
             ->orderByRaw('CASE WHEN delivery_date IS NULL THEN 1 ELSE 0 END')
@@ -238,7 +245,8 @@ class RiderController extends Controller
 
         // An unclaimed booking opens too, so a rider can look at where it is
         // before deciding to take it.
-        abort_unless($isMine || $this->isClaimableBy($pickupRequest, $rider), 403);
+        $canDeliverReady = $this->isReadyDeliveryForRider($pickupRequest, $rider);
+        abort_unless($isMine || $this->isClaimableBy($pickupRequest, $rider) || $canDeliverReady, 403);
 
         $pickupRequest->load(['items', 'customer:id,name,phone', 'branch:id,name,address']);
 
@@ -246,6 +254,7 @@ class RiderController extends Controller
             'job' => $pickupRequest,
             'rider' => $rider,
             'isMine' => $isMine,
+            'canDeliverReady' => $canDeliverReady,
         ]);
     }
 
@@ -263,7 +272,7 @@ class RiderController extends Controller
 
         $done = fn () => $this->riderActionDone(
             $request,
-            'Confirmed. '.$pickupRequest->reference_no.' is yours, directions are ready.',
+            'Pickup accepted. '.$pickupRequest->reference_no.' is yours. Add the bag tag when you collect it.',
             route('rider.jobs.show', $pickupRequest)
         );
 
@@ -486,7 +495,8 @@ class RiderController extends Controller
         // they are holding, and to one they are deciding whether to take.
         abort_unless(
             (int) $pickupRequest->rider_id === (int) $rider->id
-                || $this->isClaimableBy($pickupRequest, $rider),
+                || $this->isClaimableBy($pickupRequest, $rider)
+                || $this->isReadyDeliveryForRider($pickupRequest, $rider),
             403
         );
 
@@ -545,8 +555,6 @@ class RiderController extends Controller
      */
     public function updateStatus(Request $request, PickupRequest $pickupRequest)
     {
-        $this->authorizeRiderJob($request, $pickupRequest);
-
         $validated = $request->validate([
             'status' => ['required', Rule::in(['picked_up', 'completed'])],
             // Collection is where a load stops being "the customer's bag" and
@@ -563,6 +571,16 @@ class RiderController extends Controller
 
         $target = $validated['status'];
         $token = $validated['client_token'] ?? null;
+        $rider = $request->user();
+
+        // A ready delivery is shared work. Collection remains limited to the
+        // rider holding that pickup, and a different branch cannot close it.
+        abort_unless(
+            (int) $pickupRequest->rider_id === (int) $rider->id
+                || ($target === 'completed' && $this->isReadyDeliveryForRider($pickupRequest, $rider)),
+            403,
+            'This run is not available to you for delivery.'
+        );
 
         // This exact tap already landed; the reply just never made it back to
         // the phone. Answer as though it had, provided the run is still where
@@ -619,31 +637,46 @@ class RiderController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($request, $pickupRequest, $target, $tagCode, $collectedAt, $validated, $token) {
-                $pickupRequest->update([
+            $applied = DB::transaction(function () use ($request, $pickupRequest, $target, $tagCode, $collectedAt, $validated, $token, $rider) {
+                $current = PickupRequest::query()->whereKey($pickupRequest->id)->lockForUpdate()->firstOrFail();
+                $expected = $target === 'picked_up' ? 'confirmed' : 'picked_up';
+                if ($current->status !== $expected
+                    || ((int) $current->rider_id !== (int) $rider->id
+                        && ! ($target === 'completed' && $this->isReadyDeliveryForRider($current, $rider)))) {
+                    return false;
+                }
+
+                $pickupRiderId = $current->rider_id;
+                $current->update([
                     'status' => $target,
+                    // Done belongs on the delivering rider's Done tab, even
+                    // when a different rider originally collected the bag.
+                    'rider_id' => $target === 'completed' ? $rider->id : $current->rider_id,
                     'rider_action_token' => $this->boundActionToken($request, $token),
-                    'tag_code' => $tagCode ?: $pickupRequest->tag_code,
-                    'tag_date' => $collectedAt?->toDateString() ?: $pickupRequest->tag_date,
-                    'picked_up_at' => $collectedAt ?: $pickupRequest->picked_up_at,
+                    'tag_code' => $tagCode ?: $current->tag_code,
+                    'tag_date' => $collectedAt?->toDateString() ?: $current->tag_date,
+                    'picked_up_at' => $collectedAt ?: $current->picked_up_at,
                     'delivered_at' => $target === 'completed' ? now() : null,
                     // Payment is taken at the door, so what the rider took is
                     // recorded with the collection rather than after the fact.
                     'collected_amount' => $target === 'picked_up'
                         ? ($validated['collected_amount'] ?? null)
-                        : $pickupRequest->collected_amount,
+                        : $current->collected_amount,
                     'collected_payment_method' => $target === 'picked_up'
                         ? ($validated['collected_payment_method'] ?? null)
-                        : $pickupRequest->collected_payment_method,
+                        : $current->collected_payment_method,
                 ]);
 
-                Activity::log($request, 'pickup_request_rider_status', $pickupRequest, [
-                    'reference_no' => $pickupRequest->reference_no,
+                Activity::log($request, 'pickup_request_rider_status', $current, [
+                    'reference_no' => $current->reference_no,
                     'status' => $target,
                     'tag_code' => $tagCode,
                     'collected_amount' => $validated['collected_amount'] ?? null,
-                    'rider_id' => $request->user()->id,
-                ], $pickupRequest->branch_id);
+                    'rider_id' => $rider->id,
+                    'pickup_rider_id' => $pickupRiderId,
+                ], $current->branch_id);
+
+                return true;
             });
         } catch (QueryException $exception) {
             // The unique daily tag index also protects two riders collecting
@@ -654,6 +687,12 @@ class RiderController extends Controller
 
             throw $exception;
         }
+
+        if (! $applied) {
+            return $this->riderStatusError($request, 'Another rider already completed this delivery, or the job changed. Refresh your runs.');
+        }
+
+        $pickupRequest->refresh();
 
         $released = $target === 'completed' ? $this->releaseDeliveredJobOrder($request, $pickupRequest) : null;
 
@@ -863,7 +902,13 @@ class RiderController extends Controller
             ->where('branch_id', $rider->branch_id)
             ->whereIn('status', ['pending', 'confirmed']);
 
-        return $mine->union($claimable)
+        $readyDeliveries = PickupRequest::query()
+            ->where('branch_id', $rider->branch_id)
+            ->where('status', 'picked_up')
+            ->where('delivery_preference', 'deliver')
+            ->whereHas('jobOrder', fn ($order) => $order->where('status', 'ready_for_delivery'));
+
+        return $mine->union($claimable)->union($readyDeliveries)
             ->with(['customer:id,name,phone', 'branch:id,name', 'jobOrder:id,job_order_number,status'])
             ->get()
             ->map(function (PickupRequest $job) use ($rider) {
@@ -906,6 +951,12 @@ class RiderController extends Controller
 
     private function mapStageFor(PickupRequest $job, bool $isMine): string
     {
+        if ($job->status === 'picked_up'
+            && $job->wantsDelivery()
+            && $job->jobOrder?->status === 'ready_for_delivery') {
+            return RiderMapStages::DELIVERY;
+        }
+
         if (! $isMine) {
             return RiderMapStages::AVAILABLE;
         }
@@ -991,5 +1042,14 @@ class RiderController extends Controller
         return $pickupRequest->rider_id === null
             && $pickupRequest->isOpen()
             && (int) $pickupRequest->branch_id === (int) $rider->branch_id;
+    }
+
+    /** Ready bags can be delivered by any rider working at their branch. */
+    private function isReadyDeliveryForRider(PickupRequest $pickupRequest, $rider): bool
+    {
+        return (int) $pickupRequest->branch_id === (int) $rider->branch_id
+            && $pickupRequest->status === 'picked_up'
+            && $pickupRequest->wantsDelivery()
+            && $pickupRequest->jobOrder?->status === 'ready_for_delivery';
     }
 }

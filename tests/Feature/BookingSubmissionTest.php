@@ -978,6 +978,42 @@ class BookingSubmissionTest extends TestCase
             ->assertSee('No collected pickup with that bag tag was found for your branch.');
     }
 
+    public function test_rider_collection_adds_its_tag_to_the_live_pos_lookup(): void
+    {
+        $rider = User::factory()->create([
+            'role' => 'rider',
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+            'access' => [],
+        ]);
+        $cashier = User::factory()->create([
+            'role' => 'cashier',
+            'branch_id' => $this->branch->id,
+            'access' => ['job_orders', 'pickup_requests'],
+        ]);
+
+        $this->post(route('booking.store'), $this->payload())->assertSessionHasNoErrors();
+        $booking = PickupRequest::query()->firstOrFail();
+
+        $this->actingAs($rider)->postJson(route('rider.jobs.claim', $booking), [])->assertOk();
+        $this->actingAs($cashier)->getJson(route('admin.job-orders.pickup-tags'))
+            ->assertOk()->assertJsonPath('count', 0);
+
+        $this->actingAs($rider)->patchJson(route('rider.jobs.status', $booking), [
+            'status' => 'picked_up',
+            'tag_code' => 'CC-LIVE-1',
+        ])->assertOk();
+
+        $feed = $this->actingAs($cashier)->getJson(route('admin.job-orders.pickup-tags'))
+            ->assertOk()
+            ->assertJsonPath('count', 1)
+            ->assertJsonPath('tags.0.tag_code', 'CC-LIVE-1')
+            ->assertJsonPath('tags.0.reference_no', $booking->reference_no);
+        $this->assertStringContainsString('no-store', (string) $feed->headers->get('Cache-Control'));
+        $this->actingAs($cashier)->get(route('admin.job-orders.create'))
+            ->assertOk()->assertSee('tag appears here within 5 seconds');
+    }
+
     public function test_pos_tag_button_counts_only_collected_bags_waiting_for_a_job_order(): void
     {
         $bookings = collect();
