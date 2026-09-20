@@ -855,6 +855,43 @@ class BookingSubmissionTest extends TestCase
             ->assertSee('No collected pickup with that bag tag was found for your branch.');
     }
 
+    public function test_pos_tag_button_counts_only_collected_bags_waiting_for_a_job_order(): void
+    {
+        $bookings = collect();
+        foreach (range(1, 3) as $number) {
+            $this->post(route('booking.store'), $this->payload())->assertSessionHasNoErrors();
+            $bookings->push(PickupRequest::query()->latest('id')->firstOrFail());
+        }
+
+        $waiting = $bookings[0];
+        $waiting->update(['status' => 'picked_up', 'tag_code' => 'CC-WAIT-1']);
+
+        $converted = $bookings[1];
+        $converted->update(['status' => 'picked_up', 'tag_code' => 'CC-DONE-1']);
+        $order = JobOrder::query()->create([
+            'branch_id' => $this->branch->id,
+            'customer_id' => $converted->customer_id,
+            'job_order_number' => 'JO-COUNTED-1',
+            'status' => 'pending',
+        ]);
+        $converted->jobOrder()->associate($order)->save();
+
+        $bookings[2]->update(['status' => 'confirmed', 'tag_code' => 'CC-NOTCOLLECTED']);
+        $cashier = User::factory()->create([
+            'role' => 'cashier',
+            'branch_id' => $this->branch->id,
+            'access' => ['job_orders'],
+        ]);
+
+        $response = $this->actingAs($cashier)
+            ->get(route('admin.job-orders.create'))
+            ->assertOk()
+            ->assertSee('Load tag #')
+            ->assertSee('role="dialog"', false);
+
+        $this->assertSame(1, (int) $response->viewData('waitingTagCounts')->get($this->branch->id));
+    }
+
     public function test_tag_lookup_includes_a_booked_service_bundle_in_the_pos_cart(): void
     {
         $preset = ServicePreset::query()->create([

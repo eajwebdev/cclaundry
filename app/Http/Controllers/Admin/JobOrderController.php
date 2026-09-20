@@ -145,6 +145,15 @@ class JobOrderController extends Controller
         $branchId ??= Branch::where('is_active', true)->value('id');
 
         $branches = Branch::where('is_active', true)->orderBy('name')->get();
+        $waitingTagCounts = PickupRequest::query()
+            ->where('status', 'picked_up')
+            ->whereNull('job_order_id')
+            ->whereNotNull('tag_code')
+            ->where('tag_code', '!=', '')
+            ->whereIn('branch_id', $canChooseBranch ? $branches->pluck('id') : [$user->branch_id])
+            ->selectRaw('branch_id, COUNT(*) as total')
+            ->groupBy('branch_id')
+            ->pluck('total', 'branch_id');
         $processingBranches = Branch::where('is_active', true)
             ->where('branch_type', 'full_service')
             ->orderBy('name')
@@ -252,7 +261,7 @@ class JobOrderController extends Controller
                 ->values()
             : collect();
 
-        return view('admin.job-orders.create', compact('branches', 'processingBranches', 'customers', 'services', 'serviceCategories', 'servicePresets', 'branchId', 'selectedCustomerId', 'bookedRequest', 'bookedItems', 'tagCode', 'tagLookupError'));
+        return view('admin.job-orders.create', compact('branches', 'processingBranches', 'customers', 'services', 'serviceCategories', 'servicePresets', 'branchId', 'selectedCustomerId', 'bookedRequest', 'bookedItems', 'tagCode', 'tagLookupError', 'waitingTagCounts'));
     }
 
     public function edit(Request $request, JobOrder $jobOrder)

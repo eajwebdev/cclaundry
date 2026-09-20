@@ -29,30 +29,6 @@
 <div
     x-data="posPage(@js($branches), @js($processingBranches), @js($services), @js($customers), @js($serviceCategories), @js($servicePresets), @js((float) ($appSettings?->vat_rate ?? 0)), @js((bool) ($appSettings?->vat_enabled ?? false)), @js($initialState))"
 >
-    @unless($isEditing)
-        <form method="GET" action="{{ route('admin.job-orders.create') }}" class="mb-3 rounded-lg border border-border bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <label for="pickup_tag_code" class="block text-sm font-semibold">Rider pickup bag tag #</label>
-            <p class="mt-0.5 text-xs text-muted">Enter the tag on the returned laundry bag to load its booking into this POS.</p>
-            <div class="mt-2 flex flex-col gap-2 sm:flex-row">
-                <input id="pickup_tag_code" name="tag_code" type="text" maxlength="24" autocomplete="off"
-                       value="{{ $tagCode }}" placeholder="Example: CC-123456"
-                       class="h-10 min-w-0 flex-1 rounded-md border border-border bg-white px-3 font-mono text-sm uppercase dark:border-gray-700 dark:bg-gray-950">
-                <button type="submit" class="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-white hover:opacity-90">Load pickup</button>
-            </div>
-            @if($tagLookupError)
-                <p class="mt-2 text-sm font-medium text-red-600" role="alert">{{ $tagLookupError }}</p>
-            @elseif($bookedRequest)
-                <div class="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
-                    <p class="font-medium text-primary">Loaded {{ $bookedRequest->reference_no }}@if($bookedRequest->tag_code) · Tag {{ $bookedRequest->tag_code }}@endif</p>
-                    <a href="{{ route('admin.job-orders.create') }}" class="font-semibold text-muted hover:text-primary">Start a walk-in order</a>
-                </div>
-            @endif
-            @error('pickup_request_id')
-                <p class="mt-2 text-sm font-medium text-red-600" role="alert">{{ $message }}</p>
-            @enderror
-        </form>
-    @endunless
-
     <form
         method="POST"
         action="{{ $isEditing ? route('admin.job-orders.update', $jobOrder) : route('admin.job-orders.store') }}"
@@ -222,7 +198,26 @@
                             Delivery
                         </label>
                     </div>
+                    @unless($isEditing)
+                        <button type="button" @click="tagModalOpen = true; $nextTick(() => $refs.pickupTagInput?.focus())"
+                                class="inline-flex h-9 items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 text-xs font-semibold text-primary hover:bg-primary/10"
+                                aria-label="Load rider pickup bag tag" title="Tags waiting for a job order at this branch">
+                            <span data-lucide="tag" class="h-3.5 w-3.5"></span>
+                            Load tag #
+                            <span class="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-white"
+                                  x-text="waitingTagCounts[branchId] ?? 0">{{ $waitingTagCounts[$branchId] ?? 0 }}</span>
+                        </button>
+                        @if($bookedRequest)
+                            <span class="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-primary/10 px-2.5 text-xs font-semibold text-primary">
+                                Loaded {{ $bookedRequest->reference_no }}@if($bookedRequest->tag_code) · {{ $bookedRequest->tag_code }}@endif
+                            </span>
+                            <a href="{{ route('admin.job-orders.create') }}" class="text-xs font-semibold text-muted hover:text-primary">Clear</a>
+                        @endif
+                    @endunless
                 </div>
+                @error('pickup_request_id')
+                    <p class="text-xs font-medium text-red-600 @xl/panel:col-span-2 @3xl/panel:col-span-3" role="alert">{{ $message }}</p>
+                @enderror
             </div>
 
             <!-- SERVICE CATALOG -->
@@ -553,6 +548,38 @@
         </div>
     </form>
 
+    @unless($isEditing)
+        <div x-cloak x-show="tagModalOpen" x-transition.opacity @keydown.escape.window="tagModalOpen = false"
+             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+             role="dialog" aria-modal="true" aria-labelledby="pickup-tag-title" @click.self="tagModalOpen = false">
+            <div class="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl dark:bg-gray-900">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <h2 id="pickup-tag-title" class="text-base font-semibold">Load a pickup by bag tag</h2>
+                        <p class="mt-1 text-xs text-muted">Enter the tag on the returned laundry bag to load its booking into the POS.</p>
+                    </div>
+                    <button type="button" @click="tagModalOpen = false" class="rounded-lg p-1.5 hover:bg-smoke dark:hover:bg-gray-800" aria-label="Close tag lookup">
+                        <span data-lucide="x" class="h-5 w-5"></span>
+                    </button>
+                </div>
+                <form method="GET" action="{{ route('admin.job-orders.create') }}" class="mt-4 space-y-3">
+                    <input type="hidden" name="branch_id" :value="branchId">
+                    <label for="pickup_tag_code" class="block text-xs font-semibold">Rider pickup bag tag #</label>
+                    <input id="pickup_tag_code" x-ref="pickupTagInput" name="tag_code" type="text" maxlength="24" autocomplete="off" required
+                           value="{{ $tagCode }}" placeholder="Example: CC-123456"
+                           class="h-10 w-full rounded-md border border-border bg-white px-3 font-mono text-sm uppercase dark:border-gray-700 dark:bg-gray-950">
+                    @if($tagLookupError)
+                        <p class="text-sm font-medium text-red-600" role="alert">{{ $tagLookupError }}</p>
+                    @endif
+                    <div class="flex justify-end gap-2 pt-1">
+                        <button type="button" @click="tagModalOpen = false" class="h-10 rounded-md border border-border px-4 text-sm font-semibold hover:bg-smoke dark:border-gray-700 dark:hover:bg-gray-800">Cancel</button>
+                        <button type="submit" class="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-white hover:opacity-90">Load pickup</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endunless
+
     <!-- Quick Add Customer Modal -->
     <div x-cloak x-show="quickCustomerOpen" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
         <div @click.outside="quickCustomerOpen = false" class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-900">
@@ -594,6 +621,8 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         discount: Number(initialState.discount || 0),
         paid: Number(initialState.paid || 0),
         showPaymentPanel: false,
+        tagModalOpen: @js((bool) ($tagLookupError ?? null)),
+        waitingTagCounts: @js($waitingTagCounts ?? []),
         quickCustomerOpen: @js($errors->any() && old('redirect_to') === 'pos'),
         customerOpen: false,
         customerSearch: '',
