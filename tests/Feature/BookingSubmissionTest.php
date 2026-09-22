@@ -192,6 +192,28 @@ class BookingSubmissionTest extends TestCase
         $this->assertSame('09171234567', $customer->phone);
     }
 
+    public function test_booking_reference_sequence_continues_on_the_next_day(): void
+    {
+        try {
+            Carbon::setTestNow('2026-09-22 10:00:00');
+            $this->post(route('booking.store'), $this->payload())
+                ->assertSessionHasNoErrors();
+
+            Carbon::setTestNow('2026-09-23 10:00:00');
+            $this->post(route('booking.store'), $this->payload())
+                ->assertSessionHasNoErrors();
+
+            $references = PickupRequest::query()
+                ->orderBy('id')
+                ->pluck('reference_no')
+                ->all();
+
+            $this->assertSame(['PU-260922-0001', 'PU-260923-0002'], $references);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     public function test_the_confirmation_opens_for_the_booking_this_browser_just_made(): void
     {
         $this->post(route('booking.store'), $this->payload());

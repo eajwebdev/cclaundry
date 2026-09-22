@@ -309,10 +309,9 @@ class PickupRequest extends Model
 
     public static function nextReference(): string
     {
-        // PU-YYMMDD-#### restarting each day, mirroring how job order numbers read.
+        // PU-YYMMDD-#### with one continuous sequence across all bookings.
         $today = now();
         $sequence = self::withTrashed()
-            ->whereDate('created_at', $today->toDateString())
             ->count() + 1;
 
         return 'PU-'.$today->format('ymd').'-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
