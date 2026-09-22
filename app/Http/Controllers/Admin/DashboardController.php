@@ -153,6 +153,7 @@ class DashboardController extends Controller
 
         $visitsByDate = collect();
         $topVisitorLocations = collect();
+        $uniqueBrowserCount = 0;
         if (Schema::hasTable('site_visits')) {
             $visitsByDate = SiteVisit::query()
                 ->whereDate('visited_on', '>=', $dateFrom)
@@ -160,6 +161,12 @@ class DashboardController extends Controller
                 ->selectRaw('DATE(visited_on) as visit_date, COUNT(*) as total')
                 ->groupBy('visit_date')
                 ->pluck('total', 'visit_date');
+
+            $uniqueBrowserCount = SiteVisit::query()
+                ->whereDate('visited_on', '>=', $dateFrom)
+                ->whereDate('visited_on', '<=', $dateTo)
+                ->distinct()
+                ->count('visitor_hash');
 
             $topVisitorLocations = SiteVisit::query()
                 ->whereDate('visited_on', '>=', $dateFrom)
@@ -189,6 +196,8 @@ class DashboardController extends Controller
             $salesValues[] = round((float) ($salesByDate[$key] ?? 0), 2);
             $visitorValues[] = (int) ($visitsByDate[$key] ?? 0);
         }
+        $totalDailyUniqueVisits = array_sum($visitorValues);
+        $repeatDailyVisits = max(0, $totalDailyUniqueVisits - $uniqueBrowserCount);
 
         $statusRows = (clone $ordersInRange)
             ->select('status', DB::raw('COUNT(*) as total'))
@@ -328,7 +337,7 @@ class DashboardController extends Controller
                 'low_stock' => number_format($lowStock),
                 'accounts_payable' => $this->money($currency, $accountsPayable),
                 'over_short' => $this->money($currency, $financial['over_short']),
-                'unique_site_visits' => number_format(array_sum($visitorValues)),
+                'unique_site_visits' => number_format($totalDailyUniqueVisits),
             ],
             'charts' => [
                 'sales' => [
@@ -338,6 +347,10 @@ class DashboardController extends Controller
                 'site_visits' => [
                     'labels' => $salesLabels,
                     'values' => $visitorValues,
+                ],
+                'visitor_summary' => [
+                    'labels' => ['Unique browsers', 'Repeat daily visits'],
+                    'values' => [$uniqueBrowserCount, $repeatDailyVisits],
                 ],
                 'status' => [
                     'labels' => $statusLabels,
