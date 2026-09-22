@@ -39,7 +39,7 @@ class InventoryController extends Controller
             ->when($request->filled('supplier_id'), fn ($query) => $query->where('supplier_id', $request->supplier_id))
             ->when(in_array($request->stock_status, self::STOCK_FILTERS, true), function ($query) use ($request) {
                 if ($request->stock_status === 'low') {
-                    $query->whereColumn('quantity', '<=', 'reorder_level');
+                    $query->where('is_active', true)->whereColumn('quantity', '<=', 'reorder_level');
                 }
 
                 if ($request->stock_status === 'ok') {
@@ -61,11 +61,14 @@ class InventoryController extends Controller
             ->selectRaw('COUNT(*) as items_count, COALESCE(SUM(quantity * unit_cost), 0) as inventory_value')
             ->first();
 
-        $lowStockCount = (clone $baseQuery)
+        $lowStockCount = Inventory::query()
+            ->where('branch_id', $selectedBranchId)
+            ->where('is_active', true)
             ->whereColumn('quantity', '<=', 'reorder_level')
             ->count();
 
         $items = $baseQuery
+            ->orderByRaw('CASE WHEN is_active = 1 AND quantity <= reorder_level THEN 0 ELSE 1 END')
             ->orderBy('name')
             ->paginate(50)
             ->withQueryString();
@@ -79,7 +82,7 @@ class InventoryController extends Controller
             ->with(['inventory', 'user'])
             ->whereHas('inventory', fn ($query) => $query->where('branch_id', $selectedBranchId))
             ->latest()
-            ->limit(8)
+            ->limit(10)
             ->get();
 
         return view('admin.inventory.index', compact(
@@ -129,12 +132,29 @@ class InventoryController extends Controller
         $validated = $this->normalizeBranch($request, $validated);
         $validated['is_active'] = $request->boolean('is_active');
 
-        $inventory->update($validated);
+        DB::transaction(function () use ($request, $inventory, $validated) {
+            $lockedInventory = Inventory::query()->whereKey($inventory->id)->lockForUpdate()->firstOrFail();
+            $previousQuantity = (float) $lockedInventory->quantity;
+            $newQuantity = (float) $validated['quantity'];
 
-        Activity::log($request, 'inventory_updated', $inventory, [
-            'name' => $inventory->name,
-            'quantity' => $inventory->quantity,
-        ], $inventory->branch_id);
+            $lockedInventory->update($validated);
+
+            if (abs($previousQuantity - $newQuantity) >= 0.00005) {
+                $lockedInventory->movements()->create([
+                    'user_id' => $request->user()->id,
+                    'movement_type' => 'adjustment',
+                    'quantity' => $newQuantity,
+                    'remarks' => 'Physical count changed while editing item (previous: '
+                        .rtrim(rtrim(number_format($previousQuantity, 4, '.', ''), '0'), '.').' '.$lockedInventory->unit.')',
+                ]);
+            }
+
+            Activity::log($request, 'inventory_updated', $lockedInventory, [
+                'name' => $lockedInventory->name,
+                'quantity' => $lockedInventory->quantity,
+                'previous_quantity' => $previousQuantity,
+            ], $lockedInventory->branch_id);
+        });
 
         return back()->with('success', 'Inventory item updated successfully.');
     }
@@ -161,13 +181,15 @@ class InventoryController extends Controller
             'remarks' => ['nullable', 'string', 'max:500'],
         ]);
 
-        if ($validated['movement_type'] === 'out' && (float) $validated['quantity'] > (float) $inventory->quantity) {
-            throw ValidationException::withMessages([
-                'quantity' => 'Stock out quantity cannot exceed current stock.',
-            ]);
-        }
-
         DB::transaction(function () use ($request, $inventory, $validated) {
+            $inventory = Inventory::query()->whereKey($inventory->id)->lockForUpdate()->firstOrFail();
+
+            if ($validated['movement_type'] === 'out' && (float) $validated['quantity'] > (float) $inventory->quantity) {
+                throw ValidationException::withMessages([
+                    'quantity' => 'Stock out quantity cannot exceed current stock.',
+                ]);
+            }
+
             $newQuantity = match ($validated['movement_type']) {
                 'in' => (float) $inventory->quantity + (float) $validated['quantity'],
                 'out' => (float) $inventory->quantity - (float) $validated['quantity'],
@@ -181,7 +203,7 @@ class InventoryController extends Controller
                 'remarks' => $validated['remarks'] ?? null,
             ]);
 
-            $inventory->update(['quantity' => max($newQuantity, 0)]);
+            $inventory->update(['quantity' => round(max($newQuantity, 0), 4)]);
 
             Activity::log($request, 'inventory_movement_recorded', $inventory, [
                 'name' => $inventory->name,

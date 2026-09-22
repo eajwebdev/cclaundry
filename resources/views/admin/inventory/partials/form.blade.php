@@ -43,13 +43,15 @@
         </div>
 
         <div>
-            <label class="mb-1.5 block text-sm font-medium">Current Stock</label>
-            <input type="number" step="0.01" min="0" name="quantity" value="{{ old('quantity', $item->quantity ?? 0) }}" required class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+            <label class="mb-1.5 block text-sm font-medium">Current Stock Quantity</label>
+            <input type="number" step="0.0001" min="0" name="quantity" value="{{ old('quantity', $item->quantity ?? 0) }}" required class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+            <p class="mt-1 text-xs text-muted">Use Stock Movement for normal purchases and usage. Editing this value records a physical-count adjustment.</p>
         </div>
 
         <div>
-            <label class="mb-1.5 block text-sm font-medium">Reorder Level</label>
-            <input type="number" step="0.01" min="0" name="reorder_level" value="{{ old('reorder_level', $item->reorder_level ?? 0) }}" required class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+            <label class="mb-1.5 block text-sm font-medium">Qty Alarm (Low Stock At)</label>
+            <input type="number" step="0.0001" min="0" name="reorder_level" value="{{ old('reorder_level', $item->reorder_level ?? 0) }}" required class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+            <p class="mt-1 text-xs text-muted">An alert appears when current stock reaches this quantity or lower.</p>
         </div>
 
         <div>

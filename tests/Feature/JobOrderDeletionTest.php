@@ -144,7 +144,7 @@ class JobOrderDeletionTest extends TestCase
         $this->assertDatabaseMissing('customer_ledgers', ['job_order_id' => $order->id]);
         $this->assertDatabaseMissing('inventory_movements', ['remarks' => "Auto deducted for {$order->job_order_number}"]);
 
-        $this->assertSame('10.00', $inventory->fresh()->quantity);
+        $this->assertSame('10.0000', $inventory->fresh()->quantity);
         $this->assertSame('25.00', $remainingLedger->fresh()->running_balance);
 
         $this->assertDatabaseHas('activity_logs', [

@@ -14,6 +14,7 @@ use App\Models\JobOrder;
 use App\Models\JobOrderItem;
 use App\Models\MoneyMovement;
 use App\Models\Payment;
+use App\Models\SiteVisit;
 use App\Models\SystemSetting;
 use App\Models\ZReading;
 use App\Models\AccountsPayable;
@@ -23,6 +24,7 @@ use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends Controller
 {
@@ -121,8 +123,27 @@ class DashboardController extends Controller
         $receivables = $financial['unpaid_balance'];
         $lowStock = Inventory::query()
             ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
+            ->where('is_active', true)
             ->whereColumn('quantity', '<=', 'reorder_level')
             ->count();
+        $lowStockItems = Inventory::query()
+            ->with(['branch:id,name', 'supplier:id,name'])
+            ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
+            ->where('is_active', true)
+            ->whereColumn('quantity', '<=', 'reorder_level')
+            ->orderByDesc('updated_at')
+            ->limit(10)
+            ->get()
+            ->map(fn (Inventory $item) => [
+                'id' => $item->id,
+                'name' => $item->name,
+                'branch' => $item->branch?->name ?? 'N/A',
+                'supplier' => $item->supplier?->name ?? 'No supplier',
+                'quantity' => rtrim(rtrim(number_format((float) $item->quantity, 4, '.', ''), '0'), '.'),
+                'reorder_level' => rtrim(rtrim(number_format((float) $item->reorder_level, 4, '.', ''), '0'), '.'),
+                'unit' => $item->unit,
+            ])
+            ->values();
         $accountsPayable = $financial['accounts_payable'];
 
         $salesByDate = (clone $payments)
@@ -130,12 +151,43 @@ class DashboardController extends Controller
             ->groupBy('paid_date')
             ->pluck('total_amount', 'paid_date');
 
+        $visitsByDate = collect();
+        $topVisitorLocations = collect();
+        if (Schema::hasTable('site_visits')) {
+            $visitsByDate = SiteVisit::query()
+                ->whereDate('visited_on', '>=', $dateFrom)
+                ->whereDate('visited_on', '<=', $dateTo)
+                ->selectRaw('DATE(visited_on) as visit_date, COUNT(*) as total')
+                ->groupBy('visit_date')
+                ->pluck('total', 'visit_date');
+
+            $topVisitorLocations = SiteVisit::query()
+                ->whereDate('visited_on', '>=', $dateFrom)
+                ->whereDate('visited_on', '<=', $dateTo)
+                ->where(fn ($query) => $query
+                    ->whereNotNull('city')
+                    ->orWhereNotNull('region')
+                    ->orWhereNotNull('country_code'))
+                ->select(['city', 'region', 'country_code', DB::raw('COUNT(*) as total')])
+                ->groupBy('city', 'region', 'country_code')
+                ->orderByDesc('total')
+                ->limit(5)
+                ->get()
+                ->map(fn (SiteVisit $visit) => [
+                    'label' => collect([$visit->city, $visit->region, $visit->country_code])->filter()->unique()->implode(', '),
+                    'count' => number_format((int) $visit->total),
+                ])
+                ->values();
+        }
+
         $salesLabels = [];
         $salesValues = [];
+        $visitorValues = [];
         foreach (CarbonPeriod::create($dateFrom, $dateTo) as $date) {
             $key = $date->toDateString();
             $salesLabels[] = $date->format('M d');
             $salesValues[] = round((float) ($salesByDate[$key] ?? 0), 2);
+            $visitorValues[] = (int) ($visitsByDate[$key] ?? 0);
         }
 
         $statusRows = (clone $ordersInRange)
@@ -276,11 +328,16 @@ class DashboardController extends Controller
                 'low_stock' => number_format($lowStock),
                 'accounts_payable' => $this->money($currency, $accountsPayable),
                 'over_short' => $this->money($currency, $financial['over_short']),
+                'unique_site_visits' => number_format(array_sum($visitorValues)),
             ],
             'charts' => [
                 'sales' => [
                     'labels' => $salesLabels,
                     'values' => $salesValues,
+                ],
+                'site_visits' => [
+                    'labels' => $salesLabels,
+                    'values' => $visitorValues,
                 ],
                 'status' => [
                     'labels' => $statusLabels,
@@ -327,6 +384,8 @@ class DashboardController extends Controller
                 'amount' => $this->money($currency, (float) $row->total_amount),
             ])->values(),
             'recent_orders' => $recentOrders,
+            'low_stock_items' => $lowStockItems,
+            'top_visitor_locations' => $topVisitorLocations,
             'trusted_customers' => $trustedCustomers,
         ];
     }
@@ -620,9 +679,10 @@ class DashboardController extends Controller
     {
         $items = Inventory::query()
             ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
+            ->where('is_active', true)
             ->whereColumn('quantity', '<=', 'reorder_level')
-            ->orderBy('quantity')
-            ->limit(6)
+            ->orderByDesc('updated_at')
+            ->limit(10)
             ->get();
 
         return [

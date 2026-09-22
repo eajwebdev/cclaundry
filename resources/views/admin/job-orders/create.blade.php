@@ -384,9 +384,9 @@
                                     <p x-show="item.type === 'preset'" class="mt-0.5 truncate text-[10px] text-muted" x-text="item.summary"></p>
                                     <div class="mt-1 flex items-center gap-3">
                                         <div class="flex h-8 overflow-hidden rounded-md border border-border dark:border-gray-800">
-                                            <button type="button" @click="item.quantity = Math.max(Number(item.quantity || 0) - 1, 0.01)" class="flex w-8 items-center justify-center hover:bg-smoke dark:hover:bg-gray-900 text-sm">−</button>
-                                            <input type="number" step="0.01" min="0.01" :name="`items[${index}][quantity]`" x-model.number="item.quantity" aria-label="Quantity" class="w-12 border-x border-border bg-transparent text-center text-sm outline-none dark:border-gray-800">
-                                            <button type="button" @click="item.quantity = Number(item.quantity || 0) + 1" class="flex w-8 items-center justify-center hover:bg-smoke dark:hover:bg-gray-900 text-sm">+</button>
+                                            <button type="button" @click="decreaseQuantity(item)" class="flex w-8 items-center justify-center hover:bg-smoke dark:hover:bg-gray-900 text-sm">−</button>
+                                            <input type="number" :step="quantityStep(item)" :min="quantityStep(item)" :name="`items[${index}][quantity]`" x-model.number="item.quantity" aria-label="Quantity" class="w-14 border-x border-border bg-transparent text-center text-sm outline-none dark:border-gray-800">
+                                            <button type="button" @click="increaseQuantity(item)" class="flex w-8 items-center justify-center hover:bg-smoke dark:hover:bg-gray-900 text-sm">+</button>
                                         </div>
                                         <span class="text-xs text-muted">×</span>
                                         <div class="flex items-center rounded-md border border-border px-2 dark:border-gray-800">
@@ -423,7 +423,7 @@
                         <div class="border-t border-border pt-2 dark:border-gray-800">
                             <div class="flex justify-between text-base font-bold">
                                 <span>Total</span>
-                                <span class="text-primary">{{ $appSettings?->currency ?? 'PHP' }} <span x-text="money(total)"></span></span>
+                                <span class="text-primary">{{ $appSettings?->currency ?? 'PHP' }} <span x-text="wholeMoney(total)"></span></span>
                             </div>
                         </div>
                     </div>
@@ -469,12 +469,12 @@
                     
                     <div class="flex justify-between text-base font-bold">
                         <span>Total</span>
-                        <span class="text-primary">{{ $appSettings?->currency ?? 'PHP' }} <span x-text="money(total)"></span></span>
+                        <span class="text-primary">{{ $appSettings?->currency ?? 'PHP' }} <span x-text="wholeMoney(total)"></span></span>
                     </div>
                     
                     <div x-show="!isEditing" class="flex items-center justify-between gap-3">
                         <span class="text-muted">Paid</span>
-                        <input name="paid_amount" x-model.number="paid" type="number" min="0" step="0.01" class="h-9 w-28 rounded-lg border border-border px-3 text-right dark:border-gray-800 dark:bg-gray-950">
+                        <input name="paid_amount" x-model.number="paid" type="number" min="0" step="1" class="h-9 w-28 rounded-lg border border-border px-3 text-right dark:border-gray-800 dark:bg-gray-950">
                     </div>
                     <div x-show="isEditing" class="flex justify-between">
                         <span class="text-muted">Existing payments</span>
@@ -483,7 +483,7 @@
                     
                     <div class="flex justify-between font-semibold">
                         <span>Balance</span>
-                        <span>{{ $appSettings?->currency ?? 'PHP' }} <span x-text="money(balance)"></span></span>
+                        <span>{{ $appSettings?->currency ?? 'PHP' }} <span x-text="wholeMoney(balance)"></span></span>
                     </div>
                     
                     <!-- Payment Type - Radio Card Style -->
@@ -960,7 +960,7 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
             if (existing) {
                 existing.quantity = Number(existing.quantity) + 1;
             } else {
-                this.items.push({ type: 'service', id: service.id, name: service.name, quantity: 1, price: Number(service.price) });
+                this.items.push({ type: 'service', id: service.id, name: service.name, pricing_type: service.pricing_type, quantity: 1, price: Number(service.price) });
             }
             this.$nextTick(() => this.refreshIcons());
         },
@@ -1005,6 +1005,17 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         presetSummary(preset) {
             return preset.items.map(item => `${Number(item.quantity || 0).toFixed(2).replace(/\.?0+$/, '')}x ${item.name}`).join(', ');
         },
+        quantityStep(item) {
+            return item.type === 'service' && item.pricing_type === 'kilo' ? 0.1 : 1;
+        },
+        increaseQuantity(item) {
+            const step = this.quantityStep(item);
+            item.quantity = Math.round((Number(item.quantity || 0) + step) * 100) / 100;
+        },
+        decreaseQuantity(item) {
+            const step = this.quantityStep(item);
+            item.quantity = Math.max(Math.round((Number(item.quantity || 0) - step) * 100) / 100, step);
+        },
         get subtotal() { 
             return this.items.reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.price || 0)), 0); 
         },
@@ -1012,13 +1023,16 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
             return this.vatEnabled ? Math.max(this.subtotal - Number(this.discount || 0), 0) * (Number(this.vatRate) / 100) : 0; 
         },
         get total() { 
-            return Math.max(this.subtotal - Number(this.discount || 0), 0) + this.tax; 
+            return Math.ceil(Math.max(this.subtotal - Number(this.discount || 0), 0) + this.tax);
         },
         get balance() { 
             return Math.max(this.total - Number(this.paid || 0), 0); 
         },
         money(value) { 
             return Number(value || 0).toFixed(2); 
+        },
+        wholeMoney(value) {
+            return Math.ceil(Number(value || 0)).toLocaleString('en-PH', { maximumFractionDigits: 0 });
         }
     }
 }

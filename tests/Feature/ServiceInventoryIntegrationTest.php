@@ -292,7 +292,7 @@ class ServiceInventoryIntegrationTest extends TestCase
 
         $order = JobOrder::query()->firstOrFail();
         $this->assertSame('detergent', $order->items()->firstOrFail()->service_category);
-        $this->assertSame('9.50', $inventory->fresh()->quantity);
+        $this->assertSame('9.5000', $inventory->fresh()->quantity);
 
         $this->actingAs($admin)
             ->put(route('admin.services.update', $service), [
@@ -323,7 +323,7 @@ class ServiceInventoryIntegrationTest extends TestCase
             ->assertRedirect(route('admin.job-orders.show', $order));
 
         $this->assertSame('detergent', $order->fresh()->items()->firstOrFail()->service_category);
-        $this->assertSame('8.50', $inventory->fresh()->quantity);
+        $this->assertSame('8.5000', $inventory->fresh()->quantity);
 
         $this->actingAs($admin)
             ->get(route('admin.services.index', ['branch_id' => $branch->id]))
@@ -371,7 +371,7 @@ class ServiceInventoryIntegrationTest extends TestCase
 
         $this->seed(InventorySeeder::class);
 
-        $this->assertSame('12.50', $detergent->fresh()->quantity);
+        $this->assertSame('12.5000', $detergent->fresh()->quantity);
         $this->assertDatabaseHas('inventories', [
             'branch_id' => $branch->id,
             'sku' => 'PKG-PLASTIC-SMALL',

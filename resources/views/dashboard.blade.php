@@ -58,6 +58,65 @@
         </template>
     </div>
 
+    <div class="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.6fr)]">
+        <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div class="mb-4 flex items-center justify-between">
+                <div>
+                    <h2 class="text-base font-semibold">Unique Landing Page Visits</h2>
+                    <p class="text-sm text-muted">Site-wide daily unique browsers in the selected date range. Repeat opens on the same day count once.</p>
+                </div>
+                <span data-lucide="mouse-pointer-click" class="h-4 w-4 text-primary"></span>
+            </div>
+            <div class="h-64">
+                <canvas x-ref="siteVisitsChart"></canvas>
+            </div>
+        </div>
+
+        <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div class="mb-4">
+                <h2 class="text-base font-semibold">Visitor Locations</h2>
+                <p class="text-sm text-muted">Approximate location when supplied by the web host. No raw IP addresses are stored.</p>
+            </div>
+            <div class="divide-y divide-border text-sm dark:divide-gray-800">
+                <template x-for="location in data.top_visitor_locations" :key="location.label">
+                    <div class="flex items-center justify-between gap-3 py-3">
+                        <span class="min-w-0 truncate font-medium" x-text="location.label"></span>
+                        <span class="shrink-0 rounded-full bg-smoke px-2 py-1 text-xs font-semibold dark:bg-gray-950" x-text="location.count"></span>
+                    </div>
+                </template>
+                <p x-show="data.top_visitor_locations.length === 0" class="py-8 text-center text-sm text-muted">Location data is not available from the current hosting provider.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="overflow-hidden rounded-lg border border-amber-200 bg-white shadow-sm dark:border-amber-900/60 dark:bg-gray-900">
+        <div class="flex flex-col gap-2 border-b border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/60 dark:bg-amber-500/10 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h2 class="inline-flex items-center gap-2 text-base font-semibold text-amber-900 dark:text-amber-200">
+                    <span data-lucide="alert-triangle" class="h-4 w-4"></span>
+                    Low Stock Purchase List
+                </h2>
+                <p class="text-sm text-amber-800/80 dark:text-amber-300/80">The 10 most recently updated active items at or below their quantity alarm.</p>
+            </div>
+            @if(auth()->user()->hasMenuAccess('inventory'))
+                <a href="{{ route('admin.inventory.index', array_filter(['branch_id' => $selectedBranchId, 'stock_status' => 'low'])) }}" class="inline-flex h-8 items-center justify-center rounded-md border border-amber-300 bg-white px-3 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-gray-900 dark:text-amber-200">Manage stock</a>
+            @endif
+        </div>
+        <div class="grid gap-px bg-border dark:bg-gray-800 sm:grid-cols-2 xl:grid-cols-5">
+            <template x-for="item in data.low_stock_items" :key="item.id">
+                <div class="bg-white p-3 dark:bg-gray-900">
+                    <p class="truncate text-sm font-semibold" x-text="item.name"></p>
+                    <p class="truncate text-xs text-muted" x-text="`${item.branch} · ${item.supplier}`"></p>
+                    <p class="mt-2 text-sm font-bold text-red-700 dark:text-red-300">
+                        <span x-text="`${item.quantity} ${item.unit}`"></span>
+                        <span class="font-normal text-muted" x-text="` / alarm ${item.reorder_level}`"></span>
+                    </p>
+                </div>
+            </template>
+            <div x-show="data.low_stock_items.length === 0" class="bg-white p-6 text-center text-sm text-muted dark:bg-gray-900 sm:col-span-2 xl:col-span-5">All active inventory items are above their quantity alarms.</div>
+        </div>
+    </div>
+
     <div class="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.8fr)]">
         <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <div class="mb-4 flex items-center justify-between">
@@ -280,7 +339,9 @@ function dashboardPage(fetchUrl, initialData, initialDateRange) {
         topServicesChart: null,
         topPresetsChart: null,
         branchSalesChart: null,
+        siteVisitsChart: null,
         statCards: [
+            { key: 'unique_site_visits', label: 'Unique Website Visits', icon: 'mouse-pointer-click' },
             { key: 'sales', label: 'Sales Owned', icon: 'payments' },
             { key: 'collections', label: 'Physical Collections', icon: 'receipt' },
             { key: 'cash_drawer', label: 'Expected Cash Drawer', icon: 'wallet' },
@@ -335,6 +396,22 @@ function dashboardPage(fetchUrl, initialData, initialDateRange) {
                         data: this.data.charts.sales.values,
                         borderColor: color,
                         backgroundColor: color + '22',
+                        fill: true,
+                        tension: 0.35,
+                    }]
+                },
+                options: this.chartOptions(grid)
+            });
+
+            this.siteVisitsChart = new window.Chart(this.$refs.siteVisitsChart, {
+                type: 'line',
+                data: {
+                    labels: this.data.charts.site_visits.labels,
+                    datasets: [{
+                        label: 'Unique visitors',
+                        data: this.data.charts.site_visits.values,
+                        borderColor: '#0ea5e9',
+                        backgroundColor: '#0ea5e922',
                         fill: true,
                         tension: 0.35,
                     }]
@@ -398,6 +475,10 @@ function dashboardPage(fetchUrl, initialData, initialDateRange) {
             this.salesChart.data.labels = this.data.charts.sales.labels;
             this.salesChart.data.datasets[0].data = this.data.charts.sales.values;
             this.salesChart.update();
+
+            this.siteVisitsChart.data.labels = this.data.charts.site_visits.labels;
+            this.siteVisitsChart.data.datasets[0].data = this.data.charts.site_visits.values;
+            this.siteVisitsChart.update();
 
             this.statusChart.data.labels = this.data.charts.status.labels;
             this.statusChart.data.datasets[0].data = this.data.charts.status.values;

@@ -245,6 +245,7 @@ class JobOrderController extends Controller
                         'id' => $item->service_preset_id ?: $item->laundry_service_id,
                         'type' => $item->service_preset_id ? 'preset' : 'service',
                         'name' => $item->service_name,
+                        'pricing_type' => $item->pricing_type,
                         'summary' => $components->map(fn ($component) => $component['name'])->implode(', '),
                         // Presets expand to component services at current POS
                         // prices when saved, so show that same total up front.
@@ -359,6 +360,7 @@ class JobOrderController extends Controller
                 'type' => 'service',
                 'name' => $item->description,
                 'report_category' => $item->service_category,
+                'pricing_type' => $item->service?->pricing_type,
                 'quantity' => (float) $item->quantity,
                 'price' => (float) $item->unit_price,
             ])
@@ -493,11 +495,13 @@ class JobOrderController extends Controller
             }
 
             $settings = SystemSetting::current();
-            $subtotal = collect($validated['items'])->sum(fn ($item) => (float) $item['quantity'] * (float) $item['unit_price']);
+            $subtotal = round(collect($validated['items'])->sum(fn ($item) => (float) $item['quantity'] * (float) $item['unit_price']), 2);
             $discount = min((float) ($validated['discount'] ?? 0), $subtotal);
             $taxable = max($subtotal - $discount, 0);
-            $tax = $settings->vat_enabled ? ($taxable * ((float) $settings->vat_rate / 100)) : 0;
-            $total = $taxable + $tax;
+            $tax = round($settings->vat_enabled ? ($taxable * ((float) $settings->vat_rate / 100)) : 0, 2);
+            // Fractional kilo pricing can produce centavos, but the amount due
+            // is always a whole peso rounded upward.
+            $total = (float) ceil(round($taxable + $tax, 2));
             $paymentType = $validated['payment_type'] ?? 'cash';
             $paid = $paymentType === 'unpaid'
                 ? 0
@@ -670,11 +674,11 @@ class JobOrderController extends Controller
             $validated['processing_branch_id'] = $this->resolveProcessingBranchId($jobOrder->branch, $validated['processing_branch_id'] ?? null, $request->user());
             $processingBranchChanged = (int) $validated['processing_branch_id'] !== $previousProcessingBranchId;
             $settings = SystemSetting::current();
-            $subtotal = collect($validated['items'])->sum(fn ($item) => (float) $item['quantity'] * (float) $item['unit_price']);
+            $subtotal = round(collect($validated['items'])->sum(fn ($item) => (float) $item['quantity'] * (float) $item['unit_price']), 2);
             $discount = min((float) ($validated['discount'] ?? 0), $subtotal);
             $taxable = max($subtotal - $discount, 0);
-            $tax = $settings->vat_enabled ? ($taxable * ((float) $settings->vat_rate / 100)) : 0;
-            $total = $taxable + $tax;
+            $tax = round($settings->vat_enabled ? ($taxable * ((float) $settings->vat_rate / 100)) : 0, 2);
+            $total = (float) ceil(round($taxable + $tax, 2));
             $paid = (float) $jobOrder->payments()->sum('amount');
 
             if ($inventoryWasDeducted) {
@@ -1099,6 +1103,8 @@ class JobOrderController extends Controller
                 ]);
             }
 
+            $quantity = round($quantity, 4);
+
             $inventory->movements()->create([
                 'user_id' => $userId,
                 'movement_type' => 'out',
@@ -1107,7 +1113,7 @@ class JobOrderController extends Controller
             ]);
 
             $inventory->update([
-                'quantity' => (float) $inventory->quantity - $quantity,
+                'quantity' => round((float) $inventory->quantity - $quantity, 4),
             ]);
         }
     }
@@ -1142,7 +1148,7 @@ class JobOrderController extends Controller
                 'quantity' => $quantity,
                 'remarks' => $restoreRemark,
             ]);
-            $inventory->update(['quantity' => (float) $inventory->quantity + $quantity]);
+            $inventory->update(['quantity' => round((float) $inventory->quantity + $quantity, 4)]);
         }
     }
 

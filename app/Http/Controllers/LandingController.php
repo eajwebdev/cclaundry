@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\BranchSetting;
 use App\Models\Customer;
 use App\Models\PickupRequest;
+use App\Models\SiteVisit;
 use App\Models\SystemSetting;
 use App\Support\Booking;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class LandingController extends Controller
 {
@@ -21,7 +23,7 @@ class LandingController extends Controller
 
         $customer = Auth::guard('customer')->user();
 
-        return view('landing', [
+        $response = response()->view('landing', [
             'settings' => SystemSetting::current(),
             'branches' => Booking::branches(),
             'offerings' => Booking::offerings(),
@@ -57,6 +59,30 @@ class LandingController extends Controller
                     ->get()
                 : collect(),
         ]);
+
+        if ($this->shouldTrackVisit($request)) {
+            $visitorToken = $request->cookie('cc_landing_visitor')
+                ?: $request->session()->get('cc_landing_visitor_token')
+                ?: (string) Str::uuid();
+            $request->session()->put('cc_landing_visitor_token', $visitorToken);
+            $this->recordVisit($request, $visitorToken);
+
+            if (! $request->cookie('cc_landing_visitor')) {
+                $response->withCookie(cookie(
+                    'cc_landing_visitor',
+                    $visitorToken,
+                    60 * 24 * 365,
+                    '/',
+                    null,
+                    $request->isSecure(),
+                    true,
+                    false,
+                    'lax'
+                ));
+            }
+        }
+
+        return $response;
     }
 
     /**
@@ -116,6 +142,44 @@ class LandingController extends Controller
             && Customer::normalizePhone($requestRecord->contact_phone) === Customer::normalizePhone($validated['phone'])
                 ? $requestRecord
                 : null;
+    }
+
+    private function shouldTrackVisit(Request $request): bool
+    {
+        $userAgent = (string) $request->userAgent();
+        $purpose = strtolower((string) ($request->header('Sec-Purpose') ?: $request->header('Purpose')));
+
+        return $request->isMethod('GET')
+            && ! str_contains($purpose, 'prefetch')
+            && ! preg_match('/bot|crawler|spider|slurp|preview|facebookexternalhit|uptime|monitor/i', $userAgent);
+    }
+
+    private function recordVisit(Request $request, string $visitorToken): void
+    {
+        try {
+            $referrerHost = parse_url((string) $request->header('referer'), PHP_URL_HOST) ?: null;
+            $country = strtoupper((string) (
+                $request->header('CF-IPCountry')
+                ?: $request->header('X-Vercel-IP-Country')
+                ?: $request->header('CloudFront-Viewer-Country')
+            ));
+            $region = $request->header('CF-Region') ?: $request->header('X-Vercel-IP-Country-Region');
+            $city = $request->header('CF-IPCity') ?: $request->header('X-Vercel-IP-City');
+
+            SiteVisit::query()->firstOrCreate([
+                'visited_on' => today()->toDateString(),
+                'visitor_hash' => hash_hmac('sha256', $visitorToken, (string) config('app.key')),
+            ], [
+                'path' => '/'.ltrim($request->path(), '/'),
+                'referrer_host' => $referrerHost ? Str::limit($referrerHost, 255, '') : null,
+                'country_code' => preg_match('/^[A-Z]{2}$/', $country) ? $country : null,
+                'region' => $region ? Str::limit(urldecode((string) $region), 100, '') : null,
+                'city' => $city ? Str::limit(urldecode((string) $city), 100, '') : null,
+            ]);
+        } catch (\Throwable) {
+            // Analytics must never prevent the public landing page from loading,
+            // including during deployment before the migration is applied.
+        }
     }
 
 }

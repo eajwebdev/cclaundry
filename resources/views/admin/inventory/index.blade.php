@@ -32,6 +32,16 @@
         </div>
     </div>
 
+    @if($lowStockCount > 0)
+        <a href="{{ route('admin.inventory.index', array_merge(request()->except('page'), ['branch_id' => $selectedBranchId, 'stock_status' => 'low'])) }}" class="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950 shadow-sm transition hover:border-amber-400 dark:border-amber-900/70 dark:bg-amber-500/10 dark:text-amber-200">
+            <span data-lucide="alert-triangle" class="mt-0.5 h-5 w-5 shrink-0"></span>
+            <span>
+                <span class="block font-semibold">{{ number_format($lowStockCount) }} low-stock {{ \Illuminate\Support\Str::plural('alarm', $lowStockCount) }}</span>
+                <span class="text-sm opacity-80">Open the purchase list and restock items that reached their Qty Alarm.</span>
+            </span>
+        </a>
+    @endif
+
     <div class="rounded-lg border border-border bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
         <form method="GET" action="{{ route('admin.inventory.index') }}" class="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-[minmax(14rem,1fr)_10rem_10rem_9rem_8rem_2.25rem]">
             <div class="flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 dark:border-gray-800 dark:bg-gray-950">
@@ -82,7 +92,7 @@
                         <th class="px-4 py-3">Item</th>
                         <th class="px-4 py-3">Supplier</th>
                         <th class="px-4 py-3">Stock</th>
-                        <th class="px-4 py-3">Reorder</th>
+                        <th class="px-4 py-3">Qty Alarm</th>
                         <th class="px-4 py-3">Cost</th>
                         <th class="px-4 py-3">Value</th>
                         <th class="px-4 py-3">Status</th>
@@ -91,7 +101,7 @@
                 </thead>
                 <tbody class="divide-y divide-border dark:divide-gray-800">
                     @forelse($items as $item)
-                        @php($isLow = (float) $item->quantity <= (float) $item->reorder_level)
+                        @php($isLow = $item->is_active && (float) $item->quantity <= (float) $item->reorder_level)
                         <tr>
                             <td class="px-4 py-3">
                                 <p class="font-medium">{{ $item->name }}</p>
@@ -99,10 +109,10 @@
                             </td>
                             <td class="px-4 py-3">{{ $item->supplier?->name ?? 'N/A' }}</td>
                             <td class="px-4 py-3">
-                                <span class="font-medium {{ $isLow ? 'text-amber-700 dark:text-amber-300' : '' }}">{{ number_format((float) $item->quantity, 2) }}</span>
+                                <span class="font-medium {{ $isLow ? 'text-amber-700 dark:text-amber-300' : '' }}">{{ rtrim(rtrim(number_format((float) $item->quantity, 4, '.', ''), '0'), '.') }}</span>
                                 <span class="text-muted">{{ $item->unit }}</span>
                             </td>
-                            <td class="px-4 py-3">{{ number_format((float) $item->reorder_level, 2) }} {{ $item->unit }}</td>
+                            <td class="px-4 py-3">{{ rtrim(rtrim(number_format((float) $item->reorder_level, 4, '.', ''), '0'), '.') }} {{ $item->unit }}</td>
                             <td class="px-4 py-3">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $item->unit_cost, 2) }}</td>
                             <td class="px-4 py-3 font-medium">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $item->quantity * (float) $item->unit_cost, 2) }}</td>
                             <td class="px-4 py-3">
@@ -134,6 +144,29 @@
         </div>
 
         <div class="border-t border-border px-4 py-3 dark:border-gray-800">{{ $items->links() }}</div>
+    </div>
+
+    <div class="overflow-hidden rounded-lg border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div class="border-b border-border px-4 py-3 dark:border-gray-800">
+            <h2 class="text-base font-semibold">Latest Stock Activity</h2>
+            <p class="text-sm text-muted">Purchases, service deductions, corrections, and physical counts.</p>
+        </div>
+        <div class="divide-y divide-border dark:divide-gray-800">
+            @forelse($recentMovements as $movement)
+                <div class="grid gap-1 px-4 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_7rem_10rem] sm:items-center">
+                    <div class="min-w-0">
+                        <p class="truncate font-medium">{{ $movement->inventory?->name ?? 'Deleted item' }}</p>
+                        <p class="truncate text-xs text-muted">{{ $movement->remarks ?: 'No remarks' }} · {{ $movement->user?->name ?? 'System' }}</p>
+                    </div>
+                    <p class="font-semibold {{ $movement->movement_type === 'out' ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300' }}">
+                        {{ $movement->movement_type === 'out' ? '−' : ($movement->movement_type === 'in' ? '+' : '=') }}{{ rtrim(rtrim(number_format((float) $movement->quantity, 4, '.', ''), '0'), '.') }} {{ $movement->inventory?->unit }}
+                    </p>
+                    <p class="text-xs text-muted sm:text-right">{{ $movement->created_at?->format('M d, Y h:i A') }}</p>
+                </div>
+            @empty
+                <p class="px-4 py-8 text-center text-sm text-muted">No stock activity recorded yet.</p>
+            @endforelse
+        </div>
     </div>
 
     <div x-cloak x-show="createOpen" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -184,7 +217,7 @@
                 <div class="mb-4 flex items-center justify-between">
                     <div>
                         <h2 class="inline-flex items-center gap-2 text-lg font-semibold"><span data-lucide="activity" class="h-4 w-4 text-primary"></span>Stock Movement</h2>
-                        <p class="text-sm text-muted">{{ $item->name }} - {{ number_format((float) $item->quantity, 2) }} {{ $item->unit }} on hand</p>
+                        <p class="text-sm text-muted">{{ $item->name }} - {{ rtrim(rtrim(number_format((float) $item->quantity, 4, '.', ''), '0'), '.') }} {{ $item->unit }} on hand</p>
                     </div>
                     <button type="button" @click="movementOpen = null" class="rounded-md p-2 hover:bg-smoke dark:hover:bg-gray-800"><span data-lucide="x" class="h-4 w-4"></span></button>
                 </div>
@@ -198,7 +231,7 @@
                         </select>
                     </label>
                     <label class="block text-sm font-medium">Quantity
-                        <input type="number" step="0.01" min="0.01" name="quantity" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+                        <input type="number" step="0.0001" min="0.0001" name="quantity" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
                     </label>
                     <label class="block text-sm font-medium">Remarks
                         <textarea name="remarks" rows="3" class="mt-1.5 w-full rounded-md border border-border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" placeholder="Purchase, usage, correction, damaged stock..."></textarea>

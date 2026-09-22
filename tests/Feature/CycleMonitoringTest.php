@@ -1866,16 +1866,16 @@ class CycleMonitoringTest extends TestCase
             ->assertRedirect(route('admin.job-orders.index'));
 
         $order = JobOrder::query()->where('customer_id', $customer->id)->firstOrFail();
-        $this->assertSame('100.00', $pickupInventory->fresh()->quantity);
-        $this->assertSame('100.00', $productionInventory->fresh()->quantity);
+        $this->assertSame('100.0000', $pickupInventory->fresh()->quantity);
+        $this->assertSame('100.0000', $productionInventory->fresh()->quantity);
         $this->assertNull($order->inventory_deducted_at);
 
         $this->actingAs($productionUser)
             ->get(route('admin.cycles.scan', $order))
             ->assertRedirect(route('admin.cycles.index', ['search' => $order->job_order_number]));
 
-        $this->assertSame('100.00', $pickupInventory->fresh()->quantity);
-        $this->assertSame('90.00', $productionInventory->fresh()->quantity);
+        $this->assertSame('100.0000', $pickupInventory->fresh()->quantity);
+        $this->assertSame('90.0000', $productionInventory->fresh()->quantity);
         $this->assertNotNull($order->fresh()->inventory_deducted_at);
     }
 

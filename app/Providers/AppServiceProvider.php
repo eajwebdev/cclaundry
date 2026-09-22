@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\Inventory;
 use App\Models\SystemSetting;
 use App\Support\PublicUpload;
 use Illuminate\Auth\Middleware\RedirectIfAuthenticated;
@@ -77,6 +78,27 @@ class AppServiceProvider extends ServiceProvider
                     $businessLogo = $default.'?v='.$stamp.'&ts='.$settingsStamp;
                 }
 
+                $lowStockNotifications = collect();
+                $lowStockNotificationCount = 0;
+                $user = Auth::user();
+
+                try {
+                    if ($user && $user->hasMenuAccess('inventory') && Schema::hasTable('inventories')) {
+                        $lowStockQuery = Inventory::query()
+                            ->with('branch:id,name')
+                            ->where('is_active', true)
+                            ->when(! $user->isAdmin(), fn ($query) => $query->where('branch_id', $user->branch_id))
+                            ->whereColumn('quantity', '<=', 'reorder_level');
+                        $lowStockNotificationCount = (clone $lowStockQuery)->count();
+                        $lowStockNotifications = $lowStockQuery
+                            ->orderByDesc('updated_at')
+                            ->limit(10)
+                            ->get();
+                    }
+                } catch (\Throwable) {
+                    $lowStockNotifications = collect();
+                }
+
                 $request->attributes->set('app_shared_view_data', [
                     'appSettings' => $settings,
                     'appSystemName' => config('app.name', 'Cane & Cotton Laundry'),
@@ -84,6 +106,8 @@ class AppServiceProvider extends ServiceProvider
                     'appBusinessLogo' => $businessLogo,
                     'appPrimaryColor' => $settings?->primary_color ?: SystemSetting::DEFAULT_PRIMARY_COLOR,
                     'appDarkModeDefault' => (bool) ($settings?->dark_mode_default ?? false),
+                    'lowStockNotifications' => $lowStockNotifications,
+                    'lowStockNotificationCount' => $lowStockNotificationCount,
                 ]);
             }
 

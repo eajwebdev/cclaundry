@@ -24,6 +24,7 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+~$*.docx
 
 # Local database import artefacts. These dumps carry real customer records
 # and staff password hashes, so they must never reach a remote.

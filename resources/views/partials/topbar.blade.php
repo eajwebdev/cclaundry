@@ -20,6 +20,45 @@
                 @include('partials.booking-alerts')
             @endif
 
+            @if(auth()->user()->hasMenuAccess('inventory'))
+                @php($stockAlerts = collect($lowStockNotifications ?? []))
+                <div x-data="{ open: false }" class="relative">
+                    <button
+                        type="button"
+                        @click="open = !open"
+                        class="relative flex h-9 w-9 items-center justify-center rounded-md border border-border bg-white transition hover:bg-smoke dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800"
+                        aria-label="Low stock notifications"
+                    >
+                        <span data-lucide="package-search" class="h-4 w-4"></span>
+                        @if($stockAlerts->isNotEmpty())
+                            <span class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white">{{ $lowStockNotificationCount ?? $stockAlerts->count() }}</span>
+                        @endif
+                    </button>
+
+                    <div x-cloak x-show="open" x-transition @click.outside="open = false" class="absolute right-0 mt-2 w-80 overflow-hidden rounded-md border border-border bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900">
+                        <div class="flex items-center justify-between border-b border-border px-3 py-2 dark:border-gray-800">
+                            <p class="text-sm font-semibold">Low Stock Alarm</p>
+                            <a href="{{ route('admin.inventory.index', ['stock_status' => 'low']) }}" class="text-xs font-medium text-primary hover:underline">Manage</a>
+                        </div>
+                        <div class="max-h-80 overflow-y-auto p-2">
+                            @forelse($stockAlerts as $item)
+                                <div class="mb-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 last:mb-0 dark:border-amber-900/60 dark:bg-amber-500/10 dark:text-amber-200">
+                                    <div class="flex items-start gap-2">
+                                        <span data-lucide="alert-triangle" class="mt-0.5 h-4 w-4 shrink-0"></span>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="truncate font-medium">{{ $item->name }}</p>
+                                            <p class="text-xs opacity-85">{{ $item->branch?->name }} · {{ rtrim(rtrim(number_format((float) $item->quantity, 4, '.', ''), '0'), '.') }} {{ $item->unit }} left · alarm at {{ rtrim(rtrim(number_format((float) $item->reorder_level, 4, '.', ''), '0'), '.') }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="px-3 py-8 text-center text-sm text-muted">Stock levels are healthy.</div>
+                            @endforelse
+                        </div>
+                    </div>
+                </div>
+            @endif
+
             @php($billingNotices = collect($billingNotifications ?? []))
             <div x-data="{ open: false }" class="relative">
                 <button
