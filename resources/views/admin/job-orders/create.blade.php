@@ -960,7 +960,15 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
             if (existing) {
                 existing.quantity = Number(existing.quantity) + 1;
             } else {
-                this.items.push({ type: 'service', id: service.id, name: service.name, pricing_type: service.pricing_type, quantity: 1, price: Number(service.price) });
+                this.items.push({
+                    type: 'service',
+                    id: service.id,
+                    name: service.name,
+                    pricing_type: service.pricing_type,
+                    minimum_kilos: service.minimum_kilos === null ? null : Number(service.minimum_kilos),
+                    quantity: this.defaultQuantity(service),
+                    price: Number(service.price),
+                });
             }
             this.$nextTick(() => this.refreshIcons());
         },
@@ -1007,6 +1015,13 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         },
         quantityStep(item) {
             return item.type === 'service' && item.pricing_type === 'kilo' ? 0.1 : 1;
+        },
+        defaultQuantity(service) {
+            if (service.pricing_type === 'kilo' && Number(service.minimum_kilos || 0) > 0) {
+                return Number(service.minimum_kilos);
+            }
+
+            return 1;
         },
         increaseQuantity(item) {
             const step = this.quantityStep(item);

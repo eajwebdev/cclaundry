@@ -335,6 +335,95 @@ class ServiceInventoryIntegrationTest extends TestCase
             ->assertSee('Detergent');
     }
 
+    public function test_regular_laundry_deducts_the_weight_based_detergent_and_fabcon_amounts(): void
+    {
+        SystemSetting::query()->create([
+            'business_name' => 'Spin Klean Laundry',
+            'currency' => 'PHP',
+            'job_order_prefix' => 'JO',
+            'invoice_prefix' => 'INV',
+            'primary_color' => '#2E7D32',
+            'is_completed' => true,
+        ]);
+
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $branch = Branch::query()->create([
+            'name' => 'Branch 1',
+            'code' => 'B001',
+            'branch_type' => 'full_service',
+            'is_active' => true,
+        ]);
+        $customer = Customer::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Formula Customer',
+            'billing_type' => 'regular',
+            'unpaid_limit' => 1000,
+            'is_active' => true,
+        ]);
+        $detergent = Inventory::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Detergent',
+            'sku' => 'SUP-DETERGENT',
+            'unit' => 'liter',
+            'quantity' => 1,
+            'reorder_level' => 0.1,
+            'unit_cost' => 80,
+            'is_active' => true,
+        ]);
+        $fabcon = Inventory::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Fabric Conditioner',
+            'sku' => 'SUP-CONDITIONER',
+            'unit' => 'liter',
+            'quantity' => 1,
+            'reorder_level' => 0.1,
+            'unit_cost' => 95,
+            'is_active' => true,
+        ]);
+        $service = LaundryService::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Regular Laundry',
+            'report_category' => 'wash',
+            'pricing_type' => 'kilo',
+            'price' => 30,
+            'minimum_kilos' => 5,
+            'is_active' => true,
+        ]);
+        $service->inventoryUsages()->create(['inventory_id' => $detergent->id, 'quantity' => 0.04]);
+        $service->inventoryUsages()->create(['inventory_id' => $fabcon->id, 'quantity' => 0.02]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.job-orders.store'), [
+                'branch_id' => $branch->id,
+                'processing_branch_id' => $branch->id,
+                'customer_id' => $customer->id,
+                'items' => [[
+                    'laundry_service_id' => $service->id,
+                    'description' => $service->name,
+                    'quantity' => 7,
+                    'unit_price' => 30,
+                ]],
+                'discount' => 0,
+                'paid_amount' => 0,
+                'payment_type' => 'unpaid',
+                'transaction_type' => 'walk_in',
+            ])
+            ->assertRedirect(route('admin.job-orders.index'));
+
+        $this->assertSame('0.9500', $detergent->fresh()->quantity);
+        $this->assertSame('0.9750', $fabcon->fresh()->quantity);
+        $this->assertDatabaseHas('inventory_movements', [
+            'inventory_id' => $detergent->id,
+            'movement_type' => 'out',
+            'quantity' => 0.05,
+        ]);
+        $this->assertDatabaseHas('inventory_movements', [
+            'inventory_id' => $fabcon->id,
+            'movement_type' => 'out',
+            'quantity' => 0.025,
+        ]);
+    }
+
     public function test_inventory_seeder_preserves_used_stock_and_rebuilds_default_recipes(): void
     {
         $branch = Branch::query()->create([

@@ -17,13 +17,17 @@ class DefaultServiceInventoryUsages
      * gone, and rules for services that no longer exist only ever matched
      * nothing.
      *
-     * The washing services deliberately deduct nothing: detergent and fabric
-     * conditioner are add-ons the customer picks and pays for, so charging
-     * stock against the wash as well would count the same sachet twice.
+     * Regular Laundry has its own production recipe. Its quantities below are
+     * the five-kilo baseline; InventoryConsumption applies the client's
+     * weight-based detergent and fabric-conditioner schedule at deduction time.
      */
     public static function rules(): array
     {
         return [
+            'Regular Laundry' => [
+                'Detergent Powder' => 0.04,
+                'Fabric Conditioner' => 0.02,
+            ],
             'Uniform Steaming (Kids)' => ['Hanger' => 1],
             'Uniform Steaming (Adult)' => ['Hanger' => 1],
             'Ariel Detergent' => ['Detergent Powder' => 0.10],

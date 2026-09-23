@@ -738,7 +738,11 @@
                 }
 
                 this.picked.push(key);
-                if (item?.isAddon) this.qty[key] = '1';
+                if (item?.isAddon) {
+                    this.qty[key] = '1';
+                } else if (item?.pricingType === 'kilo' && Number(item.minimumKilos || 0) > 0) {
+                    this.qty[key] = String(item.minimumKilos);
+                }
 
                 // Straight into "how much", which is the whole point of ticking it.
                 this.$nextTick(() => {

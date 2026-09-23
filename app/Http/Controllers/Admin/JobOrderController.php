@@ -18,6 +18,7 @@ use App\Models\ServicePreset;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Support\Activity;
+use App\Support\InventoryConsumption;
 use App\Support\SmsNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -170,7 +171,7 @@ class JobOrderController extends Controller
         $services = LaundryService::where('is_active', true)
             ->when(! in_array($user->role, ['super_admin', 'admin'], true), fn ($q) => $q->where('branch_id', $user->branch_id))
             ->orderBy('name')
-            ->get(['id', 'branch_id', 'name', 'service_category_id', 'pricing_type', 'price', 'price_unit_label']);
+            ->get(['id', 'branch_id', 'name', 'service_category_id', 'pricing_type', 'price', 'minimum_kilos', 'price_unit_label']);
 
         $serviceCategories = LaundryServiceCategory::where('is_active', true)
             ->orderBy('sort_order')
@@ -1076,7 +1077,7 @@ class JobOrderController extends Controller
                 $inventory = $this->productionInventoryForUsage($order, $usage);
 
                 $deductions[$inventory->id] = ($deductions[$inventory->id] ?? 0)
-                    + ((float) $usage->quantity * (float) $item['quantity']);
+                    + InventoryConsumption::forOrderLine($service, $usage, (float) $item['quantity']);
             }
         }
 

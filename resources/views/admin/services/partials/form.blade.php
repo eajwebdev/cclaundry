@@ -148,6 +148,9 @@
                 <a href="{{ route('admin.inventory.index', ['branch_id' => $service->branch_id ?: $selectedBranchId]) }}" target="_blank" class="text-xs font-medium text-primary hover:underline">View Inventory</a>
             </div>
             <p class="text-xs text-muted">Quantity deducted from stock for every 1 service quantity sold. Leave zero when no stock is consumed.</p>
+            @if(mb_strtolower(trim((string) $service->name)) === 'regular laundry')
+                <p class="mt-1 text-xs font-medium text-primary">Regular Laundry uses the configured 5 kg detergent/fabric-conditioner weight formula.</p>
+            @endif
         </div>
         {{-- The stock listed is this page's branch. A new service placed in
              another branch gets its recipe from that branch's page. --}}
