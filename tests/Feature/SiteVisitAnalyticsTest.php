@@ -73,6 +73,22 @@ class SiteVisitAnalyticsTest extends TestCase
                 'city' => 'Kabankalan City',
             ]);
         }
+        SiteVisit::query()->create([
+            'visited_on' => '2026-09-19',
+            'visitor_hash' => hash('sha256', 'visitor-c'),
+            'path' => '/',
+            'country_code' => 'PH',
+            'region' => 'Negros Occidental',
+            'city' => 'Kabankalan City',
+        ]);
+        SiteVisit::query()->create([
+            'visited_on' => '2026-09-21',
+            'visitor_hash' => hash('sha256', 'visitor-c'),
+            'path' => '/',
+            'country_code' => 'PH',
+            'region' => 'Negros Occidental',
+            'city' => 'Kabankalan City',
+        ]);
 
         $payload = $this->actingAs($admin)
             ->getJson(route('dashboard.data', ['date_range' => '2026-09-20 to 2026-09-21']))
@@ -80,8 +96,11 @@ class SiteVisitAnalyticsTest extends TestCase
             ->json();
 
         $this->assertSame('3', $payload['stats']['unique_site_visits']);
+        $this->assertSame('4', $payload['stats']['daily_unique_site_visits']);
         $this->assertSame(['Sep 20', 'Sep 21'], $payload['charts']['site_visits']['labels']);
-        $this->assertSame([1, 2], $payload['charts']['site_visits']['values']);
+        $this->assertSame([1, 3], $payload['charts']['site_visits']['values']);
+        $this->assertSame(['First-time visitors', 'Returning visitors'], $payload['charts']['visitor_summary']['labels']);
+        $this->assertSame([2, 1], $payload['charts']['visitor_summary']['values']);
         $this->assertSame('Kabankalan City, Negros Occidental, PH', $payload['top_visitor_locations'][0]['label']);
         $this->assertSame('3', $payload['top_visitor_locations'][0]['count']);
     }

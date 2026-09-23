@@ -46,7 +46,7 @@
         </form>
     </div>
 
-    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         <template x-for="card in statCards" :key="card.key">
             <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div class="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-smoke text-primary dark:bg-gray-950">
@@ -298,8 +298,8 @@
         <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <div class="mb-4 flex items-center justify-between">
                 <div>
-                    <h2 class="text-base font-semibold">Unique Landing Page Visits</h2>
-                    <p class="text-sm text-muted">Site-wide daily unique browsers in the selected date range. Repeat opens on the same day count once.</p>
+                    <h2 class="text-base font-semibold">Daily Website Visitors</h2>
+                    <p class="text-sm text-muted">Distinct browsers per day. A browser is counted once each day, even if it reloads the page.</p>
                 </div>
                 <span data-lucide="mouse-pointer-click" class="h-4 w-4 text-primary"></span>
             </div>
@@ -311,8 +311,8 @@
         <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <div class="mb-4 flex items-center justify-between">
                 <div>
-                    <h2 class="text-base font-semibold">Visitor Mix</h2>
-                    <p class="text-sm text-muted">Unique browsers and repeat daily visits in the selected range.</p>
+                    <h2 class="text-base font-semibold">New vs Returning Visitors</h2>
+                    <p class="text-sm text-muted">First-time browsers compared with browsers seen before the selected period.</p>
                 </div>
                 <span data-lucide="users" class="h-4 w-4 text-primary"></span>
             </div>
@@ -351,6 +351,8 @@ function dashboardPage(fetchUrl, initialData, initialDateRange) {
             { key: 'open_orders', label: 'Open Orders', icon: 'activity' },
             { key: 'ready_for_pickup', label: 'Ready for Pickup', icon: 'laundry' },
             { key: 'ready_for_delivery', label: 'Ready for Delivery', icon: 'truck' },
+            { key: 'unique_site_visits', label: 'Website Visitors', icon: 'users' },
+            { key: 'daily_unique_site_visits', label: 'Daily Unique Visits', icon: 'mouse-pointer-click' },
         ],
         init() {
             this.$nextTick(() => {
@@ -405,7 +407,7 @@ function dashboardPage(fetchUrl, initialData, initialDateRange) {
                 data: {
                     labels: this.data.charts.site_visits.labels,
                     datasets: [{
-                        label: 'Unique visitors',
+                        label: 'Daily unique visitors',
                         data: this.data.charts.site_visits.values,
                         borderColor: '#0ea5e9',
                         backgroundColor: '#0ea5e922',

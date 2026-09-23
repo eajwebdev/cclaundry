@@ -154,11 +154,12 @@ class DashboardController extends Controller
         $visitsByDate = collect();
         $topVisitorLocations = collect();
         $uniqueBrowserCount = 0;
+        $newVisitorCount = 0;
         if (Schema::hasTable('site_visits')) {
             $visitsByDate = SiteVisit::query()
                 ->whereDate('visited_on', '>=', $dateFrom)
                 ->whereDate('visited_on', '<=', $dateTo)
-                ->selectRaw('DATE(visited_on) as visit_date, COUNT(*) as total')
+                ->selectRaw('DATE(visited_on) as visit_date, COUNT(DISTINCT visitor_hash) as total')
                 ->groupBy('visit_date')
                 ->pluck('total', 'visit_date');
 
@@ -168,6 +169,20 @@ class DashboardController extends Controller
                 ->distinct()
                 ->count('visitor_hash');
 
+            // A standard period-level visitor total counts a browser once for
+            // the whole range. Classify it as first-time only when its earliest
+            // recorded visit falls inside the selected range; otherwise it is
+            // returning from an earlier period.
+            $firstVisitByBrowser = SiteVisit::query()
+                ->selectRaw('visitor_hash, MIN(visited_on) as first_visited_on')
+                ->groupBy('visitor_hash');
+
+            $newVisitorCount = DB::query()
+                ->fromSub($firstVisitByBrowser, 'first_visits')
+                ->whereDate('first_visited_on', '>=', $dateFrom)
+                ->whereDate('first_visited_on', '<=', $dateTo)
+                ->count();
+
             $topVisitorLocations = SiteVisit::query()
                 ->whereDate('visited_on', '>=', $dateFrom)
                 ->whereDate('visited_on', '<=', $dateTo)
@@ -175,7 +190,7 @@ class DashboardController extends Controller
                     ->whereNotNull('city')
                     ->orWhereNotNull('region')
                     ->orWhereNotNull('country_code'))
-                ->select(['city', 'region', 'country_code', DB::raw('COUNT(*) as total')])
+                ->select(['city', 'region', 'country_code', DB::raw('COUNT(DISTINCT visitor_hash) as total')])
                 ->groupBy('city', 'region', 'country_code')
                 ->orderByDesc('total')
                 ->limit(5)
@@ -197,7 +212,7 @@ class DashboardController extends Controller
             $visitorValues[] = (int) ($visitsByDate[$key] ?? 0);
         }
         $totalDailyUniqueVisits = array_sum($visitorValues);
-        $repeatDailyVisits = max(0, $totalDailyUniqueVisits - $uniqueBrowserCount);
+        $returningVisitorCount = max(0, $uniqueBrowserCount - $newVisitorCount);
 
         $statusRows = (clone $ordersInRange)
             ->select('status', DB::raw('COUNT(*) as total'))
@@ -337,7 +352,8 @@ class DashboardController extends Controller
                 'low_stock' => number_format($lowStock),
                 'accounts_payable' => $this->money($currency, $accountsPayable),
                 'over_short' => $this->money($currency, $financial['over_short']),
-                'unique_site_visits' => number_format($totalDailyUniqueVisits),
+                'unique_site_visits' => number_format($uniqueBrowserCount),
+                'daily_unique_site_visits' => number_format($totalDailyUniqueVisits),
             ],
             'charts' => [
                 'sales' => [
@@ -349,8 +365,8 @@ class DashboardController extends Controller
                     'values' => $visitorValues,
                 ],
                 'visitor_summary' => [
-                    'labels' => ['Unique browsers', 'Repeat daily visits'],
-                    'values' => [$uniqueBrowserCount, $repeatDailyVisits],
+                    'labels' => ['First-time visitors', 'Returning visitors'],
+                    'values' => [$newVisitorCount, $returningVisitorCount],
                 ],
                 'status' => [
                     'labels' => $statusLabels,
