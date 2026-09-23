@@ -1,0 +1,74 @@
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "Cane & Cotton Laundry Cane & Cotton Laundry" [ref=e5] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000
+        - img "Cane & Cotton Laundry" [ref=e7]
+        - generic [ref=e8]:
+          - generic [ref=e9]: Cane & Cotton
+          - generic [ref=e10]: Laundry
+      - navigation "Main" [ref=e11]:
+        - link "Services" [ref=e12] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000#services
+        - link "How It Works" [ref=e13] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000#how
+        - link "Track" [ref=e14] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000#track
+        - link "About" [ref=e15] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000#about
+      - generic [ref=e17]:
+        - link "Sign in" [ref=e18] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/login
+        - link "Book a Pickup" [ref=e19] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000#book
+  - main [ref=e25]:
+    - generic [ref=e27]:
+      - generic [ref=e28]:
+        - img "Cane & Cotton Laundry" [ref=e30]
+        - heading "Welcome back" [level=1] [ref=e31]
+        - paragraph [ref=e32]: Sign in to your Cane & Cotton Laundry account.
+      - generic [ref=e33]:
+        - generic [ref=e34]:
+          - generic [ref=e35]:
+            - generic [ref=e36]: Mobile number, username, or email
+            - textbox "Mobile number, username, or email" [active] [ref=e37]
+          - generic [ref=e38]:
+            - generic [ref=e39]: Password
+            - generic [ref=e40]:
+              - textbox "Password" [ref=e41]
+              - button "Show password" [ref=e42]
+          - generic [ref=e46] [cursor=pointer]:
+            - checkbox "Keep me signed in" [ref=e47]
+            - text: Keep me signed in
+          - button "Sign in" [ref=e48]
+        - paragraph [ref=e52]:
+          - text: New here?
+          - link "Create an account" [ref=e53] [cursor=pointer]:
+            - /url: http://127.0.0.1:8000/customer/register
+      - paragraph [ref=e54]: Booked at the counter before? Use the same mobile number when you create your account to link your laundry history.
+  - contentinfo [ref=e55]:
+    - generic [ref=e56]:
+      - paragraph [ref=e57]: Life’s busy, we’ll handle the laundry!
+      - paragraph [ref=e58]: Wash • Dry • Fold • Repeat
+      - generic [ref=e61]: ♥
+      - navigation "Footer" [ref=e63]:
+        - link "Services" [ref=e64] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000#services
+        - link "Book a Pickup" [ref=e65] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000#book
+        - link "Track My Laundry" [ref=e66] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000#track
+        - link "Sign in" [ref=e67] [cursor=pointer]:
+          - /url: http://127.0.0.1:8000/login
+      - list [ref=e68]:
+        - listitem [ref=e69]:
+          - link "09555471090" [ref=e72] [cursor=pointer]:
+            - /url: tel:09555471090
+        - listitem [ref=e73]:
+          - link "canencottonlaundry@gmail.com" [ref=e77] [cursor=pointer]:
+            - /url: mailto:canencottonlaundry@gmail.com
+        - listitem [ref=e78]: Pickups daily, 8:00 AM - 2:00 PM
+        - listitem [ref=e82]:
+          - link "Message us on Facebook" [ref=e85] [cursor=pointer]:
+            - /url: https://www.facebook.com/canencottonlaundry
+      - paragraph [ref=e86]: © 2026 Cane & Cotton Laundry. All rights reserved.

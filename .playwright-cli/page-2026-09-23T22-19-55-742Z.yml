@@ -1,0 +1,224 @@
+- generic [ref=f1e2]:
+  - complementary [ref=f1e3]:
+    - generic [ref=f1e4]:
+      - generic [ref=f1e5]:
+        - img "Cane & Cotton Laundry" [ref=f1e7]
+        - generic [ref=f1e8]:
+          - heading "Cane & Cotton Laundry" [level=1] [ref=f1e9]
+          - paragraph [ref=f1e10]: Cane & Cotton Laundry
+      - button [ref=f1e11]
+    - generic [ref=f1e16]:
+      - paragraph [ref=f1e17]: All Branches
+      - paragraph [ref=f1e18]: admin
+    - navigation [ref=f1e19]:
+      - paragraph [ref=f1e20]: Operations
+      - link "Dashboard" [ref=f1e21] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/dashboard
+      - link "Job Orders" [ref=f1e28] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/job-orders
+      - link "Pickup Bookings" [ref=f1e33] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/pickup-requests
+      - link "Cycle Monitoring" [ref=f1e40] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/cycles
+      - link "Customers" [ref=f1e44] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/customers
+      - link "Laundry Services" [ref=f1e51] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/services
+      - link "Service Categories" [ref=f1e57] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/service-categories
+      - link "Inventory" [ref=f1e62] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/inventory
+      - paragraph [ref=f1e68]: Cash Management
+      - link "Payments" [ref=f1e69] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/payments
+      - link "Receivables" [ref=f1e73] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/receivables
+      - link "Expenses" [ref=f1e81] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/expenses
+      - link "Accounts Payable" [ref=f1e86] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/accounts-payable
+      - link "Petty Cash" [ref=f1e94] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/petty-cash
+      - link "Z Reading" [ref=f1e99] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/z-readings
+      - paragraph [ref=f1e103]: Staff
+      - link "Employees" [ref=f1e104] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/employees
+      - link "Attendance Logs" [ref=f1e110] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/attendance
+      - link "End-of-Day Tasks" [ref=f1e115] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/daily-tasks
+      - paragraph [ref=f1e119]: Management
+      - link "Reports" [ref=f1e120] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/reports
+      - link "Branches" [ref=f1e125] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/branches
+      - link "Users" [ref=f1e131] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/users
+      - link "Compose SMS" [ref=f1e138] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/compose-sms
+      - link "SMS Logs" [ref=f1e143] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/sms-logs
+      - link "System Settings" [ref=f1e148] [cursor=pointer]:
+        - /url: http://127.0.0.1:8000/admin/settings
+  - generic [ref=f1e153]:
+    - banner [ref=f1e154]:
+      - generic [ref=f1e155]:
+        - generic [ref=f1e156]:
+          - button "Toggle sidebar menu" [ref=f1e157]
+          - generic [ref=f1e159]:
+            - heading "Dashboard" [level=2] [ref=f1e160]
+            - paragraph [ref=f1e161]: Administration workspace
+        - generic [ref=f1e162]:
+          - button "Pickup booking alerts" [ref=f1e164]
+          - button "Low stock notifications" [ref=f1e171]
+          - button "Subscription notifications" [ref=f1e179]
+          - button "Toggle theme" [ref=f1e183]
+          - button "A Admin" [ref=f1e187]:
+            - generic [ref=f1e188]: A
+            - generic [ref=f1e189]: Admin
+    - main [ref=f1e192]:
+      - button "Open system assistant" [ref=f1e194]
+      - generic [ref=f1e198]:
+        - generic [ref=f1e199]:
+          - generic [ref=f1e200]:
+            - generic [ref=f1e201]: Executive overview
+            - heading "Business Dashboard" [level=1] [ref=f1e207]
+            - paragraph [ref=f1e208]: Live sales, physical collections, workflow, receivables, and inventory signals. Updated Sep 24, 2026 06:19:54 AM
+          - generic [ref=f1e209]:
+            - combobox [ref=f1e210]:
+              - option "All branches" [selected]
+              - option "Main Branch"
+            - textbox [ref=f1e215] [cursor=pointer]: 2026-09-24
+            - button "Apply" [ref=f1e216]
+        - generic [ref=f1e220]:
+          - generic [ref=f1e221]:
+            - paragraph [ref=f1e225]: Sales Owned
+            - paragraph [ref=f1e226]: PHP 0.00
+          - generic [ref=f1e227]:
+            - paragraph [ref=f1e231]: Physical Collections
+            - paragraph [ref=f1e232]: PHP 0.00
+          - generic [ref=f1e233]:
+            - paragraph [ref=f1e238]: Expected Cash Drawer
+            - paragraph [ref=f1e239]: PHP 0.00
+          - generic [ref=f1e240]:
+            - paragraph [ref=f1e244]: Expected GCash
+            - paragraph [ref=f1e245]: PHP 0.00
+          - generic [ref=f1e246]:
+            - paragraph [ref=f1e251]: Recorded Expenses
+            - paragraph [ref=f1e252]: PHP 0.00
+          - generic [ref=f1e253]:
+            - paragraph [ref=f1e261]: Accounts Payable
+            - paragraph [ref=f1e262]: PHP 0.00
+          - generic [ref=f1e263]:
+            - paragraph [ref=f1e271]: Unpaid Customer Balance
+            - paragraph [ref=f1e272]: PHP 0.00
+          - generic [ref=f1e273]:
+            - paragraph [ref=f1e277]: Z Reading Over / Short
+            - paragraph [ref=f1e278]: PHP 0.00
+          - generic [ref=f1e279]:
+            - paragraph [ref=f1e284]: Orders in Period
+            - paragraph [ref=f1e285]: "0"
+          - generic [ref=f1e286]:
+            - paragraph [ref=f1e290]: Open Orders
+            - paragraph [ref=f1e291]: "0"
+          - generic [ref=f1e292]:
+            - paragraph [ref=f1e298]: Ready for Pickup
+            - paragraph [ref=f1e299]: "0"
+          - generic [ref=f1e300]:
+            - paragraph [ref=f1e307]: Ready for Delivery
+            - paragraph [ref=f1e308]: "0"
+          - generic [ref=f1e309]:
+            - paragraph [ref=f1e316]: Website Visitors
+            - paragraph [ref=f1e317]: "0"
+          - generic [ref=f1e318]:
+            - paragraph [ref=f1e321]: Daily Unique Visits
+            - paragraph [ref=f1e322]: "0"
+        - generic [ref=f1e323]:
+          - generic [ref=f1e324]:
+            - generic [ref=f1e325]:
+              - heading "Low Stock Purchase List" [level=2] [ref=f1e326]
+              - paragraph [ref=f1e329]: The 10 most recently updated active items at or below their quantity alarm.
+            - link "Manage stock" [ref=f1e330] [cursor=pointer]:
+              - /url: http://127.0.0.1:8000/admin/inventory?stock_status=low
+          - generic [ref=f1e331]: All active inventory items are above their quantity alarms.
+        - generic [ref=f1e333]:
+          - generic [ref=f1e336]:
+            - heading "Sales Trend" [level=2] [ref=f1e337]
+            - paragraph [ref=f1e338]: Sales owned by branch in the selected date range.
+          - generic [ref=f1e345]:
+            - heading "Workflow Status" [level=2] [ref=f1e346]
+            - paragraph [ref=f1e347]: Job orders by status.
+        - generic [ref=f1e352]:
+          - generic [ref=f1e355]:
+            - heading "Payment Mix" [level=2] [ref=f1e356]
+            - paragraph [ref=f1e357]: Physical collections by method.
+          - generic [ref=f1e364]:
+            - heading "POS Type Mix" [level=2] [ref=f1e365]
+            - paragraph [ref=f1e366]: Walk-in/drop-off versus delivery orders.
+          - generic [ref=f1e374]:
+            - heading "Financial Snapshot" [level=2] [ref=f1e375]
+            - paragraph [ref=f1e376]: Collections, expenses, receivables, and payables.
+        - generic [ref=f1e383]:
+          - generic [ref=f1e384]:
+            - generic [ref=f1e386]:
+              - heading "Top Selling Services" [level=2] [ref=f1e387]
+              - paragraph [ref=f1e388]: Ranked by service sales amount in the selected range.
+            - paragraph [ref=f1e396]: No service sales in this date range.
+          - generic [ref=f1e397]:
+            - generic [ref=f1e399]:
+              - heading "Top Selling Presets" [level=2] [ref=f1e400]
+              - paragraph [ref=f1e401]: Preset sales from POS preset cart selections.
+            - paragraph [ref=f1e408]: Preset sales will appear for new orders saved from preset cart selections.
+        - generic [ref=f1e409]:
+          - generic [ref=f1e410]:
+            - generic [ref=f1e411]:
+              - generic [ref=f1e412]:
+                - heading "Recent Job Orders" [level=2] [ref=f1e413]
+                - paragraph [ref=f1e414]: Live latest transactions.
+              - link "View all" [ref=f1e415] [cursor=pointer]:
+                - /url: http://127.0.0.1:8000/admin/job-orders
+            - table [ref=f1e417]:
+              - rowgroup [ref=f1e418]:
+                - row [ref=f1e419]:
+                  - 'columnheader "JO #" [ref=f1e420]'
+                  - columnheader "Customer" [ref=f1e421]
+                  - columnheader "Branch" [ref=f1e422]
+                  - columnheader "Status" [ref=f1e423]
+                  - columnheader "Total" [ref=f1e424]
+              - rowgroup [ref=f1e425]:
+                - row [ref=f1e426]:
+                  - cell "No recent job orders." [ref=f1e427]
+          - generic [ref=f1e430]:
+            - heading "Branch Sales" [level=2] [ref=f1e431]
+            - paragraph [ref=f1e432]: Sales owned by branch in the selected range.
+        - generic [ref=f1e439]:
+          - generic [ref=f1e440]:
+            - generic [ref=f1e441]:
+              - heading "Customers Who Trust Cane & Cotton Laundry" [level=2] [ref=f1e442]
+              - paragraph [ref=f1e443]: Customers with 10 or more laundry orders, ranked by total orders entrusted to the store.
+            - link "View customers" [ref=f1e444] [cursor=pointer]:
+              - /url: http://127.0.0.1:8000/admin/customers
+          - table [ref=f1e446]:
+            - rowgroup [ref=f1e447]:
+              - row [ref=f1e448]:
+                - columnheader "Customer" [ref=f1e449]
+                - columnheader "Contact" [ref=f1e450]
+                - columnheader "Branch" [ref=f1e451]
+                - columnheader "Laundry Orders" [ref=f1e452]
+                - columnheader "Latest Service" [ref=f1e453]
+                - columnheader "Status" [ref=f1e454]
+            - rowgroup [ref=f1e455]:
+              - row [ref=f1e456]:
+                - cell "Customer laundry history will appear here after the first job order." [ref=f1e457]
+        - generic [ref=f1e458]:
+          - generic [ref=f1e461]:
+            - heading "Daily Website Visitors" [level=2] [ref=f1e462]
+            - paragraph [ref=f1e463]: Distinct browsers per day. A browser is counted once each day, even if it reloads the page.
+          - generic [ref=f1e469]:
+            - heading "New vs Returning Visitors" [level=2] [ref=f1e470]
+            - paragraph [ref=f1e471]: First-time browsers compared with browsers seen before the selected period.
+    - contentinfo [ref=f1e479]:
+      - generic [ref=f1e480]:
+        - generic [ref=f1e481]: © 2026 Cane & Cotton Laundry | Cane & Cotton Laundry
+        - generic [ref=f1e482]: System online
