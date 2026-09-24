@@ -12,6 +12,8 @@ class DefaultInventoryItems
         return [
             ['name' => 'Detergent Powder', 'sku' => 'SUP-DETERGENT', 'unit' => 'kg', 'quantity' => 100, 'reorder_level' => 20, 'unit_cost' => 80],
             ['name' => 'Fabric Conditioner', 'sku' => 'SUP-CONDITIONER', 'unit' => 'liter', 'quantity' => 80, 'reorder_level' => 15, 'unit_cost' => 95],
+            ['name' => 'Downy Mystique Finishing Spray', 'sku' => 'SUP-FINISH-MYSTIQUE', 'unit' => 'liter', 'quantity' => 0, 'reorder_level' => 5, 'unit_cost' => 95],
+            ['name' => 'Downy Sunrise Finishing Spray', 'sku' => 'SUP-FINISH-SUNRISE', 'unit' => 'liter', 'quantity' => 0, 'reorder_level' => 5, 'unit_cost' => 95],
             ['name' => 'Bleach', 'sku' => 'SUP-BLEACH', 'unit' => 'liter', 'quantity' => 30, 'reorder_level' => 8, 'unit_cost' => 70],
             ['name' => 'Stain Remover', 'sku' => 'SUP-STAIN', 'unit' => 'liter', 'quantity' => 20, 'reorder_level' => 5, 'unit_cost' => 140],
             ['name' => 'Disinfectant', 'sku' => 'SUP-DISINFECT', 'unit' => 'liter', 'quantity' => 30, 'reorder_level' => 8, 'unit_cost' => 120],

@@ -12,8 +12,8 @@ use App\Models\Payment;
 use App\Models\ServicePreset;
 use App\Models\SystemSetting;
 use App\Models\User;
-use Database\Seeders\InventorySeeder;
 use Database\Seeders\ExcelSampleServiceSeeder;
+use Database\Seeders\InventorySeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -497,9 +497,60 @@ class ServiceInventoryIntegrationTest extends TestCase
             ->get(route('admin.inventory.index', ['branch_id' => $branch->id]))
             ->assertOk();
 
-        foreach (['Bleach', 'Detergent Powder', 'Disinfectant', 'Dryer Sheet', 'Fabric Conditioner', 'Hanger', 'Laundry Bag', 'Plastic Big', 'Plastic Packaging', 'Plastic Small', 'Stain Remover'] as $name) {
+        foreach (['Bleach', 'Detergent Powder', 'Disinfectant', 'Downy Mystique Finishing Spray', 'Downy Sunrise Finishing Spray', 'Dryer Sheet', 'Fabric Conditioner', 'Hanger', 'Laundry Bag', 'Plastic Big', 'Plastic Packaging', 'Plastic Small', 'Stain Remover'] as $name) {
             $response->assertSee($name);
         }
+    }
+
+    public function test_finishing_spray_services_use_separate_inventory_items(): void
+    {
+        $branch = Branch::query()->create([
+            'name' => 'Branch 1',
+            'code' => 'B001',
+            'branch_type' => 'full_service',
+            'is_active' => true,
+        ]);
+        $mystique = LaundryService::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Downy Mystique',
+            'report_category' => 'fabcon',
+            'pricing_type' => 'custom',
+            'price' => 10,
+            'is_active' => true,
+        ]);
+        $sunrise = LaundryService::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Downy Sunrise',
+            'report_category' => 'fabcon',
+            'pricing_type' => 'custom',
+            'price' => 10,
+            'is_active' => true,
+        ]);
+
+        $this->seed(InventorySeeder::class);
+
+        $mystiqueStock = Inventory::query()->where('branch_id', $branch->id)->where('sku', 'SUP-FINISH-MYSTIQUE')->firstOrFail();
+        $sunriseStock = Inventory::query()->where('branch_id', $branch->id)->where('sku', 'SUP-FINISH-SUNRISE')->firstOrFail();
+        $genericConditioner = Inventory::query()->where('branch_id', $branch->id)->where('sku', 'SUP-CONDITIONER')->firstOrFail();
+
+        $this->assertDatabaseHas('service_inventory_usages', [
+            'laundry_service_id' => $mystique->id,
+            'inventory_id' => $mystiqueStock->id,
+            'quantity' => 0.08,
+        ]);
+        $this->assertDatabaseHas('service_inventory_usages', [
+            'laundry_service_id' => $sunrise->id,
+            'inventory_id' => $sunriseStock->id,
+            'quantity' => 0.08,
+        ]);
+        $this->assertDatabaseMissing('service_inventory_usages', [
+            'laundry_service_id' => $mystique->id,
+            'inventory_id' => $genericConditioner->id,
+        ]);
+        $this->assertDatabaseMissing('service_inventory_usages', [
+            'laundry_service_id' => $sunrise->id,
+            'inventory_id' => $genericConditioner->id,
+        ]);
     }
 
     public function test_excel_sample_services_are_seeded_with_inventory_recipes(): void
