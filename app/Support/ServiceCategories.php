@@ -9,6 +9,7 @@ class ServiceCategories
         'dry' => 'Dry',
         'dry_extend' => 'Dry Extend',
         'fabcon' => 'Fabcon',
+        'finishing_spray' => 'Finishing Spray',
         'detergent' => 'Detergent',
         'fold' => 'Fold',
         'rush' => 'Rush',
@@ -31,6 +32,7 @@ class ServiceCategories
         return match (true) {
             str_contains($name, 'dry') && (str_contains($name, 'extend') || str_contains($name, 'extra')) => 'dry_extend',
             str_contains($name, 'fabcon'), str_contains($name, 'fabric conditioner') => 'fabcon',
+            str_contains($name, 'finishing spray') => 'finishing_spray',
             str_contains($name, 'detergent') => 'detergent',
             str_contains($name, 'delivery'), str_contains($name, 'pickup') => 'delivery',
             str_contains($name, 'small machine') => 'small',

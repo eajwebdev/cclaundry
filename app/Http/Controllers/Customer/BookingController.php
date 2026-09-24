@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\PickupRequest;
-use App\Support\Geocoder;
 use App\Models\SystemSetting;
 use App\Support\Booking;
+use App\Support\Geocoder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -411,6 +411,21 @@ class BookingController extends Controller
         if ($conditionerCount > 1) {
             throw ValidationException::withMessages([
                 'items' => 'Please choose one fabric conditioner for this booking.',
+            ]);
+        }
+
+        $finishingSprayIds = Booking::addons((int) $validated['branch_id'])
+            ->where('report_category', 'finishing_spray')
+            ->pluck('id');
+        $finishingSprayCount = collect($validated['items'])->filter(function (array $item) use ($finishingSprayIds) {
+            $offering = Booking::resolveOffering($item['key']);
+
+            return $offering && $finishingSprayIds->contains($offering['service']?->id);
+        })->count();
+
+        if ($finishingSprayCount > 1) {
+            throw ValidationException::withMessages([
+                'items' => 'Please choose one finishing spray for this booking.',
             ]);
         }
 

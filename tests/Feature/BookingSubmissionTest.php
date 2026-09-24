@@ -121,7 +121,8 @@ class BookingSubmissionTest extends TestCase
 
         $response->assertSee('What would you like us to clean?', false);
         $response->assertSee('Estimated weight', false);
-        $response->assertSee('Detergent &amp; Fabric Conditioner — Optional Add-ons', false);
+        $response->assertSee('Optional Add-ons', false);
+        $response->assertSee('finishing spray', false);
         $response->assertSee('Number of loads', false);
         $response->assertDontSee('fixed price', false);
         $response->assertSee('Add-on', false);
@@ -424,6 +425,28 @@ class BookingSubmissionTest extends TestCase
             'is_active' => true,
             'show_on_landing' => true,
         ]);
+        $freshSpray = LaundryService::query()->create([
+            'branch_id' => $this->branch->id,
+            'service_category_id' => $category->id,
+            'name' => 'Fresh Finishing Spray',
+            'pricing_type' => 'custom',
+            'report_category' => 'finishing_spray',
+            'price' => 5,
+            'price_unit_label' => 'per load',
+            'is_active' => true,
+            'show_on_landing' => true,
+        ]);
+        $floralSpray = LaundryService::query()->create([
+            'branch_id' => $this->branch->id,
+            'service_category_id' => $category->id,
+            'name' => 'Floral Finishing Spray',
+            'pricing_type' => 'custom',
+            'report_category' => 'finishing_spray',
+            'price' => 5,
+            'price_unit_label' => 'per load',
+            'is_active' => true,
+            'show_on_landing' => true,
+        ]);
 
         $page = $this->get(route('landing'))->assertOk();
         $page->assertSee('Downy Mystique')->assertSee('Downy Sunrise');
@@ -442,6 +465,12 @@ class BookingSubmissionTest extends TestCase
             ['key' => 'service:'.$blankets->id, 'quantity' => 4],
             ['key' => 'service:'.$mystique->id, 'quantity' => 1],
             ['key' => 'service:'.$sunrise->id, 'quantity' => 1],
+        ]]))->assertSessionHasErrors('items');
+
+        $this->post(route('booking.store'), $this->payload(['items' => [
+            ['key' => 'service:'.$blankets->id, 'quantity' => 4],
+            ['key' => 'service:'.$freshSpray->id, 'quantity' => 1],
+            ['key' => 'service:'.$floralSpray->id, 'quantity' => 1],
         ]]))->assertSessionHasErrors('items');
     }
 

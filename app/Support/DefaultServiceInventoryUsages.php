@@ -32,8 +32,9 @@ class DefaultServiceInventoryUsages
             'Uniform Steaming (Adult)' => ['Hanger' => 1],
             'Ariel Detergent' => ['Detergent Powder' => 0.10],
             'Tide Detergent' => ['Detergent Powder' => 0.10],
-            'Downy Mystique' => ['Downy Mystique Finishing Spray' => 1],
-            'Downy Sunrise' => ['Downy Sunrise Finishing Spray' => 1],
+            'Downy Mystique' => ['Downy Mystique Fabric Conditioner' => 1],
+            'Downy Sunrise' => ['Downy Sunrise Fabric Conditioner' => 1],
+            'Finishing Spray' => ['Finishing Spray' => 1],
         ];
     }
 

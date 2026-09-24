@@ -8,7 +8,7 @@ return new class extends Migration
     public function up(): void
     {
         $now = now();
-        $skus = ['SUP-FINISH-MYSTIQUE', 'SUP-FINISH-SUNRISE'];
+        $skus = ['SUP-FABCON-MYSTIQUE', 'SUP-FABCON-SUNRISE'];
 
         DB::table('inventories')
             ->whereIn('sku', $skus)
@@ -30,6 +30,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        // Preserve the sachet-based stock counts and recipes recorded by staff.
+        // Preserve the sachet-based fabcon stock counts and recipes recorded by staff.
     }
 };

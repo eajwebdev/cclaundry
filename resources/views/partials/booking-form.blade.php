@@ -317,8 +317,8 @@
                         {{-- Below the services, because they go with a wash rather
                              than instead of one. --}}
                         <fieldset class="mt-7">
-                            <legend class="cc-label text-[15px]">2. Detergent &amp; Fabric Conditioner — Optional Add-ons</legend>
-                            <p class="cc-help mt-1">Choose your preferred detergent and fabric conditioner for this load.</p>
+                            <legend class="cc-label text-[15px]">2. Optional Add-ons</legend>
+                            <p class="cc-help mt-1">Choose your preferred detergent, fabric conditioner, and finishing spray for this load.</p>
 
                             <div class="mt-3 space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
                                 @foreach ($addons as $addon)
@@ -730,11 +730,11 @@
                 }
 
                 const item = this.bookable(key);
-                if (item?.addonGroup === 'fabcon') {
-                    for (const pickedKey of this.picked.filter((pickedKey) => this.bookable(pickedKey)?.addonGroup === 'fabcon')) {
+                if (['fabcon', 'finishing_spray'].includes(item?.addonGroup)) {
+                    for (const pickedKey of this.picked.filter((pickedKey) => this.bookable(pickedKey)?.addonGroup === item.addonGroup)) {
                         this.qty[pickedKey] = '';
                     }
-                    this.picked = this.picked.filter((pickedKey) => this.bookable(pickedKey)?.addonGroup !== 'fabcon');
+                    this.picked = this.picked.filter((pickedKey) => this.bookable(pickedKey)?.addonGroup !== item.addonGroup);
                 }
 
                 this.picked.push(key);

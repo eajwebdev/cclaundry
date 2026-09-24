@@ -8,23 +8,23 @@ return new class extends Migration
     public function up(): void
     {
         $now = now();
-        $sprays = [
+        $variants = [
             'Downy Mystique' => [
-                'name' => 'Downy Mystique Finishing Spray',
-                'sku' => 'SUP-FINISH-MYSTIQUE',
+                'name' => 'Downy Mystique Fabric Conditioner',
+                'sku' => 'SUP-FABCON-MYSTIQUE',
             ],
             'Downy Sunrise' => [
-                'name' => 'Downy Sunrise Finishing Spray',
-                'sku' => 'SUP-FINISH-SUNRISE',
+                'name' => 'Downy Sunrise Fabric Conditioner',
+                'sku' => 'SUP-FABCON-SUNRISE',
             ],
         ];
 
         DB::table('laundry_services')
             ->whereNull('deleted_at')
-            ->whereIn('name', array_keys($sprays))
+            ->whereIn('name', array_keys($variants))
             ->orderBy('id')
-            ->each(function ($service) use ($now, $sprays): void {
-                $definition = $sprays[$service->name];
+            ->each(function ($service) use ($now, $variants): void {
+                $definition = $variants[$service->name];
                 $inventory = DB::table('inventories')
                     ->where('branch_id', $service->branch_id)
                     ->where(function ($query) use ($definition): void {
@@ -74,7 +74,7 @@ return new class extends Migration
 
                 // These add-ons used to share the generic conditioner stock.
                 // Keep that stock for Regular Laundry, but stop these selected
-                // finishing sprays from consuming it as well.
+                // fabric-conditioner choices from consuming it as well.
                 DB::table('service_inventory_usages')
                     ->where('laundry_service_id', $service->id)
                     ->whereIn('inventory_id', DB::table('inventories')

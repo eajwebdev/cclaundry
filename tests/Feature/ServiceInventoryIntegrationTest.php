@@ -497,12 +497,12 @@ class ServiceInventoryIntegrationTest extends TestCase
             ->get(route('admin.inventory.index', ['branch_id' => $branch->id]))
             ->assertOk();
 
-        foreach (['Bleach', 'Detergent Powder', 'Disinfectant', 'Downy Mystique Finishing Spray', 'Downy Sunrise Finishing Spray', 'Dryer Sheet', 'Fabric Conditioner', 'Hanger', 'Laundry Bag', 'Plastic Big', 'Plastic Packaging', 'Plastic Small', 'Stain Remover'] as $name) {
+        foreach (['Bleach', 'Detergent Powder', 'Disinfectant', 'Downy Mystique Fabric Conditioner', 'Downy Sunrise Fabric Conditioner', 'Dryer Sheet', 'Fabric Conditioner', 'Finishing Spray', 'Hanger', 'Laundry Bag', 'Plastic Big', 'Plastic Packaging', 'Plastic Small', 'Stain Remover'] as $name) {
             $response->assertSee($name);
         }
     }
 
-    public function test_finishing_spray_services_use_separate_inventory_items(): void
+    public function test_fabcon_variants_and_finishing_spray_use_separate_inventory_items(): void
     {
         $branch = Branch::query()->create([
             'name' => 'Branch 1',
@@ -526,11 +526,20 @@ class ServiceInventoryIntegrationTest extends TestCase
             'price' => 10,
             'is_active' => true,
         ]);
+        $finishingSpray = LaundryService::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Finishing Spray',
+            'report_category' => 'finishing_spray',
+            'pricing_type' => 'custom',
+            'price' => 0,
+            'is_active' => true,
+        ]);
 
         $this->seed(InventorySeeder::class);
 
-        $mystiqueStock = Inventory::query()->where('branch_id', $branch->id)->where('sku', 'SUP-FINISH-MYSTIQUE')->firstOrFail();
-        $sunriseStock = Inventory::query()->where('branch_id', $branch->id)->where('sku', 'SUP-FINISH-SUNRISE')->firstOrFail();
+        $mystiqueStock = Inventory::query()->where('branch_id', $branch->id)->where('sku', 'SUP-FABCON-MYSTIQUE')->firstOrFail();
+        $sunriseStock = Inventory::query()->where('branch_id', $branch->id)->where('sku', 'SUP-FABCON-SUNRISE')->firstOrFail();
+        $finishingSprayStock = Inventory::query()->where('branch_id', $branch->id)->where('sku', 'SUP-FINISHING-SPRAY')->firstOrFail();
         $genericConditioner = Inventory::query()->where('branch_id', $branch->id)->where('sku', 'SUP-CONDITIONER')->firstOrFail();
 
         $this->assertDatabaseHas('service_inventory_usages', [
@@ -545,6 +554,12 @@ class ServiceInventoryIntegrationTest extends TestCase
         ]);
         $this->assertSame('sachet', $mystiqueStock->unit);
         $this->assertSame('sachet', $sunriseStock->unit);
+        $this->assertSame('use', $finishingSprayStock->unit);
+        $this->assertDatabaseHas('service_inventory_usages', [
+            'laundry_service_id' => $finishingSpray->id,
+            'inventory_id' => $finishingSprayStock->id,
+            'quantity' => 1,
+        ]);
         $this->assertDatabaseMissing('service_inventory_usages', [
             'laundry_service_id' => $mystique->id,
             'inventory_id' => $genericConditioner->id,

@@ -23,7 +23,8 @@ class DefaultLaundryServices
             ['name' => 'Uniform Steaming (Kids)',  'pricing_type' => 'piece', 'price' => 80,  'price_unit_label' => 'per pair', 'category' => 'Extra Services', 'report_category' => 'other', 'landing' => ['pinned' => true, 'icon' => 'flame', 'order' => 6, 'blurb' => 'Uniforms steamed crisp and ready to wear, priced per pair.']],
             ['name' => 'Uniform Steaming (Adult)', 'pricing_type' => 'piece', 'price' => 100, 'price_unit_label' => 'per pair', 'category' => 'Extra Services', 'report_category' => 'other', 'landing' => ['pinned' => true, 'icon' => 'flame', 'order' => 7, 'blurb' => 'Uniforms steamed crisp and ready to wear, priced per pair.']],
 
-            // Add-ons: the customer's choice of detergent and fabric conditioner.
+            // Add-ons: the customer's choice of detergent, fabric conditioner,
+            // and finishing spray.
             // Pinned so they show on the public price list exactly as the poster
             // does; Booking::services() keeps them out of the bookable list,
             // because nobody books "Ariel" as their laundry service.
@@ -31,6 +32,7 @@ class DefaultLaundryServices
             ['name' => 'Tide Detergent',             'pricing_type' => 'custom', 'price' => 18, 'price_unit_label' => 'per load', 'category' => 'Add-ons', 'report_category' => 'detergent', 'landing' => ['pinned' => true, 'icon' => 'droplets', 'order' => 9, 'blurb' => 'Optional detergent for your load.']],
             ['name' => 'Downy Mystique',             'pricing_type' => 'custom', 'price' => 10, 'price_unit_label' => 'per load', 'category' => 'Add-ons', 'report_category' => 'fabcon', 'landing' => ['pinned' => true, 'icon' => 'sparkles', 'order' => 10, 'blurb' => 'Optional fabric conditioner for your load.']],
             ['name' => 'Downy Sunrise',              'pricing_type' => 'custom', 'price' => 10, 'price_unit_label' => 'per load', 'category' => 'Add-ons', 'report_category' => 'fabcon', 'landing' => ['pinned' => true, 'icon' => 'sparkles', 'order' => 11, 'blurb' => 'Optional fabric conditioner for your load.']],
+            ['name' => 'Finishing Spray',             'pricing_type' => 'custom', 'price' => 0,  'price_unit_label' => 'per load', 'category' => 'Add-ons', 'report_category' => 'finishing_spray', 'landing' => ['pinned' => true, 'icon' => 'spray-can', 'order' => 12, 'blurb' => 'Optional finishing spray for your load.']],
         ];
     }
 
@@ -59,14 +61,14 @@ class DefaultLaundryServices
                 ->first();
 
             $attributes = [
-                'pricing_type'        => $service['pricing_type'],
+                'pricing_type' => $service['pricing_type'],
                 'service_category_id' => $categoryMap[$service['category']] ?? null,
-                'report_category'     => $service['report_category'],
-                'price'               => $service['price'],
-                'minimum_kilos'       => $service['minimum_kilos'] ?? null,
-                'price_unit_label'    => $service['price_unit_label'] ?? null,
-                'is_active'           => true,
-                'deleted_at'          => null,
+                'report_category' => $service['report_category'],
+                'price' => $service['price'],
+                'minimum_kilos' => $service['minimum_kilos'] ?? null,
+                'price_unit_label' => $service['price_unit_label'] ?? null,
+                'is_active' => true,
+                'deleted_at' => null,
             ];
 
             if ($existing) {
@@ -80,11 +82,11 @@ class DefaultLaundryServices
             $landing = $service['landing'] ?? [];
 
             LaundryService::create($attributes + [
-                'branch_id'          => $branch->id,
-                'name'               => $service['name'],
-                'show_on_landing'    => (bool) ($landing['pinned'] ?? false),
-                'landing_blurb'      => $landing['blurb'] ?? null,
-                'landing_icon'       => $landing['icon'] ?? null,
+                'branch_id' => $branch->id,
+                'name' => $service['name'],
+                'show_on_landing' => (bool) ($landing['pinned'] ?? false),
+                'landing_blurb' => $landing['blurb'] ?? null,
+                'landing_icon' => $landing['icon'] ?? null,
                 'landing_sort_order' => (int) ($landing['order'] ?? 0),
             ]);
         }
