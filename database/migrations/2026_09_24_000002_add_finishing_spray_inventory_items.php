@@ -37,7 +37,7 @@ return new class extends Migration
                     DB::table('inventories')->where('id', $inventory->id)->update([
                         'name' => $definition['name'],
                         'sku' => $definition['sku'],
-                        'unit' => 'liter',
+                        'unit' => 'sachet',
                         'is_active' => true,
                         'deleted_at' => null,
                         'updated_at' => $now,
@@ -50,10 +50,10 @@ return new class extends Migration
                         'branch_id' => $service->branch_id,
                         'name' => $definition['name'],
                         'sku' => $definition['sku'],
-                        'unit' => 'liter',
+                        'unit' => 'sachet',
                         'quantity' => 0,
-                        'reorder_level' => 5,
-                        'unit_cost' => 95,
+                        'reorder_level' => 10,
+                        'unit_cost' => 0,
                         'is_active' => true,
                         'created_at' => $now,
                         'updated_at' => $now,
@@ -66,7 +66,7 @@ return new class extends Migration
                         'inventory_id' => $inventoryId,
                     ],
                     [
-                        'quantity' => 0.08,
+                        'quantity' => 1,
                         'created_at' => $now,
                         'updated_at' => $now,
                     ]
