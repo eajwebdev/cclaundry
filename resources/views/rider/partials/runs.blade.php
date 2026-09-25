@@ -253,17 +253,33 @@
                                             With the branch, not started yet
                                         @endif
                                     </p>
-                                    @if($job->jobOrder?->status === 'ready_for_delivery' && (int) $job->rider_id !== (int) $rider->id)
-                                        <p class="text-xs font-semibold text-primary">Ready now · You can deliver this bag</p>
+                                    @if($job->jobOrder?->status === 'ready_for_delivery')
+                                        <p class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                                            <span data-lucide="check-circle" class="h-3.5 w-3.5"></span>
+                                            Ready now &middot; Ready for delivery
+                                        </p>
+                                    @elseif($job->jobOrder?->status === 'ready_for_pickup')
+                                        <p class="text-xs font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                                            <span data-lucide="alert-circle" class="h-3.5 w-3.5"></span>
+                                            Marked for branch pickup &middot; Rider delivery restricted
+                                        </p>
+                                    @elseif($job->jobOrder)
+                                        <p class="text-xs text-muted flex items-center gap-1.5">
+                                            <span data-lucide="clock" class="h-3.5 w-3.5"></span>
+                                            In cycle: {{ ucfirst($job->jobOrder->status) }} &middot; Waiting for Ready for Delivery
+                                        </p>
                                     @endif
                                 @endif
                             </div>
 
                             <div class="grid grid-cols-2 gap-2 border-t border-border p-3 dark:border-gray-800">
+                                @php
+                                    $isReadyToDeliver = $isDelivering && $job->jobOrder?->status === 'ready_for_delivery';
+                                @endphp
                                 <a href="{{ route('rider.jobs.show', $job) }}"
-                                   class="inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-lg border border-border text-sm font-semibold dark:border-gray-800">
-                                    <span data-lucide="map" class="h-4 w-4"></span>
-                                    {{ $isDelivering ? 'Deliver' : 'Open map' }}
+                                   class="inline-flex h-12 touch-manipulation items-center justify-center gap-2 rounded-lg border text-sm font-semibold transition {{ $isReadyToDeliver ? 'bg-primary text-white border-primary hover:opacity-90' : 'border-border dark:border-gray-800 hover:bg-smoke dark:hover:bg-gray-800' }}">
+                                    <span data-lucide="{{ $isReadyToDeliver ? 'package-check' : 'map' }}" class="h-4 w-4"></span>
+                                    {{ $isDelivering ? ($isReadyToDeliver ? 'Deliver' : 'View run') : 'Open map' }}
                                 </a>
 
                                 @if($job->contact_phone)

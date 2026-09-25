@@ -248,13 +248,42 @@ class RiderController extends Controller
         $canDeliverReady = $this->isReadyDeliveryForRider($pickupRequest, $rider);
         abort_unless($isMine || $this->isClaimableBy($pickupRequest, $rider) || $canDeliverReady, 403);
 
-        $pickupRequest->load(['items', 'customer:id,name,phone', 'branch:id,name,address']);
+        $pickupRequest->load(['items', 'customer:id,name,phone', 'branch:id,name,address', 'jobOrder']);
+
+        $canMarkDelivered = false;
+        $deliveryRestrictionReason = null;
+
+        if ($pickupRequest->status === 'picked_up') {
+            if (! $pickupRequest->wantsDelivery()) {
+                $deliveryRestrictionReason = 'The customer requested in-store pickup. No delivery run is needed.';
+            } elseif (! $pickupRequest->jobOrder) {
+                $deliveryRestrictionReason = 'The branch has not created a Job Order for this booking yet.';
+            } elseif ($pickupRequest->jobOrder->status === 'ready_for_pickup') {
+                $deliveryRestrictionReason = 'This order is currently marked "Ready for Pickup" (in-store pickup). It cannot be marked as delivered by a rider unless the branch updates the status to "Ready for Delivery" in Cycle Monitoring.';
+            } elseif ($pickupRequest->jobOrder->status !== 'ready_for_delivery') {
+                $statusLabel = match ($pickupRequest->jobOrder->status) {
+                    'washing' => 'Washing',
+                    'drying' => 'Drying',
+                    'folding' => 'Folding / Steaming',
+                    'pending' => 'Pending in cycle',
+                    default => str_replace('_', ' ', ucfirst($pickupRequest->jobOrder->status)),
+                };
+                $deliveryRestrictionReason = "Laundry is currently in cycle ({$statusLabel}). The branch must complete all cycles and mark the order \"Ready for Delivery\" before it can be delivered.";
+            } else {
+                $canMarkDelivered = $isMine || $canDeliverReady;
+                if (! $canMarkDelivered) {
+                    $deliveryRestrictionReason = 'This delivery is not assigned to you.';
+                }
+            }
+        }
 
         return view('rider.show', [
             'job' => $pickupRequest,
             'rider' => $rider,
             'isMine' => $isMine,
             'canDeliverReady' => $canDeliverReady,
+            'canMarkDelivered' => $canMarkDelivered,
+            'deliveryRestrictionReason' => $deliveryRestrictionReason,
         ]);
     }
 
@@ -603,6 +632,37 @@ class RiderController extends Controller
             return $this->riderStatusError($request, 'That job has already moved on. Pull to refresh.');
         }
 
+        // Delivery restriction: rider can only mark as delivered when the job order
+        // is in "ready_for_delivery" status.
+        if ($target === 'completed') {
+            $pickupRequest->loadMissing('jobOrder');
+            $jobOrder = $pickupRequest->jobOrder;
+
+            if (! $pickupRequest->wantsDelivery()) {
+                return $this->riderStatusError($request, 'Cannot mark as delivered: Customer requested in-store pickup, no delivery required.');
+            }
+
+            if (! $jobOrder) {
+                return $this->riderStatusError($request, 'Cannot mark as delivered: The branch has not opened a job order for this booking yet.');
+            }
+
+            if ($jobOrder->status === 'ready_for_pickup') {
+                return $this->riderStatusError($request, 'Cannot mark as delivered: This order is marked "Ready for Pickup" (in-store pickup). It can only be marked delivered if the branch sets the status to "Ready for Delivery" in Cycle Monitoring.');
+            }
+
+            if ($jobOrder->status !== 'ready_for_delivery') {
+                $statusLabel = match ($jobOrder->status) {
+                    'washing' => 'Washing',
+                    'drying' => 'Drying',
+                    'folding' => 'Folding / Steaming',
+                    'pending' => 'Pending in cycle',
+                    default => str_replace('_', ' ', ucfirst($jobOrder->status)),
+                };
+
+                return $this->riderStatusError($request, "Cannot mark as delivered: Order is currently in cycle ({$statusLabel}). It must be marked \"Ready for Delivery\" in Cycle Monitoring first.");
+            }
+        }
+
         $tagCode = null;
         $collectedAt = null;
 
@@ -644,6 +704,13 @@ class RiderController extends Controller
                     || ((int) $current->rider_id !== (int) $rider->id
                         && ! ($target === 'completed' && $this->isReadyDeliveryForRider($current, $rider)))) {
                     return false;
+                }
+
+                if ($target === 'completed') {
+                    $currentOrder = $current->jobOrder()->lockForUpdate()->first();
+                    if (! $currentOrder || $currentOrder->status !== 'ready_for_delivery' || ! $current->wantsDelivery()) {
+                        return false;
+                    }
                 }
 
                 $pickupRiderId = $current->rider_id;
@@ -967,7 +1034,8 @@ class RiderController extends Controller
 
         // Collected. It is only a delivery once the branch has finished it;
         // until then it is on a machine and there is nowhere to drive.
-        $ready = in_array($job->jobOrder?->status, ['ready_for_delivery', 'ready_for_pickup', 'completed'], true);
+        // It must be strictly 'ready_for_delivery' to be counted as a delivery run.
+        $ready = in_array($job->jobOrder?->status, ['ready_for_delivery', 'completed'], true);
 
         return $ready && $job->wantsDelivery() ? RiderMapStages::DELIVERY : RiderMapStages::IN_CYCLE;
     }
@@ -995,6 +1063,10 @@ class RiderController extends Controller
 
         if (! $job->wantsDelivery()) {
             return 'The customer is claiming this at the branch, so there is no delivery run.';
+        }
+
+        if ($job->jobOrder->status === 'ready_for_pickup') {
+            return 'Marked Ready for Pickup at the branch (customer pickup). Cannot be delivered by rider.';
         }
 
         return 'Still '.str_replace('_', ' ', $job->jobOrder->status).' at the branch.'.$waited;

@@ -8,6 +8,8 @@
     // taking it. Confirming is what puts it on their list.
     $isMine = $isMine ?? true;
     $canDeliverReady = $canDeliverReady ?? false;
+    $canMarkDelivered = $canMarkDelivered ?? false;
+    $deliveryRestrictionReason = $deliveryRestrictionReason ?? null;
     $isCollected = $job->status === 'picked_up';
     $destination = $job->destinationCoordinates();
     $address = $isCollected && $job->delivery_address ? $job->delivery_address : $job->pickup_address;
@@ -234,113 +236,141 @@
                     </button>
                 </form>
             @elseif(in_array($job->status, ['confirmed', 'picked_up'], true))
-                <form method="POST" action="{{ route('rider.jobs.status', $job) }}"
-                      class="px-4"
-                      :class="! sheetOpen && 'pb-[calc(0.75rem+env(safe-area-inset-bottom))]'">
-                    @csrf
-                    @method('PATCH')
-                    <input type="hidden" name="status" value="{{ $isCollected ? 'completed' : 'picked_up' }}">
-
-                    @unless($isCollected)
-                        {{-- Filled in at the door: the tag that goes on the bag,
-                             and what the customer handed over. Payment is taken
-                             on pickup, so it is recorded with the collection.
-                             Hidden while the sheet is collapsed, and the action
-                             button below opens the sheet rather than submitting
-                             fields the rider cannot see. --}}
-                        <div x-show="sheetOpen" x-cloak x-transition
-                             class="mb-3 space-y-2 rounded-xl border border-border p-3 dark:border-gray-800">
-                            {{-- What the customer said they would pay with, so the
-                                 rider knows before knocking. --}}
-                            <p class="flex items-center gap-2 text-xs font-semibold text-muted">
-                                <span data-lucide="{{ $job->payment_method === 'gcash' ? 'smartphone' : 'wallet' }}" class="h-3.5 w-3.5 text-primary"></span>
-                                Customer chose {{ $job->paymentMethodLabel() }}
-                            </p>
-
-                            <div>
-                                <label for="tag_code" class="block text-xs font-semibold text-muted">Bag tag # <span class="text-primary">Required</span></label>
-                                <input id="tag_code" name="tag_code" required maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false"
-                                       placeholder="Enter the number on the bag"
-                                       value="{{ old('tag_code', '') }}"
-                                       class="mt-1 h-11 w-full rounded-lg border border-border bg-white px-3 font-mono text-base uppercase dark:border-gray-700 dark:bg-gray-950">
-                                <p class="mt-1 text-[11px] text-muted">Write this number on the bag. The cashier will use it to load the booking in POS.</p>
-                                @error('tag_code') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label for="collected_amount" class="block text-xs font-semibold text-muted">Amount collected</label>
-                                    <input id="collected_amount" name="collected_amount" type="number" inputmode="decimal" step="0.01" min="0"
-                                           placeholder="{{ $job->estimated_total ? number_format((float) $job->estimated_total, 2, '.', '') : '0.00' }}"
-                                           value="{{ old('collected_amount') }}"
-                                           class="mt-1 h-11 w-full rounded-lg border border-border bg-white px-3 text-base dark:border-gray-700 dark:bg-gray-950">
-                                </div>
-                                <div>
-                                    <label for="collected_payment_method" class="block text-xs font-semibold text-muted">Paid by</label>
-                                    <select id="collected_payment_method" name="collected_payment_method"
-                                            class="mt-1 h-11 w-full rounded-lg border border-border bg-white px-2 text-sm dark:border-gray-700 dark:bg-gray-950">
-                                        @foreach(\App\Support\Booking::paymentMethods() as $methodKey => $methodLabel)
-                                            <option value="{{ $methodKey }}" @selected(old('collected_payment_method', $job->payment_method) === $methodKey)>{{ $methodLabel }}</option>
-                                        @endforeach
-                                        <option value="unpaid" @selected(old('collected_payment_method') === 'unpaid')>Not paid yet</option>
-                                    </select>
+                @if($isCollected && ! $canMarkDelivered)
+                    <div class="px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] space-y-2.5">
+                        <div class="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-amber-900 shadow-sm dark:border-amber-900/60 dark:bg-amber-500/10 dark:text-amber-200">
+                            <div class="flex items-start gap-2.5">
+                                <span data-lucide="shield-alert" class="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400"></span>
+                                <div class="min-w-0 text-xs">
+                                    <p class="font-bold text-sm text-amber-950 dark:text-amber-100">Cannot mark as delivered</p>
+                                    <p class="mt-1 leading-relaxed text-amber-900/90 dark:text-amber-200/90">{{ $deliveryRestrictionReason ?? 'Order must be marked Ready for Delivery in Cycle Monitoring first.' }}</p>
+                                    @if($job->jobOrder)
+                                        <div class="mt-2 flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+                                            <span class="rounded bg-amber-200/70 px-1.5 py-0.5 font-semibold text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">{{ $job->jobOrder->job_order_number }}</span>
+                                            <span class="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider {{ \App\Support\StatusBadge::classes($job->jobOrder->status) }}">
+                                                {{ \App\Support\StatusBadge::label($job->jobOrder->status) }}
+                                            </span>
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                         </div>
-                    @endunless
-                    <button type="submit"
-                            x-on:click.prevent="(() => {
-                                const form = $el.closest('form');
-                                const tag = form.querySelector('[name=tag_code]');
 
-                                // Never confirm over a hidden form: open the sheet
-                                // so the tag and the amount are visible first.
-                                if (tag && ! sheetOpen) { sheetOpen = true; $nextTick(() => tag.focus()); return; }
+                        <button type="button" disabled
+                                class="inline-flex h-14 w-full cursor-not-allowed touch-manipulation items-center justify-center gap-2 rounded-xl bg-gray-200 text-base font-semibold text-gray-400 dark:bg-gray-800 dark:text-gray-500">
+                            <span data-lucide="lock" class="h-5 w-5"></span>
+                            Delivery restricted
+                        </button>
+                    </div>
+                @else
+                    <form method="POST" action="{{ route('rider.jobs.status', $job) }}"
+                          class="px-4"
+                          :class="! sheetOpen && 'pb-[calc(0.75rem+env(safe-area-inset-bottom))]'">
+                        @csrf
+                        @method('PATCH')
+                        <input type="hidden" name="status" value="{{ $isCollected ? 'completed' : 'picked_up' }}">
 
-                                if (tag) {
-                                    tag.value = tag.value.trim().toUpperCase();
-                                    if (! tag.reportValidity()) { tag.focus(); return; }
-                                }
+                        @unless($isCollected)
+                            {{-- Filled in at the door: the tag that goes on the bag,
+                                 and what the customer handed over. Payment is taken
+                                 on pickup, so it is recorded with the collection.
+                                 Hidden while the sheet is collapsed, and the action
+                                 button below opens the sheet rather than submitting
+                                 fields the rider cannot see. --}}
+                            <div x-show="sheetOpen" x-cloak x-transition
+                                 class="mb-3 space-y-2 rounded-xl border border-border p-3 dark:border-gray-800">
+                                {{-- What the customer said they would pay with, so the
+                                     rider knows before knocking. --}}
+                                <p class="flex items-center gap-2 text-xs font-semibold text-muted">
+                                    <span data-lucide="{{ $job->payment_method === 'gcash' ? 'smartphone' : 'wallet' }}" class="h-3.5 w-3.5 text-primary"></span>
+                                    Customer chose {{ $job->paymentMethodLabel() }}
+                                </p>
 
-                                Swal.fire({
-                                    title: @js($isCollected ? 'Mark as delivered?' : 'Mark as collected?'),
-                                    text: tag
-                                        ? 'Tag ' + tag.value.toUpperCase() + ' goes on this bag.'
-                                        : 'Confirm the customer has their laundry back.',
-                                    icon: 'question',
-                                    showCancelButton: true,
-                                    confirmButtonColor: '#A07148',
-                                    confirmButtonText: @js($isCollected ? 'Delivered' : 'Collected'),
-                                }).then(async (result) => {
-                                    if (! result.isConfirmed) return;
+                                <div>
+                                    <label for="tag_code" class="block text-xs font-semibold text-muted">Bag tag # <span class="text-primary">Required</span></label>
+                                    <input id="tag_code" name="tag_code" required maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false"
+                                           placeholder="Enter the number on the bag"
+                                           value="{{ old('tag_code', '') }}"
+                                           class="mt-1 h-11 w-full rounded-lg border border-border bg-white px-3 font-mono text-base uppercase dark:border-gray-700 dark:bg-gray-950">
+                                    <p class="mt-1 text-[11px] text-muted">Write this number on the bag. The cashier will use it to load the booking in POS.</p>
+                                    @error('tag_code') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                                </div>
 
-                                    // Through the outbox rather than a plain post: at
-                                    // somebody's gate the signal is exactly what fails,
-                                    // and the tag the rider typed must not go with it.
-                                    const field = (name) => form.querySelector('[name=' + name + ']')?.value ?? null;
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label for="collected_amount" class="block text-xs font-semibold text-muted">Amount collected</label>
+                                        <input id="collected_amount" name="collected_amount" type="number" inputmode="decimal" step="0.01" min="0"
+                                               placeholder="{{ $job->estimated_total ? number_format((float) $job->estimated_total, 2, '.', '') : '0.00' }}"
+                                               value="{{ old('collected_amount') }}"
+                                               class="mt-1 h-11 w-full rounded-lg border border-border bg-white px-3 text-base dark:border-gray-700 dark:bg-gray-950">
+                                    </div>
+                                    <div>
+                                        <label for="collected_payment_method" class="block text-xs font-semibold text-muted">Paid by</label>
+                                        <select id="collected_payment_method" name="collected_payment_method"
+                                                class="mt-1 h-11 w-full rounded-lg border border-border bg-white px-2 text-sm dark:border-gray-700 dark:bg-gray-950">
+                                            @foreach(\App\Support\Booking::paymentMethods() as $methodKey => $methodLabel)
+                                                <option value="{{ $methodKey }}" @selected(old('collected_payment_method', $job->payment_method) === $methodKey)>{{ $methodLabel }}</option>
+                                            @endforeach
+                                            <option value="unpaid" @selected(old('collected_payment_method') === 'unpaid')>Not paid yet</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        @endunless
+                        <button type="submit"
+                                x-on:click.prevent="(() => {
+                                    const form = $el.closest('form');
+                                    const tag = form.querySelector('[name=tag_code]');
 
-                                    // A refusal (the tag is on another load, say)
-                                    // keeps the rider here with what they typed.
-                                    await $store.outbox.perform({
-                                        url: form.action,
-                                        describe: @js(($isCollected ? 'Delivery' : 'Collection').' · '.$job->reference_no),
-                                        fallback: @js(route('rider.index')),
-                                        fields: {
-                                            _method: 'PATCH',
-                                            status: @js($isCollected ? 'completed' : 'picked_up'),
-                                            tag_code: field('tag_code'),
-                                            collected_amount: field('collected_amount'),
-                                            collected_payment_method: field('collected_payment_method'),
-                                        },
+                                    // Never confirm over a hidden form: open the sheet
+                                    // so the tag and the amount are visible first.
+                                    if (tag && ! sheetOpen) { sheetOpen = true; $nextTick(() => tag.focus()); return; }
+
+                                    if (tag) {
+                                        tag.value = tag.value.trim().toUpperCase();
+                                        if (! tag.reportValidity()) { tag.focus(); return; }
+                                    }
+
+                                    Swal.fire({
+                                        title: @js($isCollected ? 'Mark as delivered?' : 'Mark as collected?'),
+                                        text: tag
+                                            ? 'Tag ' + tag.value.toUpperCase() + ' goes on this bag.'
+                                            : 'Confirm the customer has their laundry back.',
+                                        icon: 'question',
+                                        showCancelButton: true,
+                                        confirmButtonColor: '#A07148',
+                                        confirmButtonText: @js($isCollected ? 'Delivered' : 'Collected'),
+                                    }).then(async (result) => {
+                                        if (! result.isConfirmed) return;
+
+                                        // Through the outbox rather than a plain post: at
+                                        // somebody's gate the signal is exactly what fails,
+                                        // and the tag the rider typed must not go with it.
+                                        const field = (name) => form.querySelector('[name=' + name + ']')?.value ?? null;
+
+                                        // A refusal (the tag is on another load, say)
+                                        // keeps the rider here with what they typed.
+                                        await $store.outbox.perform({
+                                            url: form.action,
+                                            describe: @js(($isCollected ? 'Delivery' : 'Collection').' · '.$job->reference_no),
+                                            fallback: @js(route('rider.index')),
+                                            fields: {
+                                                _method: 'PATCH',
+                                                status: @js($isCollected ? 'completed' : 'picked_up'),
+                                                tag_code: field('tag_code'),
+                                                collected_amount: field('collected_amount'),
+                                                collected_payment_method: field('collected_payment_method'),
+                                            },
+                                        });
                                     });
-                                });
-                            })()"
-                            class="inline-flex h-14 w-full touch-manipulation items-center justify-center gap-2 rounded-xl text-base font-semibold text-white shadow-sm transition
-                                {{ $isCollected ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-primary hover:opacity-90' }}">
-                        <span data-lucide="{{ $isCollected ? 'package-check' : 'hand-helping' }}" class="h-5 w-5"></span>
-                        {{ $isCollected ? 'Mark delivered' : 'Mark collected' }}
-                    </button>
-                </form>
+                                })()"
+                                class="inline-flex h-14 w-full touch-manipulation items-center justify-center gap-2 rounded-xl text-base font-semibold text-white shadow-sm transition
+                                    {{ $isCollected ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-primary hover:opacity-90' }}">
+                            <span data-lucide="{{ $isCollected ? 'package-check' : 'hand-helping' }}" class="h-5 w-5"></span>
+                            {{ $isCollected ? 'Mark delivered' : 'Mark collected' }}
+                        </button>
+                    </form>
+                @endif
 
                 {{-- The ways out, deliberately quieter than the action above:
                      hand the run back, or close it off with a reason the branch
