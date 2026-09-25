@@ -29,7 +29,7 @@
 @section('content')
 <div
     x-data="posPage(@js($branches), @js($processingBranches), @js($services), @js($customers), @js($serviceCategories), @js($servicePresets), @js((float) ($appSettings?->vat_rate ?? 0)), @js((bool) ($appSettings?->vat_enabled ?? false)), @js($initialState))"
-    class="flex-1 min-h-0 flex flex-col h-full"
+    class="flex-1 min-h-0 flex flex-col h-full overflow-hidden select-none"
 >
     <form
         method="POST"
@@ -54,7 +54,7 @@
              narrower than the viewport whenever the cart rail is showing. --}}
         <section class="@container/panel flex flex-col h-full min-h-0 min-w-0 overflow-hidden">
             <!-- MODERN TOP BAR - Clean & Simple -->
-            <div class="mb-2 shrink-0 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-white p-2.5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div class="mb-2 shrink-0 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-white p-2.5 shadow-sm dark:border-gray-800 dark:bg-gray-900 touch-none">
                 <!-- Left: Title & Orders Link -->
                 <div class="flex items-center gap-3">
                     <div>

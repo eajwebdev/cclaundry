@@ -1,4 +1,4 @@
-<header class="sticky top-0 z-40 shrink-0 border-b border-border bg-white/95 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95">
+<header class="sticky top-0 z-40 shrink-0 border-b border-border bg-white/95 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 touch-none">
     <div class="flex h-14 items-center justify-between gap-3 px-3 lg:px-5">
         <div class="flex min-w-0 items-center gap-2">
             <button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-white text-dark shadow-sm transition hover:bg-smoke dark:border-gray-800 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800" @click="toggleSidebar()" aria-label="Toggle sidebar menu">
