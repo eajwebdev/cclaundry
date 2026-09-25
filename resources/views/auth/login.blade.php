@@ -1,4 +1,4 @@
-1@extends('layouts.public')
+@extends('layouts.public')
 
 @section('page_title', 'Sign in')
 @section('back_url', route('landing'))
