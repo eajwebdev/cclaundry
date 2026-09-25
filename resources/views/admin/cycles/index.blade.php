@@ -76,30 +76,25 @@
         <span>Machine or order information has changed.</span>
         <button type="button" @click="refreshBoard()" class="rounded-md border border-current px-3 py-1.5 font-semibold">Refresh board</button>
     </div>
-    <div class="flex flex-col gap-3 rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <div>
-            <div class="mb-2 inline-flex items-center gap-1.5 rounded-md border border-border bg-smoke px-2.5 py-1 text-xs font-medium text-muted dark:border-gray-800 dark:bg-gray-900">
+    <div class="rounded-lg border border-border bg-white p-2 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-2.5">
+        <form method="GET" class="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 md:flex-nowrap">
+            <div class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border bg-smoke px-2.5 text-xs font-medium text-muted dark:border-gray-800 dark:bg-gray-900">
                 <span data-lucide="cycles" class="h-3.5 w-3.5"></span>
-                Operations board
+                <span class="whitespace-nowrap">Operations board</span>
             </div>
-            <h1 class="text-xl font-semibold">Cycle Monitoring</h1>
-            <p class="mt-1 text-sm text-muted">Find an order, choose an available machine, and update its laundry stage.</p>
-        </div>
 
-        {{-- Filters wrap 1 -> 2 -> 3 -> 6 columns so they never overflow a tablet viewport. --}}
-        <form method="GET" class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-            <div class="flex h-10 items-center gap-2 rounded-md border border-border bg-white px-2.5 dark:border-gray-800 dark:bg-gray-950 sm:px-3">
-                <span data-lucide="search" class="h-4 w-4 shrink-0 text-muted"></span>
-                <input name="search" value="{{ request('search') }}" type="search" aria-label="Search job order or customer" placeholder="Search job or customer..." class="w-full min-w-0 bg-transparent text-xs outline-none sm:text-sm">
+            <div class="flex h-8 min-w-[120px] flex-1 items-center gap-1.5 rounded-md border border-border bg-white px-2.5 dark:border-gray-800 dark:bg-gray-950">
+                <span data-lucide="search" class="h-3.5 w-3.5 shrink-0 text-muted"></span>
+                <input name="search" value="{{ request('search') }}" type="search" aria-label="Search job order or customer" placeholder="Search job or customer..." class="w-full min-w-0 bg-transparent text-xs outline-none">
             </div>
             @if($canChooseBranch)
-                <select name="branch_id" aria-label="Branch" onchange="this.form.customer_id.value = ''; this.form.submit()" class="h-10 rounded-md border border-border bg-white px-2.5 text-xs dark:border-gray-800 dark:bg-gray-950 sm:px-3 sm:text-sm">
+                <select name="branch_id" aria-label="Branch" onchange="this.form.customer_id.value = ''; this.form.submit()" class="h-8 shrink-0 rounded-md border border-border bg-white px-2 text-xs outline-none dark:border-gray-800 dark:bg-gray-950">
                     @foreach($branches as $branch)
                         <option value="{{ $branch->id }}" @selected((int) $selectedBranchId === (int) $branch->id)>{{ $branch->name }}</option>
                     @endforeach
                 </select>
             @endif
-            <select name="customer_id" aria-label="Customer" class="h-10 rounded-md border border-border bg-white px-2.5 text-xs dark:border-gray-800 dark:bg-gray-950 sm:px-3 sm:text-sm">
+            <select name="customer_id" aria-label="Customer" class="h-8 shrink-0 rounded-md border border-border bg-white px-2 text-xs outline-none dark:border-gray-800 dark:bg-gray-950">
                 <option value="">All customers</option>
                 @if($customers->isEmpty())
                     <option value="" disabled>No customers in selected branch</option>
@@ -113,19 +108,19 @@
                     </optgroup>
                 @endif
             </select>
-            <div class="flex h-10 items-center gap-2 rounded-md border border-border bg-white px-2.5 dark:border-gray-800 dark:bg-gray-950 sm:px-3">
-                <span data-lucide="calendar" class="h-4 w-4 shrink-0 text-muted"></span>
-                <input x-ref="dateRange" x-model="dateRange" name="date_range" type="text" aria-label="Date range" placeholder="Date range" autocomplete="off" class="w-full min-w-0 bg-transparent text-xs outline-none sm:text-sm">
+            <div class="flex h-8 w-[110px] shrink-0 items-center gap-1 rounded-md border border-border bg-white px-2 dark:border-gray-800 dark:bg-gray-950 sm:w-[125px] xl:w-[155px]">
+                <span data-lucide="calendar" class="h-3.5 w-3.5 shrink-0 text-muted"></span>
+                <input x-ref="dateRange" x-model="dateRange" name="date_range" type="text" aria-label="Date range" placeholder="Date range" autocomplete="off" class="w-full min-w-0 bg-transparent text-xs outline-none">
             </div>
-            <select name="status" aria-label="Order status" class="h-10 rounded-md border border-border bg-white px-2.5 text-xs dark:border-gray-800 dark:bg-gray-950 sm:px-3 sm:text-sm">
+            <select name="status" aria-label="Order status" class="h-8 shrink-0 rounded-md border border-border bg-white px-2 text-xs outline-none dark:border-gray-800 dark:bg-gray-950">
                 <option value="">In Progress Status</option>
                 @foreach($statusFilters as $status)
                     <option value="{{ $status }}" @selected(request('status') === $status)>{{ $statusLabels[$status] ?? str_replace('_', ' ', ucfirst($status)) }}</option>
                 @endforeach
             </select>
-            <button type="submit" aria-label="Filter cycles" class="inline-flex h-10 w-full touch-manipulation items-center justify-center gap-1.5 rounded-md border border-border text-xs font-medium hover:bg-smoke dark:border-gray-800 dark:hover:bg-gray-950 sm:gap-2 sm:text-sm">
-                <span data-lucide="search" class="h-3.5 w-3.5 sm:h-4 sm:w-4"></span>
-                Apply filters
+            <button type="submit" aria-label="Filter cycles" class="inline-flex h-8 shrink-0 touch-manipulation items-center justify-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium hover:bg-smoke dark:border-gray-800 dark:hover:bg-gray-950">
+                <span data-lucide="search" class="h-3.5 w-3.5"></span>
+                <span class="whitespace-nowrap">Apply filters</span>
             </button>
         </form>
     </div>

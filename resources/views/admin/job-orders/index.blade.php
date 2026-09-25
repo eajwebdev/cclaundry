@@ -105,26 +105,247 @@
         </form>
     </div>
 
-    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <a href="{{ route('admin.job-orders.index', array_merge(request()->except('page'), ['status' => 'ready_for_pickup'])) }}" class="rounded-lg border border-teal-200 bg-teal-50 p-3 text-teal-800 transition hover:border-teal-400 hover:shadow-sm {{ request('status') === 'ready_for_pickup' ? 'ring-2 ring-teal-400' : '' }} dark:border-teal-900/60 dark:bg-teal-500/10 dark:text-teal-300">
-            <p class="text-xs font-medium">Ready for Pickup</p>
-            <p class="mt-1 text-2xl font-semibold">{{ number_format((int) ($statusCounts['ready_for_pickup'] ?? 0)) }}</p>
+    @php
+        $totalOrdersCount = (int) ($statusCounts['total'] ?? 0);
+        $totalBase = max($totalOrdersCount, 1);
+        $pickupCount = (int) ($statusCounts['ready_for_pickup'] ?? 0);
+        $deliveryCount = (int) ($statusCounts['ready_for_delivery'] ?? 0);
+        $releasedCount = (int) ($statusCounts['released'] ?? 0);
+        $activeCount = (int) ($statusCounts['active'] ?? 0);
+
+        $pickupPct = $totalOrdersCount > 0 ? min(100, max(8, round(($pickupCount / $totalBase) * 100))) : 0;
+        $deliveryPct = $totalOrdersCount > 0 ? min(100, max(8, round(($deliveryCount / $totalBase) * 100))) : 0;
+        $releasedPct = $totalOrdersCount > 0 ? min(100, max(8, round(($releasedCount / $totalBase) * 100))) : 0;
+        $activePct = $totalOrdersCount > 0 ? min(100, max(8, round(($activeCount / $totalBase) * 100))) : 0;
+        $totalPct = 100;
+
+        $currentStatus = request('status');
+    @endphp
+
+    <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-6 lg:grid-cols-5 sm:gap-3 lg:gap-3.5">
+        {{-- Card 1: Ready for Pickup --}}
+        <a href="{{ route('admin.job-orders.index', array_merge(request()->except('page'), ['status' => 'ready_for_pickup'])) }}"
+           class="group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-teal-300 dark:bg-gray-900 dark:hover:border-teal-700/60 {{ $currentStatus === 'ready_for_pickup' ? 'border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/25 dark:border-teal-500 dark:bg-teal-950/20' : 'border-border dark:border-gray-800' }} col-span-1 sm:col-span-1 md:col-span-2 lg:col-span-1 touch-manipulation">
+            <div>
+                <div class="flex items-center justify-between gap-1.5">
+                    <span class="truncate text-[10px] font-bold uppercase tracking-wider text-muted sm:text-[11px]">Ready for Pickup</span>
+                    <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-600 dark:bg-teal-950/50 dark:text-teal-400 sm:h-8 sm:w-8 sm:rounded-xl">
+                        <span data-lucide="packageCheck" class="h-3.5 w-3.5 sm:h-4 sm:w-4"></span>
+                    </div>
+                </div>
+                <div class="mt-2.5 flex items-center justify-between gap-2 sm:mt-3">
+                    <div>
+                        <p class="text-2xl font-extrabold tracking-tight text-dark dark:text-white sm:text-3xl leading-none">
+                            {{ number_format($pickupCount) }}
+                        </p>
+                        <p class="mt-1 text-[9px] font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 sm:text-[10px]">
+                            Store Pickup
+                        </p>
+                    </div>
+                    <div class="flex h-7 w-14 shrink-0 items-center justify-end sm:h-8 sm:w-16">
+                        <svg class="h-full w-full" viewBox="0 0 72 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="grad-pickup" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#0d9488" stop-opacity="0.25"/>
+                                    <stop offset="100%" stop-color="#0d9488" stop-opacity="0.0"/>
+                                </linearGradient>
+                            </defs>
+                            <path d="M2 22 C 18 20, 36 14, 66 6 L 66 26 L 2 26 Z" fill="url(#grad-pickup)"/>
+                            <path d="M2 22 C 18 20, 36 14, 66 6" stroke="#0d9488" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="66" cy="6" r="2.5" fill="#0d9488"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3.5 space-y-1.5 pt-1.5 border-t border-border/60 dark:border-gray-800/80">
+                <div class="flex items-center justify-between text-[10px] sm:text-[11px]">
+                    <span class="text-muted">Awaiting Claim:</span>
+                    <span class="font-bold text-teal-600 dark:text-teal-400">{{ $pickupCount }} orders</span>
+                </div>
+                <div class="h-1.5 w-full overflow-hidden rounded-full bg-teal-100/70 dark:bg-teal-950/60">
+                    <div class="h-full rounded-full bg-teal-500 transition-all duration-300" style="width: {{ $pickupPct }}%;"></div>
+                </div>
+            </div>
         </a>
-        <a href="{{ route('admin.job-orders.index', array_merge(request()->except('page'), ['status' => 'ready_for_delivery'])) }}" class="rounded-lg border border-orange-200 bg-orange-50 p-3 text-orange-800 transition hover:border-orange-400 hover:shadow-sm {{ request('status') === 'ready_for_delivery' ? 'ring-2 ring-orange-400' : '' }} dark:border-orange-900/60 dark:bg-orange-500/10 dark:text-orange-300">
-            <p class="text-xs font-medium">Ready for Delivery</p>
-            <p class="mt-1 text-2xl font-semibold">{{ number_format((int) ($statusCounts['ready_for_delivery'] ?? 0)) }}</p>
+
+        {{-- Card 2: Ready for Delivery --}}
+        <a href="{{ route('admin.job-orders.index', array_merge(request()->except('page'), ['status' => 'ready_for_delivery'])) }}"
+           class="group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-orange-300 dark:bg-gray-900 dark:hover:border-orange-700/60 {{ $currentStatus === 'ready_for_delivery' ? 'border-orange-500 ring-2 ring-orange-500/20 bg-orange-50/25 dark:border-orange-500 dark:bg-orange-950/20' : 'border-border dark:border-gray-800' }} col-span-1 sm:col-span-1 md:col-span-2 lg:col-span-1 touch-manipulation">
+            <div>
+                <div class="flex items-center justify-between gap-1.5">
+                    <span class="truncate text-[10px] font-bold uppercase tracking-wider text-muted sm:text-[11px]">Ready for Delivery</span>
+                    <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400 sm:h-8 sm:w-8 sm:rounded-xl">
+                        <span data-lucide="truck" class="h-3.5 w-3.5 sm:h-4 sm:w-4"></span>
+                    </div>
+                </div>
+                <div class="mt-2.5 flex items-center justify-between gap-2 sm:mt-3">
+                    <div>
+                        <p class="text-2xl font-extrabold tracking-tight text-dark dark:text-white sm:text-3xl leading-none">
+                            {{ number_format($deliveryCount) }}
+                        </p>
+                        <p class="mt-1 text-[9px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400 sm:text-[10px]">
+                            For Dispatch
+                        </p>
+                    </div>
+                    <div class="flex h-7 w-14 shrink-0 items-center justify-end sm:h-8 sm:w-16">
+                        <svg class="h-full w-full" viewBox="0 0 72 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="grad-delivery" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#f97316" stop-opacity="0.25"/>
+                                    <stop offset="100%" stop-color="#f97316" stop-opacity="0.0"/>
+                                </linearGradient>
+                            </defs>
+                            <path d="M2 18 C 14 20, 22 8, 34 12 C 46 16, 54 8, 66 12 L 66 26 L 2 26 Z" fill="url(#grad-delivery)"/>
+                            <path d="M2 18 C 14 20, 22 8, 34 12 C 46 16, 54 8, 66 12" stroke="#f97316" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="66" cy="12" r="2.5" fill="#f97316"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3.5 space-y-1.5 pt-1.5 border-t border-border/60 dark:border-gray-800/80">
+                <div class="flex items-center justify-between text-[10px] sm:text-[11px]">
+                    <span class="text-muted">Dispatch Queue:</span>
+                    <span class="font-bold text-orange-600 dark:text-orange-400">{{ $deliveryCount }} packages</span>
+                </div>
+                <div class="h-1.5 w-full overflow-hidden rounded-full bg-orange-100/70 dark:bg-orange-950/60">
+                    <div class="h-full rounded-full bg-orange-500 transition-all duration-300" style="width: {{ $deliveryPct }}%;"></div>
+                </div>
+            </div>
         </a>
-        <a href="{{ route('admin.job-orders.index', array_merge(request()->except('page'), ['status' => 'released'])) }}" class="rounded-lg border border-green-200 bg-green-50 p-3 text-green-800 transition hover:border-green-400 hover:shadow-sm dark:border-green-900/60 dark:bg-green-500/10 dark:text-green-300">
-            <p class="text-xs font-medium">Released to Customer</p>
-            <p class="mt-1 text-2xl font-semibold">{{ number_format((int) ($statusCounts['released'] ?? 0)) }}</p>
+
+        {{-- Card 3: In Process --}}
+        <a href="{{ route('admin.job-orders.index', array_merge(request()->except('page'), ['status' => 'active'])) }}"
+           class="group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-blue-300 dark:bg-gray-900 dark:hover:border-blue-700/60 {{ $currentStatus === 'active' ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/25 dark:border-blue-500 dark:bg-blue-950/20' : 'border-border dark:border-gray-800' }} col-span-1 sm:col-span-1 md:col-span-2 lg:col-span-1 touch-manipulation">
+            <div>
+                <div class="flex items-center justify-between gap-1.5">
+                    <span class="truncate text-[10px] font-bold uppercase tracking-wider text-muted sm:text-[11px]">In Process</span>
+                    <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 sm:h-8 sm:w-8 sm:rounded-xl">
+                        <span data-lucide="laundry" class="h-3.5 w-3.5 sm:h-4 sm:w-4"></span>
+                    </div>
+                </div>
+                <div class="mt-2.5 flex items-center justify-between gap-2 sm:mt-3">
+                    <div>
+                        <p class="text-2xl font-extrabold tracking-tight text-dark dark:text-white sm:text-3xl leading-none">
+                            {{ number_format($activeCount) }}
+                        </p>
+                        <p class="mt-1 text-[9px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 sm:text-[10px]">
+                            In Cycles
+                        </p>
+                    </div>
+                    <div class="flex h-7 w-14 shrink-0 items-center justify-end sm:h-8 sm:w-16">
+                        <svg class="h-full w-full" viewBox="0 0 72 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="grad-active" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#2563eb" stop-opacity="0.25"/>
+                                    <stop offset="100%" stop-color="#2563eb" stop-opacity="0.0"/>
+                                </linearGradient>
+                            </defs>
+                            <path d="M2 16 C 16 16, 22 22, 36 16 C 50 10, 58 12, 66 8 L 66 26 L 2 26 Z" fill="url(#grad-active)"/>
+                            <path d="M2 16 C 16 16, 22 22, 36 16 C 50 10, 58 12, 66 8" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="66" cy="8" r="2.5" fill="#2563eb"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3.5 space-y-1.5 pt-1.5 border-t border-border/60 dark:border-gray-800/80">
+                <div class="flex items-center justify-between text-[10px] sm:text-[11px]">
+                    <span class="text-muted">Active Workload:</span>
+                    <span class="font-bold text-blue-600 dark:text-blue-400">{{ $activeCount }} jobs</span>
+                </div>
+                <div class="h-1.5 w-full overflow-hidden rounded-full bg-blue-100/70 dark:bg-blue-950/60">
+                    <div class="h-full rounded-full bg-blue-500 transition-all duration-300" style="width: {{ $activePct }}%;"></div>
+                </div>
+            </div>
         </a>
-        <a href="{{ route('admin.job-orders.index', array_merge(request()->except('page'), ['status' => 'active'])) }}" class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-800 transition hover:border-blue-400 hover:shadow-sm {{ request('status') === 'active' ? 'ring-2 ring-blue-400' : '' }} dark:border-blue-900/60 dark:bg-blue-500/10 dark:text-blue-300">
-            <p class="text-xs font-medium">In Process</p>
-            <p class="mt-1 text-2xl font-semibold">{{ number_format((int) ($statusCounts['active'] ?? 0)) }}</p>
+
+        {{-- Card 4: Released to Customer --}}
+        <a href="{{ route('admin.job-orders.index', array_merge(request()->except('page'), ['status' => 'released'])) }}"
+           class="group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-emerald-300 dark:bg-gray-900 dark:hover:border-emerald-700/60 {{ $currentStatus === 'released' ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/25 dark:border-emerald-500 dark:bg-emerald-950/20' : 'border-border dark:border-gray-800' }} col-span-1 sm:col-span-1 md:col-span-3 lg:col-span-1 touch-manipulation">
+            <div>
+                <div class="flex items-center justify-between gap-1.5">
+                    <span class="truncate text-[10px] font-bold uppercase tracking-wider text-muted sm:text-[11px]">Released to Customer</span>
+                    <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400 sm:h-8 sm:w-8 sm:rounded-xl">
+                        <span data-lucide="checkCheck" class="h-3.5 w-3.5 sm:h-4 sm:w-4"></span>
+                    </div>
+                </div>
+                <div class="mt-2.5 flex items-center justify-between gap-2 sm:mt-3">
+                    <div>
+                        <p class="text-2xl font-extrabold tracking-tight text-dark dark:text-white sm:text-3xl leading-none">
+                            {{ number_format($releasedCount) }}
+                        </p>
+                        <p class="mt-1 text-[9px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 sm:text-[10px]">
+                            Completed
+                        </p>
+                    </div>
+                    <div class="flex h-7 w-14 shrink-0 items-center justify-end sm:h-8 sm:w-16">
+                        <svg class="h-full w-full" viewBox="0 0 72 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="grad-released" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#059669" stop-opacity="0.25"/>
+                                    <stop offset="100%" stop-color="#059669" stop-opacity="0.0"/>
+                                </linearGradient>
+                            </defs>
+                            <path d="M2 24 C 20 22, 38 16, 66 6 L 66 26 L 2 26 Z" fill="url(#grad-released)"/>
+                            <path d="M2 24 C 20 22, 38 16, 66 6" stroke="#059669" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="66" cy="6" r="2.5" fill="#059669"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3.5 space-y-1.5 pt-1.5 border-t border-border/60 dark:border-gray-800/80">
+                <div class="flex items-center justify-between text-[10px] sm:text-[11px]">
+                    <span class="text-muted">Total Claimed:</span>
+                    <span class="font-bold text-emerald-600 dark:text-emerald-400">{{ $releasedCount }} orders</span>
+                </div>
+                <div class="h-1.5 w-full overflow-hidden rounded-full bg-emerald-100/70 dark:bg-emerald-950/60">
+                    <div class="h-full rounded-full bg-emerald-500 transition-all duration-300" style="width: {{ $releasedPct }}%;"></div>
+                </div>
+            </div>
         </a>
-        <a href="{{ route('admin.job-orders.index', request()->except('page', 'status')) }}" class="rounded-lg border border-border bg-white p-3 transition hover:border-primary/40 hover:shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <p class="text-xs font-medium text-muted">Total in Date Range</p>
-            <p class="mt-1 text-2xl font-semibold">{{ number_format((int) ($statusCounts['total'] ?? 0)) }}</p>
+
+        {{-- Card 5: Total in Date Range --}}
+        <a href="{{ route('admin.job-orders.index', request()->except('page', 'status')) }}"
+           class="group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-indigo-300 dark:bg-gray-900 dark:hover:border-indigo-700/60 {{ empty($currentStatus) ? 'border-indigo-500 ring-2 ring-indigo-500/20 bg-indigo-50/25 dark:border-indigo-500 dark:bg-indigo-950/20' : 'border-border dark:border-gray-800' }} col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-1 touch-manipulation">
+            <div>
+                <div class="flex items-center justify-between gap-1.5">
+                    <span class="truncate text-[10px] font-bold uppercase tracking-wider text-muted sm:text-[11px]">Total in Date Range</span>
+                    <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400 sm:h-8 sm:w-8 sm:rounded-xl">
+                        <span data-lucide="jobOrders" class="h-3.5 w-3.5 sm:h-4 sm:w-4"></span>
+                    </div>
+                </div>
+                <div class="mt-2.5 flex items-center justify-between gap-2 sm:mt-3">
+                    <div>
+                        <p class="text-2xl font-extrabold tracking-tight text-dark dark:text-white sm:text-3xl leading-none">
+                            {{ number_format($totalOrdersCount) }}
+                        </p>
+                        <p class="mt-1 text-[9px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 sm:text-[10px]">
+                            All Orders
+                        </p>
+                    </div>
+                    <div class="flex h-7 w-14 shrink-0 items-center justify-end sm:h-8 sm:w-16">
+                        <svg class="h-full w-full" viewBox="0 0 72 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="grad-total" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#4f46e5" stop-opacity="0.25"/>
+                                    <stop offset="100%" stop-color="#4f46e5" stop-opacity="0.0"/>
+                                </linearGradient>
+                            </defs>
+                            <path d="M2 18 C 14 12, 26 22, 40 14 C 52 8, 58 10, 66 6 L 66 26 L 2 26 Z" fill="url(#grad-total)"/>
+                            <path d="M2 18 C 14 12, 26 22, 40 14 C 52 8, 58 10, 66 6" stroke="#4f46e5" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="66" cy="6" r="2.5" fill="#4f46e5"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3.5 space-y-1.5 pt-1.5 border-t border-border/60 dark:border-gray-800/80">
+                <div class="flex items-center justify-between text-[10px] sm:text-[11px]">
+                    <span class="text-muted">Counter Status:</span>
+                    <span class="font-bold text-indigo-600 dark:text-indigo-400">• Live Range</span>
+                </div>
+                <div class="h-1.5 w-full overflow-hidden rounded-full bg-indigo-100/70 dark:bg-indigo-950/60">
+                    <div class="h-full rounded-full bg-indigo-500 transition-all duration-300" style="width: {{ $totalPct }}%;"></div>
+                </div>
+            </div>
         </a>
     </div>
 

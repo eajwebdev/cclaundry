@@ -46,14 +46,39 @@
         </form>
     </div>
 
-    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+    <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7 sm:gap-3 lg:gap-3.5">
         <template x-for="card in statCards" :key="card.key">
-            <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div class="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-smoke text-primary dark:bg-gray-950">
-                    <span :data-lucide="card.icon" class="h-4 w-4"></span>
+            <div class="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-gray-800 dark:bg-gray-900">
+                <div>
+                    <div class="flex items-center justify-between gap-1.5">
+                        <span class="truncate text-[10px] font-bold uppercase tracking-wider text-muted sm:text-[11px]" x-text="card.label"></span>
+                        <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:h-8 sm:w-8 sm:rounded-xl" :class="card.iconClass">
+                            <span :data-lucide="card.icon" class="h-3.5 w-3.5 sm:h-4 sm:w-4"></span>
+                        </div>
+                    </div>
+                    <div class="mt-2.5 flex items-center justify-between gap-2 sm:mt-3">
+                        <div class="min-w-0">
+                            <p class="truncate text-xl font-extrabold tracking-tight text-dark dark:text-white sm:text-2xl leading-none" x-text="data.stats[card.key]"></p>
+                            <p class="mt-1 text-[9px] font-bold uppercase tracking-wider sm:text-[10px]" :class="card.subClass" x-text="card.subtitle"></p>
+                        </div>
+                        <div class="flex h-7 w-14 shrink-0 items-center justify-end sm:h-8 sm:w-16">
+                            <svg class="h-full w-full" viewBox="0 0 72 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path :d="card.sparkArea" :fill="card.sparkColor" fill-opacity="0.2"/>
+                                <path :d="card.sparkPath" :stroke="card.sparkColor" stroke-width="2" stroke-linecap="round"/>
+                                <circle :cx="card.sparkDotX" :cy="card.sparkDotY" r="2.5" :fill="card.sparkColor"/>
+                            </svg>
+                        </div>
+                    </div>
                 </div>
-                <p class="text-xs font-medium text-muted" x-text="card.label"></p>
-                <p class="mt-1 text-lg font-semibold" x-text="data.stats[card.key]"></p>
+                <div class="mt-3.5 space-y-1.5 pt-1.5 border-t border-border/60 dark:border-gray-800/80">
+                    <div class="flex items-center justify-between text-[10px] sm:text-[11px]">
+                        <span class="text-muted" x-text="card.footerLabel"></span>
+                        <span class="font-bold" :class="card.subClass" x-text="card.footerVal"></span>
+                    </div>
+                    <div class="h-1.5 w-full overflow-hidden rounded-full" :class="card.trackClass">
+                        <div class="h-full rounded-full transition-all duration-300" :class="card.barClass" :style="`width: ${card.percent || 75}%;`"></div>
+                    </div>
+                </div>
             </div>
         </template>
     </div>
@@ -339,20 +364,258 @@ function dashboardPage(fetchUrl, initialData, initialDateRange) {
         siteVisitsChart: null,
         visitorSummaryChart: null,
         statCards: [
-            { key: 'sales', label: 'Sales Owned', icon: 'payments' },
-            { key: 'collections', label: 'Physical Collections', icon: 'receipt' },
-            { key: 'cash_drawer', label: 'Expected Cash Drawer', icon: 'wallet' },
-            { key: 'gcash', label: 'Expected GCash', icon: 'payments' },
-            { key: 'expenses', label: 'Recorded Expenses', icon: 'expense' },
-            { key: 'accounts_payable', label: 'Accounts Payable', icon: 'receivables' },
-            { key: 'receivables', label: 'Unpaid Customer Balance', icon: 'receivables' },
-            { key: 'over_short', label: 'Z Reading Over / Short', icon: 'activity' },
-            { key: 'orders', label: 'Orders in Period', icon: 'jobOrders' },
-            { key: 'open_orders', label: 'Open Orders', icon: 'activity' },
-            { key: 'ready_for_pickup', label: 'Ready for Pickup', icon: 'laundry' },
-            { key: 'ready_for_delivery', label: 'Ready for Delivery', icon: 'truck' },
-            { key: 'unique_site_visits', label: 'Website Visitors', icon: 'users' },
-            { key: 'daily_unique_site_visits', label: 'Daily Unique Visits', icon: 'mouse-pointer-click' },
+            {
+                key: 'sales',
+                label: 'Sales Owned',
+                subtitle: 'Revenue',
+                icon: 'payments',
+                iconClass: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400',
+                subClass: 'text-emerald-600 dark:text-emerald-400',
+                barClass: 'bg-emerald-500',
+                trackClass: 'bg-emerald-100/70 dark:bg-emerald-950/60',
+                sparkColor: '#059669',
+                sparkPath: 'M2 22 C 18 20, 36 14, 66 6',
+                sparkArea: 'M2 22 C 18 20, 36 14, 66 6 L 66 26 L 2 26 Z',
+                sparkDotX: 66,
+                sparkDotY: 6,
+                footerLabel: 'Branch Sales:',
+                footerVal: 'Owned',
+                percent: 88,
+            },
+            {
+                key: 'collections',
+                label: 'Physical Collections',
+                subtitle: 'Received',
+                icon: 'receipt',
+                iconClass: 'bg-teal-50 text-teal-600 dark:bg-teal-950/50 dark:text-teal-400',
+                subClass: 'text-teal-600 dark:text-teal-400',
+                barClass: 'bg-teal-500',
+                trackClass: 'bg-teal-100/70 dark:bg-teal-950/60',
+                sparkColor: '#0d9488',
+                sparkPath: 'M2 18 C 14 20, 22 8, 34 12 C 46 16, 54 8, 66 12',
+                sparkArea: 'M2 18 C 14 20, 22 8, 34 12 C 46 16, 54 8, 66 12 L 66 26 L 2 26 Z',
+                sparkDotX: 66,
+                sparkDotY: 12,
+                footerLabel: 'Total Collected:',
+                footerVal: 'Net Cash In',
+                percent: 82,
+            },
+            {
+                key: 'cash_drawer',
+                label: 'Expected Cash Drawer',
+                subtitle: 'Physical Cash',
+                icon: 'wallet',
+                iconClass: 'bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400',
+                subClass: 'text-amber-600 dark:text-amber-400',
+                barClass: 'bg-amber-500',
+                trackClass: 'bg-amber-100/70 dark:bg-amber-950/60',
+                sparkColor: '#d97706',
+                sparkPath: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6',
+                sparkArea: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6 L 66 26 L 2 26 Z',
+                sparkDotX: 66,
+                sparkDotY: 6,
+                footerLabel: 'Register Status:',
+                footerVal: 'Drawer Total',
+                percent: 74,
+            },
+            {
+                key: 'gcash',
+                label: 'Expected GCash',
+                subtitle: 'E-Wallet',
+                icon: 'smartphone',
+                iconClass: 'bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400',
+                subClass: 'text-blue-600 dark:text-blue-400',
+                barClass: 'bg-blue-500',
+                trackClass: 'bg-blue-100/70 dark:bg-blue-950/60',
+                sparkColor: '#2563eb',
+                sparkPath: 'M2 18 C 16 18, 24 10, 36 14 C 48 18, 56 12, 66 8',
+                sparkArea: 'M2 18 C 16 18, 24 10, 36 14 C 48 18, 56 12, 66 8 L 66 26 L 2 26 Z',
+                sparkDotX: 66,
+                sparkDotY: 8,
+                footerLabel: 'Digital Pay:',
+                footerVal: 'Verified',
+                percent: 68,
+            },
+            {
+                key: 'expenses',
+                label: 'Recorded Expenses',
+                subtitle: 'Outflow',
+                icon: 'expense',
+                iconClass: 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400',
+                subClass: 'text-rose-600 dark:text-rose-400',
+                barClass: 'bg-rose-500',
+                trackClass: 'bg-rose-100/70 dark:bg-rose-950/60',
+                sparkColor: '#e11d48',
+                sparkPath: 'M2 10 C 18 12, 34 18, 66 22',
+                sparkArea: 'M2 10 C 18 12, 34 18, 66 22 L 66 26 L 2 26 Z',
+                sparkDotX: 66,
+                sparkDotY: 22,
+                footerLabel: 'Total Spent:',
+                footerVal: 'Operational',
+                percent: 55,
+            },
+            {
+                key: 'accounts_payable',
+                label: 'Accounts Payable',
+                subtitle: 'Due to Pay',
+                icon: 'receivables',
+                iconClass: 'bg-orange-50 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400',
+                subClass: 'text-orange-600 dark:text-orange-400',
+                barClass: 'bg-orange-500',
+                trackClass: 'bg-orange-100/70 dark:bg-orange-950/60',
+                sparkColor: '#f97316',
+                sparkPath: 'M2 18 C 14 20, 22 8, 34 12 C 46 16, 54 8, 66 12',
+                sparkArea: 'M2 18 C 14 20, 22 8, 34 12 C 46 16, 54 8, 66 12 L 66 26 L 2 26 Z',
+                sparkDotX: 66,
+                sparkDotY: 12,
+                footerLabel: 'Supplier Payables:',
+                footerVal: 'Pending',
+                percent: 50,
+            },
+            {
+                key: 'receivables',
+                label: 'Unpaid Customer Balance',
+                subtitle: 'To Collect',
+                icon: 'receivables',
+                iconClass: 'bg-violet-50 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400',
+                subClass: 'text-violet-600 dark:text-violet-400',
+                barClass: 'bg-violet-500',
+                trackClass: 'bg-violet-100/70 dark:bg-violet-950/60',
+                sparkColor: '#7c3aed',
+                sparkPath: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6',
+                sparkArea: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6 L 66 26 L 2 26 Z',
+                sparkDotX: 66,
+                sparkDotY: 6,
+                footerLabel: 'Credit Balance:',
+                footerVal: 'Receivables',
+                percent: 62,
+            },
+            {
+                key: 'over_short',
+                label: 'Z Reading Over / Short',
+                subtitle: 'Reconciliation',
+                icon: 'scale',
+                iconClass: 'bg-cyan-50 text-cyan-600 dark:bg-cyan-950/50 dark:text-cyan-400',
+                subClass: 'text-cyan-600 dark:text-cyan-400',
+                barClass: 'bg-cyan-500',
+                trackClass: 'bg-cyan-100/70 dark:bg-cyan-950/60',
+                sparkColor: '#0891b2',
+                sparkPath: 'M2 18 C 16 18, 24 10, 36 14 C 48 18, 56 12, 66 8',
+                sparkArea: 'M2 18 C 16 18, 24 10, 36 14 C 48 18, 56 12, 66 8 L 66 26 L 2 26 Z',
+                sparkDotX: 66,
+                sparkDotY: 8,
+                footerLabel: 'Daily Audit:',
+                footerVal: 'Balanced',
+                percent: 78,
+            },
+            {
+                key: 'orders',
+                label: 'Orders in Period',
+                subtitle: 'Job Orders',
+                icon: 'jobOrders',
+                iconClass: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400',
+                subClass: 'text-indigo-600 dark:text-indigo-400',
+                barClass: 'bg-indigo-500',
+                trackClass: 'bg-indigo-100/70 dark:bg-indigo-950/60',
+                sparkColor: '#4f46e5',
+                sparkPath: 'M2 22 C 18 20, 36 14, 66 6',
+                sparkArea: 'M2 22 C 18 20, 36 14, 66 6 L 66 26 L 2 26 Z',
+                sparkDotX: 66,
+                sparkDotY: 6,
+                footerLabel: 'Order Volume:',
+                footerVal: 'Transactions',
+                percent: 92,
+            },
+            {
+                key: 'open_orders',
+                label: 'Open Orders',
+                subtitle: 'In Process',
+                icon: 'laundry',
+                iconClass: 'bg-sky-50 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400',
+                subClass: 'text-sky-600 dark:text-sky-400',
+                barClass: 'bg-sky-500',
+                trackClass: 'bg-sky-100/70 dark:bg-sky-950/60',
+                sparkColor: '#0284c7',
+                sparkPath: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6',
+                sparkArea: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6 L 66 26 L 2 26 Z',
+                sparkDotX: 66,
+                sparkDotY: 6,
+                footerLabel: 'Active Cycles:',
+                footerVal: 'In Store',
+                percent: 70,
+            },
+            {
+                key: 'ready_for_pickup',
+                label: 'Ready for Pickup',
+                subtitle: 'Store Pickup',
+                icon: 'packageCheck',
+                iconClass: 'bg-teal-50 text-teal-600 dark:bg-teal-950/50 dark:text-teal-400',
+                subClass: 'text-teal-600 dark:text-teal-400',
+                barClass: 'bg-teal-500',
+                trackClass: 'bg-teal-100/70 dark:bg-teal-950/60',
+                sparkColor: '#0d9488',
+                sparkPath: 'M2 22 C 18 20, 36 14, 66 6',
+                sparkArea: 'M2 22 C 18 20, 36 14, 66 6 L 66 26 L 2 26 Z',
+                sparkDotX: 66,
+                sparkDotY: 6,
+                footerLabel: 'Awaiting Claim:',
+                footerVal: 'Pick up',
+                percent: 75,
+            },
+            {
+                key: 'ready_for_delivery',
+                label: 'Ready for Delivery',
+                subtitle: 'Outbound',
+                icon: 'truck',
+                iconClass: 'bg-orange-50 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400',
+                subClass: 'text-orange-600 dark:text-orange-400',
+                barClass: 'bg-orange-500',
+                trackClass: 'bg-orange-100/70 dark:bg-orange-950/60',
+                sparkColor: '#f97316',
+                sparkPath: 'M2 18 C 14 20, 22 8, 34 12 C 46 16, 54 8, 66 12',
+                sparkArea: 'M2 18 C 14 20, 22 8, 34 12 C 46 16, 54 8, 66 12 L 66 26 L 2 26 Z',
+                sparkDotX: 66,
+                sparkDotY: 12,
+                footerLabel: 'Dispatch Queue:',
+                footerVal: 'Deliver',
+                percent: 65,
+            },
+            {
+                key: 'unique_site_visits',
+                label: 'Website Visitors',
+                subtitle: 'Web Traffic',
+                icon: 'users',
+                iconClass: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400',
+                subClass: 'text-emerald-600 dark:text-emerald-400',
+                barClass: 'bg-emerald-500',
+                trackClass: 'bg-emerald-100/70 dark:bg-emerald-950/60',
+                sparkColor: '#059669',
+                sparkPath: 'M2 22 C 18 20, 36 14, 66 6',
+                sparkArea: 'M2 22 C 18 20, 36 14, 66 6 L 66 26 L 2 26 Z',
+                sparkDotX: 66,
+                sparkDotY: 6,
+                footerLabel: 'Distinct Users:',
+                footerVal: 'Browsers',
+                percent: 86,
+            },
+            {
+                key: 'daily_unique_site_visits',
+                label: 'Daily Unique Visits',
+                subtitle: 'Daily Active',
+                icon: 'mouse-pointer-click',
+                iconClass: 'bg-cyan-50 text-cyan-600 dark:bg-cyan-950/50 dark:text-cyan-400',
+                subClass: 'text-cyan-600 dark:text-cyan-400',
+                barClass: 'bg-cyan-500',
+                trackClass: 'bg-cyan-100/70 dark:bg-cyan-950/60',
+                sparkColor: '#0891b2',
+                sparkPath: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6',
+                sparkArea: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6 L 66 26 L 2 26 Z',
+                sparkDotX: 66,
+                sparkDotY: 6,
+                footerLabel: 'Counter Status:',
+                footerVal: '• Live Counter',
+                percent: 100,
+            },
         ],
         init() {
             this.$nextTick(() => {
