@@ -130,7 +130,7 @@
         </form>
     </div>
 
-    <div class="grid min-w-0 items-start gap-3 lg:gap-4 md:grid-cols-[minmax(16.5rem,0.68fr)_minmax(0,1.32fr)] lg:grid-cols-[minmax(19rem,0.72fr)_minmax(0,1.28fr)] xl:grid-cols-[minmax(21rem,0.78fr)_minmax(0,1.22fr)] 2xl:grid-cols-[minmax(23rem,0.82fr)_minmax(0,1.38fr)]">
+    <div class="grid min-w-0 items-start gap-3.5 lg:gap-4 md:grid-cols-[minmax(19.5rem,0.92fr)_minmax(0,1.08fr)] lg:grid-cols-[minmax(21.5rem,0.9fr)_minmax(0,1.1fr)] xl:grid-cols-[minmax(23.5rem,0.86fr)_minmax(0,1.14fr)] 2xl:grid-cols-[minmax(25.5rem,0.82fr)_minmax(0,1.18fr)]">
     @if($machineOverviewBranches->isNotEmpty())
         <section class="order-2 min-w-0 rounded-xl border border-border bg-white p-3 shadow-sm md:order-1 sm:p-4 dark:border-gray-800 dark:bg-gray-900">
             <div class="mb-3 flex flex-wrap items-end justify-between gap-1.5 sm:mb-4 sm:gap-2">
@@ -175,9 +175,9 @@
                                                 @php($isAvailable = ! $activeMachine)
                                                 @php($activityCount = (int) data_get($branchMachineActivity, $machine.'.'.$machineType, 0))
                                                 <div class="machine-status-card min-w-0 overflow-hidden rounded-lg border border-border bg-gradient-to-b from-white to-slate-50 shadow-sm dark:border-gray-800 dark:from-gray-900 dark:to-gray-950 sm:rounded-xl">
-                                                    <div class="flex items-center justify-between px-1.5 py-1 sm:px-2 sm:py-1.5 xl:px-2.5 xl:py-2">
-                                                        <span class="truncate text-[10px] font-semibold sm:text-xs xl:text-sm">{{ $machineType === 'wash' ? 'Wash' : 'Dry' }} #{{ $machine }}</span>
-                                                        <span class="h-2 w-2 shrink-0 rounded-full sm:h-2.5 sm:w-2.5 {{ $isAvailable ? 'bg-emerald-500' : 'machine-status-dot-running bg-red-500' }}" title="{{ $isAvailable ? 'Available' : 'In use' }}"></span>
+                                                    <div class="flex items-center justify-between px-1.5 py-1 sm:px-1.5 sm:py-1.5 xl:px-2.5 xl:py-2">
+                                                        <span class="truncate text-[11px] font-semibold sm:text-xs xl:text-sm">{{ $machineType === 'wash' ? 'Wash' : 'Dry' }} #{{ $machine }}</span>
+                                                        <span class="h-2 w-2 shrink-0 rounded-full sm:h-2 sm:w-2 xl:h-2.5 xl:w-2.5 {{ $isAvailable ? 'bg-emerald-500' : 'machine-status-dot-running bg-red-500' }}" title="{{ $isAvailable ? 'Available' : 'In use' }}"></span>
                                                     </div>
                                                     <div class="flex items-center justify-center py-1 sm:py-1.5 xl:py-2">
                                                         <img
@@ -192,7 +192,7 @@
                                                     </div>
                                                     <div class="border-t border-border px-1 py-1 text-center sm:px-1.5 sm:py-1.5 dark:border-gray-800">
                                                         <p class="text-xs font-bold sm:text-sm xl:text-base {{ $machineType === 'wash' ? 'text-sky-600' : 'text-violet-600' }}">{{ $activityCount }}</p>
-                                                        <p class="text-[8px] font-semibold uppercase tracking-tight text-muted leading-tight sm:text-[9px] xl:text-[10px]">{{ $machineType === 'wash' ? 'Washing' : 'Drying' }}<span class="hidden xl:inline"> cycles</span></p>
+                                                        <p class="text-[8px] font-semibold uppercase tracking-tight text-muted leading-tight sm:text-[9px] xl:text-[10px]">{{ $machineType === 'wash' ? 'Washing' : 'Drying' }}<span class="hidden 2xl:inline"> cycles</span></p>
                                                     </div>
                                                     @if(! $isAvailable)
                                                         <div class="border-t border-border px-1 py-1 text-center text-[9px] font-medium text-red-600 sm:px-1.5 sm:text-[11px] dark:border-gray-800" title="{{ $activeMachine['job_order_number'] }}">
@@ -312,13 +312,14 @@
                                 @csrf
                                 <input type="hidden" name="cycle_type" value="{{ $type }}">
                                 <div class="flex flex-col gap-1 rounded-md border border-border bg-white p-1 sm:gap-1.5 sm:p-1.5 dark:border-gray-800 dark:bg-gray-950">
-                                    @if((int) ($processingBranch?->machine_count ?? 0) > 0)
-                                        <div class="flex flex-wrap gap-1 sm:gap-1.5">
-                                            @for($machine = (int) $processingBranch->machine_count; $machine >= 1; $machine--)
+                                    @php($branchMachines = (int) ($processingBranch?->machine_count ?? 0))
+                                    @if($branchMachines > 0)
+                                        <div class="grid gap-1 sm:gap-1.5" style="grid-template-columns: repeat({{ $branchMachines }}, minmax(0, 1fr));">
+                                            @for($machine = $branchMachines; $machine >= 1; $machine--)
                                                 @php($usingMachine = data_get($activeMachines, $type.'.'.$machine))
-                                                <label class="inline-flex min-h-[2.25rem] min-w-[2.25rem] touch-manipulation items-center justify-center gap-1 rounded-lg border border-border px-1.5 py-1 text-xs font-semibold sm:min-h-[2.5rem] sm:min-w-[2.5rem] sm:gap-1.5 sm:px-2 sm:text-sm xl:min-h-[2.75rem] xl:min-w-[3rem] {{ $usingMachine ? 'bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 opacity-60 cursor-not-allowed' : 'hover:bg-smoke dark:hover:bg-gray-900 cursor-pointer' }} dark:border-gray-700">
-                                                    <input type="checkbox" name="machine_numbers[]" value="{{ $machine }}" {{ $usingMachine ? 'disabled' : '' }} class="h-3.5 w-3.5 rounded border-border text-primary sm:h-4 sm:w-4 xl:h-5 xl:w-5">
-                                                    <span>#{{ $machine }}</span>
+                                                <label class="inline-flex min-h-[2.25rem] w-full touch-manipulation items-center justify-center gap-0.5 rounded-lg border border-border px-1 py-1 text-xs font-semibold sm:min-h-[2.4rem] sm:gap-1 sm:text-xs xl:min-h-[2.75rem] xl:gap-1.5 xl:px-2 xl:text-sm {{ $usingMachine ? 'bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 opacity-60 cursor-not-allowed' : 'hover:bg-smoke dark:hover:bg-gray-900 cursor-pointer' }} dark:border-gray-700">
+                                                    <input type="checkbox" name="machine_numbers[]" value="{{ $machine }}" {{ $usingMachine ? 'disabled' : '' }} class="h-3.5 w-3.5 shrink-0 rounded border-border text-primary sm:h-3.5 sm:w-3.5 xl:h-4.5 xl:w-4.5">
+                                                    <span class="shrink-0 text-[11px] sm:text-xs xl:text-sm">#{{ $machine }}</span>
                                                 </label>
                                             @endfor
                                         </div>
