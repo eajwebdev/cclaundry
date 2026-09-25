@@ -70,7 +70,7 @@
             min-width: 52mm !important;
             margin: 0 auto !important;
             position: relative !important;
-            left: -6mm !important;
+            left: -7mm !important;
             padding: 2.5mm 0 !important;
             border: 0 !important;
             border-radius: 0 !important;

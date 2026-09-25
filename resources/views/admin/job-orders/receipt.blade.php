@@ -37,7 +37,7 @@
                 min-width: 52mm !important;
                 margin: 0 auto !important;
                 position: relative !important;
-                left: -6mm !important;
+                left: -7mm !important;
                 overflow: visible !important;
             }
         }
