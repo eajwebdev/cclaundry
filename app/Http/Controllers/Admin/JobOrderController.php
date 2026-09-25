@@ -72,6 +72,7 @@ class JobOrderController extends Controller
             'orders' => $orders,
             'statusCounts' => $statusCounts,
             'statuses' => self::STATUSES,
+            'currentStatus' => $statusFilter,
         ]);
     }
 

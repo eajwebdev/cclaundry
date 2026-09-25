@@ -105,27 +105,23 @@
         </form>
     </div>
 
-    @php
-        $totalOrdersCount = (int) ($statusCounts['total'] ?? 0);
-        $totalBase = max($totalOrdersCount, 1);
-        $pickupCount = (int) ($statusCounts['ready_for_pickup'] ?? 0);
-        $deliveryCount = (int) ($statusCounts['ready_for_delivery'] ?? 0);
-        $releasedCount = (int) ($statusCounts['released'] ?? 0);
-        $activeCount = (int) ($statusCounts['active'] ?? 0);
-
-        $pickupPct = $totalOrdersCount > 0 ? min(100, max(8, round(($pickupCount / $totalBase) * 100))) : 0;
-        $deliveryPct = $totalOrdersCount > 0 ? min(100, max(8, round(($deliveryCount / $totalBase) * 100))) : 0;
-        $releasedPct = $totalOrdersCount > 0 ? min(100, max(8, round(($releasedCount / $totalBase) * 100))) : 0;
-        $activePct = $totalOrdersCount > 0 ? min(100, max(8, round(($activeCount / $totalBase) * 100))) : 0;
-        $totalPct = 100;
-
-        $currentStatus = request('status');
-    @endphp
+    @php($totalOrdersCount = (int) ($statusCounts['total'] ?? 0))
+    @php($totalBase = max($totalOrdersCount, 1))
+    @php($pickupCount = (int) ($statusCounts['ready_for_pickup'] ?? 0))
+    @php($deliveryCount = (int) ($statusCounts['ready_for_delivery'] ?? 0))
+    @php($releasedCount = (int) ($statusCounts['released'] ?? 0))
+    @php($activeCount = (int) ($statusCounts['active'] ?? 0))
+    @php($pickupPct = $totalOrdersCount > 0 ? min(100, max(8, round(($pickupCount / $totalBase) * 100))) : 0)
+    @php($deliveryPct = $totalOrdersCount > 0 ? min(100, max(8, round(($deliveryCount / $totalBase) * 100))) : 0)
+    @php($releasedPct = $totalOrdersCount > 0 ? min(100, max(8, round(($releasedCount / $totalBase) * 100))) : 0)
+    @php($activePct = $totalOrdersCount > 0 ? min(100, max(8, round(($activeCount / $totalBase) * 100))) : 0)
+    @php($totalPct = 100)
+    @php($activeStatus = $currentStatus ?? request('status'))
 
     <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-6 lg:grid-cols-5 sm:gap-3 lg:gap-3.5">
         {{-- Card 1: Ready for Pickup --}}
         <a href="{{ route('admin.job-orders.index', array_merge(request()->except('page'), ['status' => 'ready_for_pickup'])) }}"
-           class="group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-teal-300 dark:bg-gray-900 dark:hover:border-teal-700/60 {{ $currentStatus === 'ready_for_pickup' ? 'border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/25 dark:border-teal-500 dark:bg-teal-950/20' : 'border-border dark:border-gray-800' }} col-span-1 sm:col-span-1 md:col-span-2 lg:col-span-1 touch-manipulation">
+           class="group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-teal-300 dark:bg-gray-900 dark:hover:border-teal-700/60 {{ $activeStatus === 'ready_for_pickup' ? 'border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/25 dark:border-teal-500 dark:bg-teal-950/20' : 'border-border dark:border-gray-800' }} col-span-1 sm:col-span-1 md:col-span-2 lg:col-span-1 touch-manipulation">
             <div>
                 <div class="flex items-center justify-between gap-1.5">
                     <span class="truncate text-[10px] font-bold uppercase tracking-wider text-muted sm:text-[11px]">Ready for Pickup</span>
@@ -170,7 +166,7 @@
 
         {{-- Card 2: Ready for Delivery --}}
         <a href="{{ route('admin.job-orders.index', array_merge(request()->except('page'), ['status' => 'ready_for_delivery'])) }}"
-           class="group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-orange-300 dark:bg-gray-900 dark:hover:border-orange-700/60 {{ $currentStatus === 'ready_for_delivery' ? 'border-orange-500 ring-2 ring-orange-500/20 bg-orange-50/25 dark:border-orange-500 dark:bg-orange-950/20' : 'border-border dark:border-gray-800' }} col-span-1 sm:col-span-1 md:col-span-2 lg:col-span-1 touch-manipulation">
+           class="group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-orange-300 dark:bg-gray-900 dark:hover:border-orange-700/60 {{ $activeStatus === 'ready_for_delivery' ? 'border-orange-500 ring-2 ring-orange-500/20 bg-orange-50/25 dark:border-orange-500 dark:bg-orange-950/20' : 'border-border dark:border-gray-800' }} col-span-1 sm:col-span-1 md:col-span-2 lg:col-span-1 touch-manipulation">
             <div>
                 <div class="flex items-center justify-between gap-1.5">
                     <span class="truncate text-[10px] font-bold uppercase tracking-wider text-muted sm:text-[11px]">Ready for Delivery</span>
@@ -215,7 +211,7 @@
 
         {{-- Card 3: In Process --}}
         <a href="{{ route('admin.job-orders.index', array_merge(request()->except('page'), ['status' => 'active'])) }}"
-           class="group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-blue-300 dark:bg-gray-900 dark:hover:border-blue-700/60 {{ $currentStatus === 'active' ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/25 dark:border-blue-500 dark:bg-blue-950/20' : 'border-border dark:border-gray-800' }} col-span-1 sm:col-span-1 md:col-span-2 lg:col-span-1 touch-manipulation">
+           class="group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-blue-300 dark:bg-gray-900 dark:hover:border-blue-700/60 {{ $activeStatus === 'active' ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/25 dark:border-blue-500 dark:bg-blue-950/20' : 'border-border dark:border-gray-800' }} col-span-1 sm:col-span-1 md:col-span-2 lg:col-span-1 touch-manipulation">
             <div>
                 <div class="flex items-center justify-between gap-1.5">
                     <span class="truncate text-[10px] font-bold uppercase tracking-wider text-muted sm:text-[11px]">In Process</span>
@@ -260,7 +256,7 @@
 
         {{-- Card 4: Released to Customer --}}
         <a href="{{ route('admin.job-orders.index', array_merge(request()->except('page'), ['status' => 'released'])) }}"
-           class="group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-emerald-300 dark:bg-gray-900 dark:hover:border-emerald-700/60 {{ $currentStatus === 'released' ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/25 dark:border-emerald-500 dark:bg-emerald-950/20' : 'border-border dark:border-gray-800' }} col-span-1 sm:col-span-1 md:col-span-3 lg:col-span-1 touch-manipulation">
+           class="group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-emerald-300 dark:bg-gray-900 dark:hover:border-emerald-700/60 {{ $activeStatus === 'released' ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/25 dark:border-emerald-500 dark:bg-emerald-950/20' : 'border-border dark:border-gray-800' }} col-span-1 sm:col-span-1 md:col-span-3 lg:col-span-1 touch-manipulation">
             <div>
                 <div class="flex items-center justify-between gap-1.5">
                     <span class="truncate text-[10px] font-bold uppercase tracking-wider text-muted sm:text-[11px]">Released to Customer</span>
@@ -305,7 +301,7 @@
 
         {{-- Card 5: Total in Date Range --}}
         <a href="{{ route('admin.job-orders.index', request()->except('page', 'status')) }}"
-           class="group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-indigo-300 dark:bg-gray-900 dark:hover:border-indigo-700/60 {{ empty($currentStatus) ? 'border-indigo-500 ring-2 ring-indigo-500/20 bg-indigo-50/25 dark:border-indigo-500 dark:bg-indigo-950/20' : 'border-border dark:border-gray-800' }} col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-1 touch-manipulation">
+           class="group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-indigo-300 dark:bg-gray-900 dark:hover:border-indigo-700/60 {{ empty($activeStatus) ? 'border-indigo-500 ring-2 ring-indigo-500/20 bg-indigo-50/25 dark:border-indigo-500 dark:bg-indigo-950/20' : 'border-border dark:border-gray-800' }} col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-1 touch-manipulation">
             <div>
                 <div class="flex items-center justify-between gap-1.5">
                     <span class="truncate text-[10px] font-bold uppercase tracking-wider text-muted sm:text-[11px]">Total in Date Range</span>
