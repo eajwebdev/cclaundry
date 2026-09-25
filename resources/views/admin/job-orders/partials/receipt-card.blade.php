@@ -69,6 +69,8 @@
             max-width: 52mm !important;
             min-width: 52mm !important;
             margin: 0 auto !important;
+            position: relative !important;
+            left: -6mm !important;
             padding: 2.5mm 0 !important;
             border: 0 !important;
             border-radius: 0 !important;
@@ -76,8 +78,8 @@
             background: #ffffff !important;
             color: #000000 !important;
             font-size: 10px !important;
-            line-height: 1.35 !important;
-            overflow: hidden !important;
+            line-height: 1.4 !important;
+            overflow: visible !important;
             box-sizing: border-box !important;
         }
         .receipt * {
@@ -91,44 +93,53 @@
         .receipt h1 {
             font-size: 13px !important;
             font-weight: 800 !important;
-            line-height: 1.15 !important;
+            line-height: 1.2 !important;
             text-transform: uppercase !important;
             letter-spacing: -0.01em !important;
         }
         .receipt p,
         .receipt span {
             font-size: 10px !important;
-            line-height: 1.35 !important;
+            line-height: 1.4 !important;
         }
         .receipt .text-xs {
             font-size: 9.5px !important;
-            line-height: 1.35 !important;
+            line-height: 1.4 !important;
         }
         .receipt .text-sm {
             font-size: 10px !important;
-            line-height: 1.35 !important;
+            line-height: 1.4 !important;
         }
         .receipt .border-dashed,
         .receipt .border-y {
             border-top: 0.8px dashed #000000 !important;
             border-bottom: 0.8px dashed #000000 !important;
-            margin: 2mm 0 !important;
-            padding: 1.5mm 0 !important;
+            margin: 2.5mm 0 !important;
+            padding: 2mm 0 !important;
         }
         .receipt table {
             font-size: 10px !important;
             width: 100% !important;
             margin: 1.5mm 0 !important;
+            border-collapse: collapse !important;
         }
         .receipt table th {
             font-size: 10px !important;
-            padding: 0 0 2px 0 !important;
+            padding: 0 1mm 2px 1mm !important;
             border-bottom: 0.8px solid #000000 !important;
             font-weight: 700 !important;
         }
+        .receipt table th:first-child,
+        .receipt table td:first-child {
+            padding-left: 0 !important;
+        }
+        .receipt table th:last-child,
+        .receipt table td:last-child {
+            padding-right: 0 !important;
+        }
         .receipt table td {
             font-size: 10px !important;
-            padding: 2px 0 !important;
+            padding: 2px 1mm !important;
             border-bottom: 0.5px dashed #444444 !important;
         }
         .receipt table td p {

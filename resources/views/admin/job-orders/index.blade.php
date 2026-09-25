@@ -42,6 +42,7 @@
             padding: 0 !important;
             background: #ffffff !important;
             z-index: 999999 !important;
+            overflow: visible !important;
         }
         .receipt-print-actions { display: none !important; }
     }
