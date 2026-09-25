@@ -4,16 +4,140 @@
     $receiptHeader = $branchSetting?->receipt_header ?: $settings?->receipt_header;
     $receiptFooter = $branchSetting?->receipt_footer ?: $settings?->receipt_footer;
     $totalPaid = $order->payments->sum('amount');
-    $receiptUrl = route('admin.cycles.scan', $order);
     $isCrossBranchProduction = (int) ($order->processing_branch_id ?: $order->branch_id) !== (int) $order->branch_id;
-    $qrCode = new \Endroid\QrCode\Builder\Builder(
-        writer: new \Endroid\QrCode\Writer\SvgWriter(),
-        data: $receiptUrl,
-        size: 132,
-        margin: 1
-    );
-    $qrDataUri = $qrCode->build()->getDataUri();
 @endphp
+
+<style>
+    /* ---- VOZY P50 / POS-58 THERMAL PRINT CONFIGURATION (58mm continuous) ---- */
+    @page {
+        size: 58mm 3276mm;
+        margin: 0;
+    }
+    @media print {
+        *, *::before, *::after {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            box-sizing: border-box !important;
+        }
+        html, body {
+            width: 58mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            display: flex !important;
+            justify-content: center !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        }
+        .receipt {
+            width: 46mm !important;
+            max-width: 46mm !important;
+            min-width: 46mm !important;
+            margin: 0 auto !important;
+            padding: 2mm 0 !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            font-size: 7.5px !important;
+            line-height: 1.25 !important;
+            overflow: hidden !important;
+        }
+        .receipt * {
+            color: #000000 !important;
+            border-color: #000000 !important;
+        }
+        .receipt span[class*="rounded-full"],
+        .receipt .brand-mark,
+        .receipt svg {
+            max-height: 20px !important;
+            max-width: 20px !important;
+            margin: 0 auto 1px !important;
+        }
+        .receipt h1 {
+            font-size: 10px !important;
+            font-weight: 800 !important;
+            line-height: 1.15 !important;
+            text-transform: uppercase !important;
+            letter-spacing: -0.01em !important;
+        }
+        .receipt p,
+        .receipt span {
+            font-size: 7.2px !important;
+            line-height: 1.25 !important;
+        }
+        .receipt .text-xs {
+            font-size: 7.2px !important;
+            line-height: 1.3 !important;
+        }
+        .receipt .text-sm {
+            font-size: 7.5px !important;
+            line-height: 1.3 !important;
+        }
+        .receipt .border-dashed,
+        .receipt .border-y {
+            border-top: 0.8px dashed #000000 !important;
+            border-bottom: 0.8px dashed #000000 !important;
+            margin: 1.5mm 0 !important;
+            padding: 1.2mm 0 !important;
+        }
+        .receipt table {
+            font-size: 7.2px !important;
+            width: 100% !important;
+            margin: 1mm 0 !important;
+        }
+        .receipt table th {
+            font-size: 7.2px !important;
+            padding: 0 0 1.5px 0 !important;
+            border-bottom: 0.8px solid #000000 !important;
+        }
+        .receipt table td {
+            font-size: 7.2px !important;
+            padding: 1.5px 0 !important;
+            border-bottom: 0.5px dashed #444444 !important;
+        }
+        .receipt table td p {
+            font-size: 7.2px !important;
+            line-height: 1.2 !important;
+        }
+        .receipt table td p.text-muted {
+            font-size: 6.2px !important;
+            color: #333333 !important;
+        }
+        .receipt .total-row,
+        .receipt .font-semibold,
+        .receipt .font-medium {
+            font-weight: 700 !important;
+        }
+        .receipt .text-right,
+        .receipt th.text-right,
+        .receipt td.text-right {
+            text-align: right !important;
+            white-space: nowrap !important;
+        }
+        .receipt .bg-smoke {
+            background: #f0f0f0 !important;
+            padding: 1mm !important;
+            margin-top: 1.5mm !important;
+            border-radius: 1mm !important;
+            font-size: 6.8px !important;
+        }
+        /* Hide QR code in print unconditionally */
+        .receipt [class*="qr"],
+        .receipt img[alt*="QR"],
+        .receipt-qr,
+        .receipt-qr-section {
+            display: none !important;
+        }
+        .receipt tr,
+        .receipt table,
+        .receipt > div {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+    }
+</style>
 
 <section class="receipt rounded-lg border border-border bg-white p-5 shadow-sm">
     <div class="text-center">
@@ -89,10 +213,4 @@
     @if($receiptFooter)
         <p class="mt-4 rounded-md bg-smoke p-2 text-center text-xs text-muted">{{ $receiptFooter }}</p>
     @endif
-
-    <div class="mt-4 flex flex-col items-center border-t border-dashed border-border pt-3 text-center">
-        <img src="{{ $qrDataUri }}" alt="QR code for {{ $order->job_order_number }} receipt" class="h-28 w-28">
-        <p class="mt-1 text-xs font-semibold">{{ $order->job_order_number }}</p>
-        <p class="text-[10px] text-muted">Scan to receive laundry at assigned branch</p>
-    </div>
 </section>

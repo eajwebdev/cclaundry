@@ -6,7 +6,7 @@
 @php($dateRangeValue = request('date_range') ?: ($dateFrom && $dateTo ? $dateFrom.' to '.$dateTo : ''))
 <style>
     @page {
-        size: 57mm 50mm;
+        size: 58mm 3276mm;
         margin: 0;
     }
     @media print {
@@ -14,12 +14,14 @@
         .receipt-print-area, .receipt-print-area * { visibility: visible !important; }
         .receipt-print-area {
             left: 0 !important;
-            margin: 0 auto !important;
-            max-width: 57mm !important;
-            position: absolute !important;
             right: 0 !important;
             top: 0 !important;
-            width: 57mm !important;
+            margin: 0 auto !important;
+            max-width: 58mm !important;
+            width: 58mm !important;
+            display: flex !important;
+            justify-content: center !important;
+            position: absolute !important;
             padding: 0 !important;
         }
         .receipt-print-actions { display: none !important; }

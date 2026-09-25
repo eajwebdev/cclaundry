@@ -7,7 +7,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         @page {
-            size: 57mm 50mm;
+            size: 58mm 3276mm;
             margin: 0;
         }
         @media print {
@@ -16,16 +16,27 @@
                 background: white !important;
                 margin: 0 !important;
                 padding: 0 !important;
-                width: 57mm !important;
+                width: 58mm !important;
+                display: flex !important;
+                justify-content: center !important;
             }
             main {
-                max-width: 57mm !important;
-                width: 57mm !important;
+                max-width: 58mm !important;
+                width: 58mm !important;
                 margin: 0 auto !important;
                 padding: 0 !important;
                 min-height: 0 !important;
+                display: flex !important;
+                justify-content: center !important;
             }
-            .receipt { box-shadow: none !important; border: 0 !important; }
+            .receipt {
+                box-shadow: none !important;
+                border: 0 !important;
+                width: 46mm !important;
+                max-width: 46mm !important;
+                min-width: 46mm !important;
+                margin: 0 auto !important;
+            }
         }
     </style>
 </head>
