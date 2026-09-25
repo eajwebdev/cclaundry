@@ -253,13 +253,13 @@
                     </div>
 
                     {{-- The windows customers choose from when booking a pickup or a delivery. --}}
-                    @php($windowTimes = collect(range(12, 28))->mapWithKeys(fn ($half) => [sprintf('%02d:%02d', intdiv($half, 2), $half % 2 * 30) => \Illuminate\Support\Carbon::createFromFormat('H:i', sprintf('%02d:%02d', intdiv($half, 2), $half % 2 * 30))->format('g:i A')]))
+                    @php($windowTimes = collect(range(12, 36))->mapWithKeys(fn ($half) => [sprintf('%02d:%02d', intdiv($half, 2), $half % 2 * 30) => \Illuminate\Support\Carbon::createFromFormat('H:i', sprintf('%02d:%02d', intdiv($half, 2), $half % 2 * 30))->format('g:i A')]))
                     @php($savedWindows = old('pickup_windows', $branchSetting->pickup_windows ?: \App\Support\Booking::DEFAULT_PICKUP_WINDOWS))
                     <div class="lg:col-span-2" x-data="{ windows: @js(array_values($savedWindows)) }">
                         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                             <div>
                                 <p class="text-sm font-medium">Pickup &amp; Delivery Windows</p>
-                                <p class="text-xs text-muted">The times customers can choose when booking online. Every window must end by 2:00 PM.</p>
+                                <p class="text-xs text-muted">The times customers can choose when booking online. Every window must end by 6:00 PM.</p>
                             </div>
                             <button type="button" @click="windows.push({ start: '13:00', end: '14:00' })" x-show="windows.length < 12"
                                     class="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:bg-smoke dark:border-gray-700 dark:hover:bg-gray-950">

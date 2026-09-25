@@ -12,6 +12,7 @@
     // list, cancelling) are shown only to the customer who owns this one.
     $viewer = auth('customer')->user();
     $isOwner = $viewer && $viewer->id === $pickupRequest->customer_id;
+    $hasAccount = $pickupRequest->customer?->hasPortalAccount() ?? false;
 
     [$headline, $headlineIcon] = match ($status) {
         'cancelled' => ['Booking Cancelled', 'x'],
@@ -70,7 +71,7 @@
 @endphp
 
 @section('content')
-<section class="px-4 pt-6 sm:pt-10">
+<section class="px-4 pt-6 sm:pt-10" x-data="{ accountModalOpen: true }">
     <div class="mx-auto grid max-w-5xl gap-6 lg:grid-cols-2 lg:items-start lg:gap-8">
 
         {{-- ─────────── Confirmation ─────────── --}}
@@ -131,26 +132,16 @@
                         View all my bookings
                     </a>
                 @elseif(! $cancelled)
-                    {{-- An offer, not a requirement: the booking above is already
-                         placed and the branch already has the number to call. --}}
                     <div class="cc-soft px-4 py-4 text-center">
-                        <p class="text-sm font-bold text-cc-deep">Want to manage this yourself?</p>
+                        <p class="text-sm font-bold text-cc-deep">Account Required</p>
                         <p class="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-cc-muted">
-                            Create a free account with {{ $pickupRequest->contact_phone }} to track, cancel and rebook
-                            without typing your details again. This pickup stays booked either way.
+                            Please create an account or sign in with {{ $pickupRequest->contact_phone }} to track and manage booking #{{ $pickupRequest->reference_no }}.
                         </p>
-                        <a href="{{ route('customer.register') }}" class="cc-btn cc-btn-sm mt-3">
+                        <button type="button" @click="accountModalOpen = true" class="cc-btn cc-btn-sm mt-3">
                             <span data-lucide="user" class="h-4 w-4"></span>
-                            Create an account
-                        </a>
+                            Create Account / Sign In
+                        </button>
                     </div>
-
-                    <p class="text-center text-xs leading-relaxed text-cc-muted">
-                        Or just keep booking number
-                        <span class="font-mono font-bold text-cc-deep">{{ $pickupRequest->reference_no }}</span>:
-                        with your mobile number it is all you need to
-                        <a href="{{ route('landing') }}#track" class="font-bold text-cc-brown hover:underline">track your laundry</a>.
-                    </p>
                 @endif
 
                 <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-1 pt-1 text-sm font-bold">
@@ -265,6 +256,187 @@
             </div>
         </div>
     </div>
+
+    @unless($isOwner)
+    <div x-data="{
+            mode: @js($hasAccount || $errors->has('login') ? 'login' : 'register'),
+            showPassword: false,
+            clientError: '',
+            submitting: false,
+            switchMode(newMode) {
+                this.mode = newMode;
+                this.clientError = '';
+                this.$nextTick(() => window.renderLucideIcons?.());
+            },
+            validateRegister() {
+                this.clientError = '';
+                const p1 = this.$refs.regPassword ? this.$refs.regPassword.value : '';
+                const p2 = this.$refs.regPasswordConfirm ? this.$refs.regPasswordConfirm.value : '';
+                if (!p1 || p1.length < 8) {
+                    this.clientError = 'Password must be at least 8 characters.';
+                    return false;
+                }
+                if (p1 !== p2) {
+                    this.clientError = 'Passwords do not match.';
+                    return false;
+                }
+                return true;
+            }
+         }"
+         x-init="$nextTick(() => window.renderLucideIcons?.())"
+         x-show="accountModalOpen"
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-cc-deep/80 backdrop-blur-sm"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="account-modal-title">
+
+        <div class="relative w-full max-w-lg my-8 rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-cc-line text-left"
+             @click.stop>
+            
+            <div class="flex items-center justify-between gap-3 mb-4">
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-cc-soft px-3 py-1 text-xs font-bold uppercase tracking-wider text-cc-brown">
+                    <span data-lucide="check-circle" class="h-3.5 w-3.5"></span>
+                    <span>Booking #{{ $pickupRequest->reference_no }}</span>
+                </span>
+            </div>
+
+            {{-- Register Mode --}}
+            <div x-show="mode === 'register'">
+                <h2 id="account-modal-title" class="font-display text-2xl sm:text-3xl font-bold text-cc-deep">Create your account</h2>
+                <p class="mt-1.5 text-sm text-cc-muted">
+                    Your pickup is scheduled! Please set a password to finish creating your account. You will be automatically logged in to track and manage your laundry.
+                </p>
+
+                <form method="POST" action="{{ route('customer.register.submit') }}"
+                      @submit="if (!validateRegister()) { $event.preventDefault(); return; } submitting = true;"
+                      class="mt-5 space-y-4">
+                    @csrf
+                    <input type="hidden" name="redirect_to" value="{{ route('booking.confirmed', $pickupRequest->reference_no) }}">
+                    <input type="hidden" name="branch_id" value="{{ $pickupRequest->branch_id }}">
+                    <input type="hidden" name="name" value="{{ $pickupRequest->contact_name }}">
+                    <input type="hidden" name="phone" value="{{ $pickupRequest->contact_phone }}">
+                    <input type="hidden" name="email" value="{{ $pickupRequest->contact_email }}">
+                    <input type="hidden" name="address" value="{{ $pickupRequest->pickup_address }}">
+
+                    <div class="rounded-2xl border border-cc-line bg-cc-surface/70 p-3.5 space-y-1.5 text-xs text-cc-muted">
+                        <div class="flex justify-between">
+                            <span class="font-semibold text-cc-deep">Name:</span>
+                            <span class="font-bold text-cc-deep">{{ $pickupRequest->contact_name }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="font-semibold text-cc-deep">Mobile:</span>
+                            <span class="font-mono font-bold text-cc-deep">{{ $pickupRequest->contact_phone }}</span>
+                        </div>
+                        @if($pickupRequest->branch)
+                            <div class="flex justify-between">
+                                <span class="font-semibold text-cc-deep">Branch:</span>
+                                <span class="text-cc-deep">{{ $pickupRequest->branch->name }}</span>
+                            </div>
+                        @endif
+                    </div>
+
+                    <div>
+                        <label class="cc-label">Create Password <span class="text-cc-brown">*</span></label>
+                        <div class="relative mt-1.5">
+                            <input x-ref="regPassword" name="password" required autocomplete="new-password"
+                                   :type="showPassword ? 'text' : 'password'" type="password"
+                                   placeholder="At least 8 characters" class="cc-input pr-12">
+                            <button type="button" @click="showPassword = !showPassword"
+                                    class="absolute top-1/2 right-1 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-cc-muted hover:text-cc-brown"
+                                    :aria-label="showPassword ? 'Hide password' : 'Show password'">
+                                <span data-lucide="eye" class="h-4.5 w-4.5" x-show="!showPassword"></span>
+                                <span data-lucide="eyeOff" class="h-4.5 w-4.5" x-show="showPassword" x-cloak></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="cc-label">Confirm Password <span class="text-cc-brown">*</span></label>
+                        <input x-ref="regPasswordConfirm" name="password_confirmation" required autocomplete="new-password"
+                               :type="showPassword ? 'text' : 'password'" type="password"
+                               placeholder="Re-type your password" class="cc-input mt-1.5">
+                    </div>
+
+                    <label class="flex cursor-pointer items-start gap-3 text-xs leading-relaxed text-cc-muted">
+                        <input type="checkbox" name="terms" value="1" checked required class="cc-checkbox mt-0.5">
+                        <span>I agree to {{ $businessName }}&rsquo;s service terms.</span>
+                    </label>
+
+                    <template x-if="clientError">
+                        <p class="cc-error text-xs font-semibold" x-text="clientError"></p>
+                    </template>
+
+                    @if($errors->any() && ! $errors->has('login'))
+                        <div class="rounded-xl bg-red-50 p-3 border border-red-200 text-xs text-red-700 space-y-1">
+                            @foreach($errors->all() as $err)
+                                <p>{{ $err }}</p>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    <button type="submit" :disabled="submitting" class="cc-btn w-full">
+                        <span data-lucide="user-check" class="h-5 w-5"></span>
+                        <span x-text="submitting ? 'Creating Account…' : 'Create Account & View Booking'">Create Account &amp; View Booking</span>
+                    </button>
+
+                    <p class="text-center text-xs text-cc-muted pt-1">
+                        Already have an account?
+                        <button type="button" @click="switchMode('login')" class="font-bold text-cc-brown hover:underline">Sign in instead</button>
+                    </p>
+                </form>
+            </div>
+
+            {{-- Login Mode --}}
+            <div x-show="mode === 'login'" x-cloak>
+                <h2 id="account-modal-title" class="font-display text-2xl sm:text-3xl font-bold text-cc-deep">Sign in to your account</h2>
+                <p class="mt-1.5 text-sm text-cc-muted">
+                    Please enter your password for <strong class="font-mono text-cc-deep">{{ $pickupRequest->contact_phone }}</strong> to view and track your booking.
+                </p>
+
+                <form method="POST" action="{{ route('login.submit') }}" class="mt-5 space-y-4">
+                    @csrf
+                    <input type="hidden" name="redirect_to" value="{{ route('booking.confirmed', $pickupRequest->reference_no) }}">
+
+                    <div>
+                        <label class="cc-label">Mobile Number</label>
+                        <input type="text" name="login" value="{{ $pickupRequest->contact_phone }}" readonly
+                               class="cc-input mt-1.5 bg-gray-50 text-cc-deep cursor-not-allowed">
+                    </div>
+
+                    <div>
+                        <label class="cc-label">Password <span class="text-cc-brown">*</span></label>
+                        <div class="relative mt-1.5">
+                            <input name="password" required autocomplete="current-password"
+                                   :type="showPassword ? 'text' : 'password'" type="password"
+                                   placeholder="Your account password" class="cc-input pr-12">
+                            <button type="button" @click="showPassword = !showPassword"
+                                    class="absolute top-1/2 right-1 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-cc-muted hover:text-cc-brown"
+                                    :aria-label="showPassword ? 'Hide password' : 'Show password'">
+                                <span data-lucide="eye" class="h-4.5 w-4.5" x-show="!showPassword"></span>
+                                <span data-lucide="eyeOff" class="h-4.5 w-4.5" x-show="showPassword" x-cloak></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    @if($errors->has('login'))
+                        <p class="cc-error text-xs font-semibold">{{ $errors->first('login') }}</p>
+                    @endif
+
+                    <button type="submit" class="cc-btn w-full">
+                        <span data-lucide="log-in" class="h-5 w-5"></span>
+                        <span>Sign In &amp; View Booking</span>
+                    </button>
+
+                    <p class="text-center text-xs text-cc-muted pt-1">
+                        Need to create an account?
+                        <button type="button" @click="switchMode('register')" class="font-bold text-cc-brown hover:underline">Create an account</button>
+                    </p>
+                </form>
+            </div>
+
+        </div>
+    </div>
+    @endunless
 </section>
 <form id="tracking-refresh-form" method="POST" action="{{ route('track.status') }}" class="hidden" aria-hidden="true">
     @csrf

@@ -12,6 +12,7 @@ use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\User;
 use App\Support\Activity;
+use App\Support\Booking;
 
 class LoginController extends Controller
 {
@@ -88,6 +89,11 @@ class LoginController extends Controller
         Auth::guard('customer')->login($customer, $request->boolean('remember'));
         $request->session()->regenerate();
         $customer->forceFill(['last_login_at' => now()])->save();
+
+        if ($request->filled('redirect_to')) {
+            return redirect()->to($request->input('redirect_to'))
+                ->with('success', 'Signed in. Good to see you again, '.$customer->name.'.');
+        }
 
         return redirect()->route('customer.bookings.index')
             ->with('success', 'Signed in. Good to see you again, '.$customer->name.'.');

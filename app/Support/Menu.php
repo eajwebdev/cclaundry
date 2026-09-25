@@ -42,6 +42,10 @@ class Menu
 
     public static function assignableKeysForRole(string $role): array
     {
+        if ($role === 'rider') {
+            return [];
+        }
+
         if ($role === 'super_admin') {
             return self::keys();
         }

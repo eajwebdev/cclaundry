@@ -120,6 +120,10 @@ class AuthController extends Controller
      */
     private function afterAuthentication(Request $request, Customer $customer, string $message)
     {
+        if ($request->filled('redirect_to')) {
+            return redirect()->to($request->input('redirect_to'))->with('success', $message);
+        }
+
         return redirect()->route('customer.bookings.index')->with('success', $message);
     }
 }

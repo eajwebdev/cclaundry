@@ -209,7 +209,7 @@ Route::middleware(['auth', 'rider'])->prefix('rider')->name('rider.')->group(fun
     });
 });
 
-Route::middleware(['auth', 'settings.completed', 'system.maintenance', 'billing.access'])->group(function () {
+Route::middleware(['auth', 'not.rider', 'settings.completed', 'system.maintenance', 'billing.access'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/data', [DashboardController::class, 'data'])->name('dashboard.data');
     Route::get('/dashboard/assistant/options', [DashboardController::class, 'assistantOptions'])->name('dashboard.assistant.options');

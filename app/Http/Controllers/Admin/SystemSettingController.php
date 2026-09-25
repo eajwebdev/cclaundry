@@ -110,7 +110,7 @@ class SystemSettingController extends Controller
                 if (is_string($start) && $value <= $start) {
                     $fail('Each pickup window must end after it starts.');
                 } elseif ($value > Booking::LATEST_WINDOW_END) {
-                    $fail('Pickup and delivery windows must end by 2:00 PM.');
+                    $fail('Pickup and delivery windows must end by 6:00 PM.');
                 }
             }],
             'job_order_prefix' => ['nullable', 'string', 'max:20'],

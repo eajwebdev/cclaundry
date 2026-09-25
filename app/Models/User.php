@@ -125,6 +125,10 @@ class User extends Authenticatable
 
     public function hasMenuAccess(string $key): bool
     {
+        if ($this->isRider()) {
+            return false;
+        }
+
         if ($this->isSuperAdmin()) {
             return true;
         }
@@ -134,6 +138,10 @@ class User extends Authenticatable
 
     public function accessibleMenuItems(): array
     {
+        if ($this->isRider()) {
+            return [];
+        }
+
         if ($this->isSuperAdmin()) {
             return Menu::items();
         }

@@ -84,7 +84,7 @@ class BookingController extends Controller
     public function confirmed(Request $request, string $reference)
     {
         $pickupRequest = PickupRequest::query()
-            ->with(['items', 'branch', 'jobOrder.latestCycle'])
+            ->with(['items', 'branch', 'jobOrder.latestCycle', 'customer'])
             ->where('reference_no', $reference)
             ->firstOrFail();
 
