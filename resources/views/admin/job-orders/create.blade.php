@@ -19,6 +19,7 @@
         'discount' => (float) old('discount', $isEditing ? $jobOrder->discount : 0),
         'paid' => (float) ($isEditing ? $jobOrder->payments->sum('amount') : old('paid_amount', $riderPayment['paid'] ?? 0)),
         'paymentType' => old('payment_type', $isEditing ? 'unpaid' : ($riderPayment['type'] ?? 'unpaid')),
+        'notes' => (string) old('notes', $isEditing ? ($jobOrder->notes ?? '') : ($bookedRequest->notes ?? '')),
     ];
 @endphp
 
@@ -28,6 +29,7 @@
 @section('content')
 <div
     x-data="posPage(@js($branches), @js($processingBranches), @js($services), @js($customers), @js($serviceCategories), @js($servicePresets), @js((float) ($appSettings?->vat_rate ?? 0)), @js((bool) ($appSettings?->vat_enabled ?? false)), @js($initialState))"
+    class="flex-1 min-h-0 flex flex-col h-full"
 >
     <form
         method="POST"
@@ -35,7 +37,7 @@
         {{-- The cart becomes a side rail from tablet width up. Stacked, a
              cashier on a 10" tablet has to scroll past the whole catalog to
              reach the total and the pay button. --}}
-        class="grid gap-4 md:h-[calc(100dvh-7.5rem)] md:grid-cols-[minmax(0,1fr)_17rem] md:overflow-hidden lg:grid-cols-[minmax(0,1fr)_20rem] 2xl:grid-cols-[minmax(0,1fr)_22rem]"
+        class="flex-1 min-h-0 flex flex-col md:grid md:grid-cols-[minmax(0,1fr)_18rem] lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_22rem] gap-2.5 sm:gap-3 h-full overflow-hidden"
     >
         @csrf
         @if($isEditing)
@@ -50,30 +52,30 @@
         <!-- LEFT SIDE -->
         {{-- Named query container: rows inside size against this panel, which is
              narrower than the viewport whenever the cart rail is showing. --}}
-        <section class="@container/panel min-h-0 min-w-0">
+        <section class="@container/panel flex flex-col h-full min-h-0 min-w-0 overflow-hidden">
             <!-- MODERN TOP BAR - Clean & Simple -->
-            <div class="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div class="mb-2 shrink-0 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-white p-2.5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <!-- Left: Title & Orders Link -->
-                <div class="flex items-center gap-4">
+                <div class="flex items-center gap-3">
                     <div>
                         <h2 class="text-sm font-semibold text-dark dark:text-white">{{ $isEditing ? $jobOrder->job_order_number : 'New Job Order' }}</h2>
                         <p class="text-[10px] text-muted">{{ $isEditing ? 'Edit customer order' : 'Create customer order' }}</p>
                     </div>
-                    <a href="{{ route('admin.job-orders.index') }}" class="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/30">
+                    <a href="{{ route('admin.job-orders.index') }}" class="inline-flex h-7 sm:h-8 items-center gap-1.5 rounded-md bg-primary/10 px-2.5 sm:px-3 text-xs font-medium text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/30">
                         <span data-lucide="list-ordered" class="h-3.5 w-3.5"></span>
                         Orders
                     </a>
                 </div>
 
                 <!-- Right: Branch Selection - Clean Badge Style -->
-                <div class="flex flex-wrap items-center gap-3 sm:ml-auto">
+                <div class="flex flex-wrap items-center gap-2 sm:ml-auto">
                     @if($isEditing)
                         <input type="hidden" name="branch_id" value="{{ $branchId }}">
-                        <div class="flex items-center gap-2 rounded-md bg-primary/10 px-3 py-1">
+                        <div class="flex items-center gap-1.5 rounded-md bg-primary/10 px-2.5 py-1">
                             <span data-lucide="store" class="h-3.5 w-3.5 text-primary"></span>
                             <span class="text-xs font-medium text-primary">{{ $branches->firstWhere('id', (int) $branchId)?->name }}</span>
                         </div>
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-1.5">
                             <span data-lucide="activity" class="h-3.5 w-3.5 text-muted"></span>
                             <select name="status" class="h-8 rounded-md border-0 bg-smoke px-2 text-xs font-medium dark:bg-gray-800" required>
                                 @foreach($statuses as $status)
@@ -83,12 +85,12 @@
                         </div>
                     @elseif($bookedRequest ?? null)
                         <input type="hidden" name="branch_id" value="{{ $branchId }}">
-                        <div class="flex items-center gap-2 rounded-md bg-primary/10 px-3 py-1">
+                        <div class="flex items-center gap-1.5 rounded-md bg-primary/10 px-2.5 py-1">
                             <span data-lucide="store" class="h-3.5 w-3.5 text-primary"></span>
                             <span class="text-xs font-medium text-primary">{{ $branches->firstWhere('id', (int) $branchId)?->name }}</span>
                         </div>
                     @elseif(in_array(auth()->user()->role, ['super_admin', 'admin'], true))
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-1.5">
                             <span data-lucide="store" class="h-3.5 w-3.5 text-muted"></span>
                             <select name="branch_id" x-model="branchId" class="h-8 rounded-md border-0 bg-smoke px-2 text-xs font-medium dark:bg-gray-800" required>
                                 @foreach($branches as $branch)
@@ -98,7 +100,7 @@
                         </div>
                     @else
                         <input type="hidden" name="branch_id" value="{{ $branchId }}">
-                        <div class="flex items-center gap-2 rounded-md bg-primary/10 px-3 py-1">
+                        <div class="flex items-center gap-1.5 rounded-md bg-primary/10 px-2.5 py-1">
                             <span data-lucide="store" class="h-3.5 w-3.5 text-primary"></span>
                             <span class="text-xs font-medium text-primary">{{ $branches->firstWhere('id', (int) $branchId)?->name }}</span>
                         </div>
@@ -110,16 +112,14 @@
                     @endphp
 
                     @if($canSelectProcessingBranch)
-                        <div class="flex flex-col gap-1">
-                            <span class="text-[10px] font-medium text-muted">Receiving Production Branch</span>
-                            <div class="flex items-center gap-2">
-                                <span data-lucide="git-branch" class="h-3.5 w-3.5 text-muted"></span>
-                                <select name="processing_branch_id" x-model="processingBranchId" class="h-8 rounded-md border-0 bg-smoke px-2 text-xs font-medium dark:bg-gray-800" required>
-                                    <template x-for="branch in processingBranches" :key="branch.id">
-                                        <option :value="branch.id" x-text="branch.name"></option>
-                                    </template>
-                                </select>
-                            </div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-[10px] font-medium text-muted hidden sm:inline">Receiving:</span>
+                            <span data-lucide="git-branch" class="h-3.5 w-3.5 text-muted"></span>
+                            <select name="processing_branch_id" x-model="processingBranchId" class="h-8 rounded-md border-0 bg-smoke px-2 text-xs font-medium dark:bg-gray-800" required>
+                                <template x-for="branch in processingBranches" :key="branch.id">
+                                    <option :value="branch.id" x-text="branch.name"></option>
+                                </template>
+                            </select>
                         </div>
                     @else
                         <input type="hidden" name="processing_branch_id" value="{{ $branchId }}">
@@ -131,92 +131,103 @@
                 </div>
             </div>
 
-            <!-- CUSTOMER & ORDER OPTIONS - Clean Grid -->
-            <div class="mb-3 grid grid-cols-1 gap-2 rounded-lg border border-border bg-white p-3 shadow-sm @xl/panel:grid-cols-2 @3xl/panel:grid-cols-3 dark:border-gray-800 dark:bg-gray-900">
-                <!-- Customer -->
-                <div class="relative" @click.outside="customerOpen = false">
-                    <label class="mb-1 block text-[10px] font-medium text-muted">Customer</label>
-                    <input type="hidden" name="customer_id" :value="selectedCustomerId">
-                    <div class="flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 dark:border-gray-800 dark:bg-gray-950">
-                        <span data-lucide="user" class="h-4 w-4 shrink-0 text-muted"></span>
-                        <input
-                            type="search"
-                            x-model="customerSearch"
-                            @if(! ($bookedRequest ?? null))
-                            @focus="customerOpen = true"
-                            @input="selectedCustomerId = ''; customerOpen = true"
-                            @else
-                            readonly
-                            @endif
-                            placeholder="Search or select customer..."
-                            class="min-w-0 flex-1 bg-transparent text-sm outline-none"
-                            autocomplete="off"
-                        >
-                        <button type="button" x-show="!isEditing && !@js((bool) ($bookedRequest ?? null))" @click="quickCustomerOpen = true; refreshIcons()" title="Add new customer" class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-primary hover:bg-primary/10">
-                            <span data-lucide="plus" class="h-4 w-4"></span>
-                        </button>
-                        <button type="button" x-show="selectedCustomerId && !@js((bool) ($bookedRequest ?? null))" @click="clearCustomer()" title="Clear customer" class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-smoke dark:hover:bg-gray-900">
-                            <span data-lucide="x" class="h-4 w-4"></span>
-                        </button>
-                    </div>
-                    <div x-cloak x-show="customerOpen" x-transition class="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-border bg-white p-1 shadow-lg dark:border-gray-800 dark:bg-gray-950">
-                        <template x-for="customer in filteredCustomers" :key="customer.id">
-                            <button type="button" @click="selectCustomer(customer)" class="flex w-full items-center justify-between gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-smoke dark:hover:bg-gray-900">
-                                <span class="min-w-0">
-                                    <span class="block truncate font-medium" x-text="customer.name"></span>
-                                    <span class="block truncate text-xs text-muted" x-text="`${customer.phone || 'No phone'}`"></span>
-                                </span>
-                                <span x-show="String(selectedCustomerId) === String(customer.id)" data-lucide="check" class="h-4 w-4 shrink-0 text-primary"></span>
+            <!-- CUSTOMER & ORDER OPTIONS BAR -->
+            <div class="mb-2 shrink-0 rounded-lg border border-border bg-white p-2 sm:p-2.5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div class="flex flex-wrap items-center gap-2">
+                    <!-- Customer Search -->
+                    <div class="relative min-w-[180px] flex-1" @click.outside="customerOpen = false">
+                        <input type="hidden" name="customer_id" :value="selectedCustomerId">
+                        <div class="flex h-9 items-center gap-2 rounded-md border border-border bg-white px-2.5 dark:border-gray-800 dark:bg-gray-950">
+                            <span data-lucide="user" class="h-4 w-4 shrink-0 text-muted"></span>
+                            <input
+                                type="search"
+                                x-model="customerSearch"
+                                @if(! ($bookedRequest ?? null))
+                                @focus="customerOpen = true"
+                                @input="selectedCustomerId = ''; customerOpen = true"
+                                @else
+                                readonly
+                                @endif
+                                placeholder="Search or select customer..."
+                                class="min-w-0 flex-1 bg-transparent text-xs sm:text-sm outline-none placeholder:text-muted"
+                                autocomplete="off"
+                            >
+                            <button type="button" x-show="!isEditing && !@js((bool) ($bookedRequest ?? null))" @click="quickCustomerOpen = true; refreshIcons()" title="Add new customer" class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-primary hover:bg-primary/10">
+                                <span data-lucide="plus" class="h-4 w-4"></span>
                             </button>
-                        </template>
-                        <div x-show="filteredCustomers.length === 0" class="px-3 py-6 text-center text-sm text-muted">No customers found</div>
+                            <button type="button" x-show="selectedCustomerId && !@js((bool) ($bookedRequest ?? null))" @click="clearCustomer()" title="Clear customer" class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-smoke dark:hover:bg-gray-900">
+                                <span data-lucide="x" class="h-4 w-4"></span>
+                            </button>
+                        </div>
+                        <div x-cloak x-show="customerOpen" x-transition class="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-border bg-white p-1 shadow-lg dark:border-gray-800 dark:bg-gray-950">
+                            <template x-for="customer in filteredCustomers" :key="customer.id">
+                                <button type="button" @click="selectCustomer(customer)" class="flex w-full items-center justify-between gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-smoke dark:hover:bg-gray-900">
+                                    <span class="min-w-0">
+                                        <span class="block truncate font-medium" x-text="customer.name"></span>
+                                        <span class="block truncate text-xs text-muted" x-text="`${customer.phone || 'No phone'}`"></span>
+                                    </span>
+                                    <span x-show="String(selectedCustomerId) === String(customer.id)" data-lucide="check" class="h-4 w-4 shrink-0 text-primary"></span>
+                                </button>
+                            </template>
+                            <div x-show="filteredCustomers.length === 0" class="px-3 py-6 text-center text-sm text-muted">No customers found</div>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Notes -->
-                <div>
-                    <label class="mb-1 block text-[10px] font-medium text-muted">Notes / Instructions</label>
-                    <textarea name="notes" rows="1" placeholder="Add notes..." class="h-9 w-full rounded-md border border-border bg-white px-3 py-1.5 text-sm shadow-sm dark:border-gray-800 dark:bg-gray-950">{{ old('notes', $isEditing ? $jobOrder->notes : ($bookedRequest->notes ?? '')) }}</textarea>
-                </div>
+                    <!-- Notes Button (Tap to open modal) -->
+                    <input type="hidden" name="notes" :value="notes">
+                    <button
+                        type="button"
+                        @click="openNotesModal()"
+                        class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-2.5 sm:px-3 text-xs font-medium transition hover:border-primary/50"
+                        :class="notes.trim() ? 'border-primary/40 bg-primary/10 text-primary dark:border-primary/50 dark:bg-primary/20' : 'border-border bg-white text-muted hover:text-dark dark:border-gray-800 dark:bg-gray-950 dark:hover:text-white'"
+                        :title="notes.trim() ? 'Notes: ' + notes : 'Add order notes / special instructions'"
+                    >
+                        <span data-lucide="notebook-pen" class="h-3.5 w-3.5 shrink-0" :class="notes.trim() ? 'text-primary' : 'text-muted'"></span>
+                        <span class="whitespace-nowrap font-medium" x-text="notes.trim() ? 'Notes (' + (notes.length > 12 ? notes.substring(0, 10) + '...' : notes) + ')' : 'Notes'">Notes</span>
+                        <span x-show="notes.trim()" x-cloak class="inline-flex h-2 w-2 shrink-0 rounded-full bg-primary"></span>
+                    </button>
 
-                <!-- Options -->
-                <div class="flex flex-wrap items-center gap-2 md:mt-3">
-                    <label class="flex h-9 cursor-pointer items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-800 dark:border-amber-900/60 dark:bg-amber-500/10 dark:text-amber-300">
-                        <input type="checkbox" name="is_rush" value="1" @checked(old('is_rush', $isEditing ? $jobOrder->is_rush : ($bookedRequest->is_rush ?? request()->boolean('is_rush')))) class="rounded border-amber-300 text-amber-600">
-                        <span data-lucide="zap" class="h-4 w-4"></span>
-                        Rush
+                    <!-- Rush Checkbox -->
+                    <label class="inline-flex h-9 shrink-0 cursor-pointer select-none items-center gap-1.5 rounded-md border border-amber-300/80 bg-amber-50 px-2.5 text-xs font-medium text-amber-900 transition hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-500/10 dark:text-amber-300">
+                        <input type="checkbox" name="is_rush" value="1" @checked(old('is_rush', $isEditing ? $jobOrder->is_rush : ($bookedRequest->is_rush ?? request()->boolean('is_rush')))) class="h-3.5 w-3.5 rounded border-amber-400 text-amber-600 focus:ring-amber-500">
+                        <span data-lucide="zap" class="h-3.5 w-3.5 text-amber-600 dark:text-amber-400"></span>
+                        <span class="whitespace-nowrap">Rush</span>
                     </label>
-                    <div class="flex h-9 shrink-0 rounded-md bg-smoke p-0.5 dark:bg-gray-950">
-                        <label class="flex cursor-pointer items-center gap-1.5 rounded-sm px-3 text-xs font-medium has-[:checked]:bg-white has-[:checked]:text-primary has-[:checked]:shadow-sm dark:has-[:checked]:bg-gray-900">
+
+                    <!-- Walk-in / Delivery Badge (Fixed for small screens) -->
+                    <div class="inline-flex h-9 shrink-0 items-center rounded-md border border-border bg-smoke p-0.5 dark:border-gray-800 dark:bg-gray-950">
+                        <label class="inline-flex h-full cursor-pointer select-none items-center gap-1.5 rounded-sm px-2.5 text-xs font-medium whitespace-nowrap transition-all has-[:checked]:bg-white has-[:checked]:text-primary has-[:checked]:shadow-xs dark:has-[:checked]:bg-gray-900 dark:has-[:checked]:text-white">
                             <input type="radio" name="transaction_type" value="walk_in" @checked(old('transaction_type', $isEditing ? $jobOrder->transaction_type : (($bookedRequest ?? null) && $bookedRequest->wantsDelivery() ? 'delivery' : request('transaction_type', 'walk_in'))) !== 'delivery') class="sr-only">
-                            <span data-lucide="user" class="h-3.5 w-3.5"></span>
-                            {{ ($bookedRequest ?? null) ? 'Collect at branch' : 'Walk-in' }}
+                            <span data-lucide="user" class="h-3.5 w-3.5 shrink-0"></span>
+                            <span>{{ ($bookedRequest ?? null) ? 'Collect' : 'Walk-in' }}</span>
                         </label>
-                        <label class="flex cursor-pointer items-center gap-1.5 rounded-sm px-3 text-xs font-medium has-[:checked]:bg-orange-100 has-[:checked]:text-orange-700 has-[:checked]:shadow-sm dark:has-[:checked]:bg-orange-500/10 dark:has-[:checked]:text-orange-300">
+                        <label class="inline-flex h-full cursor-pointer select-none items-center gap-1.5 rounded-sm px-2.5 text-xs font-medium whitespace-nowrap transition-all has-[:checked]:bg-orange-500 has-[:checked]:text-white has-[:checked]:shadow-xs dark:has-[:checked]:bg-orange-600">
                             <input type="radio" name="transaction_type" value="delivery" @checked(old('transaction_type', $isEditing ? $jobOrder->transaction_type : (($bookedRequest ?? null) && $bookedRequest->wantsDelivery() ? 'delivery' : request('transaction_type', 'walk_in'))) === 'delivery') class="sr-only">
-                            <span data-lucide="truck" class="h-3.5 w-3.5"></span>
-                            Delivery
+                            <span data-lucide="truck" class="h-3.5 w-3.5 shrink-0"></span>
+                            <span>Delivery</span>
                         </label>
                     </div>
+
+                    <!-- Load Tag # -->
                     @unless($isEditing)
                         <button type="button" @click="openTagModal()"
-                                class="inline-flex h-9 items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 text-xs font-semibold text-primary hover:bg-primary/10"
+                                class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 text-xs font-semibold text-primary transition hover:bg-primary/10"
                                 :aria-label="`Load rider pickup bag tag, ${waitingTagCounts[branchId] ?? 0} waiting at this branch`" title="Tags waiting for a job order at this branch">
-                            <span data-lucide="tag" class="h-3.5 w-3.5"></span>
-                            Load tag #
-                            <span class="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-white"
+                            <span data-lucide="tag" class="h-3.5 w-3.5 shrink-0"></span>
+                            <span class="whitespace-nowrap">Load tag</span>
+                            <span class="inline-flex min-w-4.5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-white"
                                   x-text="waitingTagCounts[branchId] ?? 0">{{ $waitingTagCounts[$branchId] ?? 0 }}</span>
                         </button>
                         @if($bookedRequest)
-                            <span class="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-primary/10 px-2.5 text-xs font-semibold text-primary">
+                            <span class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary/10 px-2.5 text-xs font-semibold text-primary">
                                 Loaded {{ $bookedRequest->reference_no }}@if($bookedRequest->tag_code) · {{ $bookedRequest->tag_code }}@endif
                             </span>
-                            <a href="{{ route('admin.job-orders.create') }}" class="text-xs font-semibold text-muted hover:text-primary">Clear</a>
+                            <a href="{{ route('admin.job-orders.create') }}" class="text-xs font-semibold text-muted hover:text-primary shrink-0">Clear</a>
                         @endif
                     @endunless
                 </div>
                 @error('pickup_request_id')
-                    <p class="text-xs font-medium text-red-600 @xl/panel:col-span-2 @3xl/panel:col-span-3" role="alert">{{ $message }}</p>
+                    <p class="mt-1 text-xs font-medium text-red-600" role="alert">{{ $message }}</p>
                 @enderror
             </div>
 
@@ -225,24 +236,24 @@
                  viewport. The cart rail takes up to 22rem, so a 1024px screen only
                  leaves the catalog ~630px — viewport breakpoints would put three
                  columns in there and truncate every label. --}}
-            <div class="@container/catalog flex max-h-[68dvh] flex-col rounded-lg border border-border bg-white p-3 shadow-sm md:h-[calc(100%-13.5rem)] md:max-h-none dark:border-gray-800 dark:bg-gray-900">
+            <div class="@container/catalog flex-1 min-h-0 flex flex-col rounded-lg border border-border bg-white p-2.5 sm:p-3 shadow-sm overflow-hidden dark:border-gray-800 dark:bg-gray-900">
                 <!-- Catalog Header -->
-                <div class="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
+                <div class="mb-2.5 flex shrink-0 flex-wrap items-center justify-between gap-2">
                     <div class="flex min-w-0 items-center gap-2">
                         <span data-lucide="grid" class="h-4 w-4 shrink-0 text-muted"></span>
                         <h3 class="truncate text-sm font-semibold">Service Catalog</h3>
                         <span class="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary" x-text="filteredCatalogCount"></span>
                     </div>
-                    <div class="flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-border px-3 @lg/catalog:w-48 dark:border-gray-800">
-                        <span data-lucide="search" class="h-4 w-4 shrink-0 text-muted"></span>
-                        <input type="search" x-model.debounce.200ms="serviceSearch" placeholder="Search services..." class="w-full min-w-0 bg-transparent text-sm outline-none">
+                    <div class="flex h-8.5 w-full min-w-0 items-center gap-2 rounded-md border border-border px-2.5 @lg/catalog:w-48 dark:border-gray-800">
+                        <span data-lucide="search" class="h-3.5 w-3.5 shrink-0 text-muted"></span>
+                        <input type="search" x-model.debounce.200ms="serviceSearch" placeholder="Search services..." class="w-full min-w-0 bg-transparent text-xs sm:text-sm outline-none">
                     </div>
                 </div>
 
                 <!-- Category Filters -->
-                <div class="mb-3 flex shrink-0 gap-0.5 overflow-x-auto rounded-md bg-smoke p-0.5 dark:bg-gray-950">
+                <div class="mb-2.5 flex shrink-0 gap-0.5 overflow-x-auto rounded-md bg-smoke p-0.5 dark:bg-gray-950">
                     <template x-for="type in serviceTypes" :key="type.value">
-                        <button type="button" @click="typeFilter = type.value; refreshIcons()" class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-sm px-3 text-xs font-medium whitespace-nowrap" :class="typeFilter === type.value ? 'bg-white text-dark shadow-sm dark:bg-gray-900 dark:text-white' : 'text-muted hover:text-dark dark:hover:text-white'">
+                        <button type="button" @click="typeFilter = type.value; refreshIcons()" class="inline-flex h-7 sm:h-8 shrink-0 items-center gap-1.5 rounded-sm px-2.5 sm:px-3 text-xs font-medium whitespace-nowrap" :class="typeFilter === type.value ? 'bg-white text-dark shadow-xs dark:bg-gray-900 dark:text-white' : 'text-muted hover:text-dark dark:hover:text-white'">
                             <span :data-lucide="type.icon" class="h-3.5 w-3.5"></span>
                             <span x-text="type.label"></span>
                         </button>
@@ -253,7 +264,7 @@
                 {{-- Two columns as soon as the panel can hold them, so a tablet
                      shows a usable catalog beside the cart rather than one
                      tile per row. --}}
-                <div class="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1 @md/catalog:grid-cols-2 @3xl/catalog:grid-cols-3 @5xl/catalog:grid-cols-4" x-effect="[...filteredPresets.map(preset => `p${preset.id}`), ...filteredServices.map(service => `s${service.id}`)].join(','); refreshIcons()">
+                <div class="grid flex-1 min-h-0 content-start gap-2 overflow-y-auto overscroll-contain pr-1 @md/catalog:grid-cols-2 @3xl/catalog:grid-cols-3 @5xl/catalog:grid-cols-4" x-effect="[...filteredPresets.map(preset => `p${preset.id}`), ...filteredServices.map(service => `s${service.id}`)].join(','); refreshIcons()">
                     <template x-for="preset in filteredPresets" :key="`preset-${preset.id}`">
                         <button type="button" @click="addPreset(preset)" class="group min-w-0 rounded-lg border border-primary/30 bg-primary/5 p-3 text-left transition-all hover:border-primary hover:bg-primary/10 hover:shadow-sm dark:border-primary/40 dark:bg-primary/10">
                             <div class="flex items-start justify-between gap-2">
@@ -299,26 +310,26 @@
         </section>
 
         <!-- RIGHT SIDE - CART -->
-        <aside class="min-h-0 w-full md:w-[17rem] md:self-stretch lg:w-80 xl:w-[22rem] xl:justify-self-end">
+        <aside class="flex flex-col h-full min-h-0 w-full shrink-0 md:w-[18rem] lg:w-80 xl:w-[22rem] md:self-stretch">
             <div class="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <!-- Cart Header -->
-                <div class="shrink-0 border-b border-border p-4 dark:border-gray-800">
+                <div class="shrink-0 border-b border-border p-3 sm:p-3.5 dark:border-gray-800">
                     <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <span data-lucide="shopping-cart" class="h-5 w-5 text-muted"></span>
+                        <div class="flex items-center gap-2.5">
+                            <span data-lucide="shopping-cart" class="h-4.5 w-4.5 text-muted"></span>
                             <div>
                                 <h2 class="text-sm font-semibold">Cart</h2>
                                 <p class="text-xs text-muted"><span x-text="items.length"></span> item<span x-show="items.length !== 1">s</span></p>
                             </div>
                         </div>
-                        <button type="button" x-show="items.length" @click="items = []" title="Clear cart" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10">
+                        <button type="button" x-show="items.length" @click="items = []" title="Clear cart" class="inline-flex h-7 w-7 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10">
                             <span data-lucide="trash" class="h-4 w-4"></span>
                         </button>
                     </div>
                 </div>
 
                 <!-- Cart Items -->
-                <div class="min-h-[6rem] flex-1 space-y-2 overflow-y-auto p-3">
+                <div class="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-2.5 sm:p-3">
                     @if(! $isEditing && ($bookedRequest ?? null))
                         {{-- The customer declared these amounts when they booked.
                              Weighing the bag is what settles them. --}}
@@ -413,7 +424,7 @@
                 </div>
 
                 <!-- Cart Footer - Totals & Action -->
-                <div class="shrink-0 border-t border-border bg-smoke p-4 dark:border-gray-800 dark:bg-gray-950">
+                <div class="shrink-0 border-t border-border bg-smoke p-3 sm:p-3.5 dark:border-gray-800 dark:bg-gray-950">
                     <!-- Totals -->
                     <div class="space-y-1.5">
                         <div class="flex justify-between text-sm">
@@ -429,7 +440,7 @@
                     </div>
 
                     <!-- Save Button -->
-                    <button type="button" @click="showPaymentPanel = true; refreshIcons()" :disabled="items.length === 0 || !selectedCustomerId" class="mt-3 h-10 w-full rounded-lg bg-primary text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button type="button" @click="showPaymentPanel = true; refreshIcons()" :disabled="items.length === 0 || !selectedCustomerId" class="mt-2.5 h-10 w-full rounded-lg bg-primary text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">
                         <span x-show="items.length === 0">Add items to continue</span>
                         <span x-show="items.length > 0 && !selectedCustomerId">Select a customer</span>
                         <span x-show="items.length > 0 && selectedCustomerId" class="flex items-center justify-center gap-2">
@@ -604,6 +615,85 @@
         </div>
     @endunless
 
+    <!-- Notes / Instructions Modal -->
+    <div
+        x-cloak
+        x-show="notesModalOpen"
+        x-transition.opacity
+        @keydown.escape.window="notesModalOpen = false"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notes-modal-title"
+        @click.self="notesModalOpen = false"
+    >
+        <div @click.outside="notesModalOpen = false" class="w-full max-w-lg rounded-xl bg-white p-5 shadow-2xl dark:bg-gray-900">
+            <div class="mb-3 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary dark:bg-primary/20">
+                        <span data-lucide="notebook-pen" class="h-4 w-4"></span>
+                    </span>
+                    <div>
+                        <h2 id="notes-modal-title" class="text-sm font-semibold text-dark dark:text-white">Order Notes & Instructions</h2>
+                        <p class="text-[11px] text-muted">Special instructions for washers, folding, or delivery.</p>
+                    </div>
+                </div>
+                <button type="button" @click="notesModalOpen = false" class="rounded-lg p-1.5 hover:bg-smoke dark:hover:bg-gray-800 text-muted hover:text-dark dark:hover:text-white" aria-label="Close notes modal">
+                    <span data-lucide="x" class="h-4 w-4"></span>
+                </button>
+            </div>
+
+            <!-- Quick Tag Presets -->
+            <div class="mb-3">
+                <p class="mb-1.5 text-[11px] font-medium text-muted">Quick tags (tap to add):</p>
+                <div class="flex flex-wrap gap-1.5">
+                    <template x-for="tag in ['Separate colors', 'Delicate wash', 'Hang dry only', 'Extra Downy', 'Stain treatment', 'Customer detergent', 'Hand wash', 'Fold only']" :key="tag">
+                        <button
+                            type="button"
+                            @click="appendNote(tag)"
+                            class="inline-flex items-center rounded-md border border-border bg-smoke px-2 py-1 text-[11px] font-medium text-dark transition hover:border-primary/40 hover:bg-primary/10 hover:text-primary dark:border-gray-800 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-primary/20 dark:hover:text-white"
+                        >
+                            + <span x-text="tag" class="ml-1"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Textarea -->
+            <div class="relative">
+                <textarea
+                    x-ref="notesTextarea"
+                    x-model="notes"
+                    rows="4"
+                    placeholder="Type customer request, stain locations, special care instructions..."
+                    class="w-full rounded-lg border border-border bg-white p-3 text-sm outline-none transition focus:border-primary focus:ring-1 focus:ring-primary dark:border-gray-800 dark:bg-gray-950 dark:text-white"
+                ></textarea>
+            </div>
+
+            <!-- Actions -->
+            <div class="mt-4 flex items-center justify-between gap-2 border-t border-border pt-3 dark:border-gray-800">
+                <button
+                    type="button"
+                    x-show="notes.trim()"
+                    @click="notes = ''"
+                    class="text-xs text-red-600 hover:underline dark:text-red-400"
+                >
+                    Clear notes
+                </button>
+                <div x-show="!notes.trim()"></div>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="notesModalOpen = false"
+                        class="h-9 rounded-lg bg-primary px-4 text-xs font-semibold text-white shadow-sm transition hover:opacity-90"
+                    >
+                        Done
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Quick Add Customer Modal -->
     <div x-cloak x-show="quickCustomerOpen" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
         <div @click.outside="quickCustomerOpen = false" class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-900">
@@ -644,6 +734,8 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         paymentType: initialState.paymentType || 'unpaid',
         discount: Number(initialState.discount || 0),
         paid: Number(initialState.paid || 0),
+        notes: initialState.notes || '',
+        notesModalOpen: false,
         showPaymentPanel: false,
         tagModalOpen: @js((bool) ($tagLookupError ?? null)),
         tagSearch: @js($tagCode ?? ''),
@@ -757,6 +849,22 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
             } catch (_) {
                 // Keep the last count while the cashier is offline.
             }
+        },
+        openNotesModal() {
+            this.notesModalOpen = true;
+            this.$nextTick(() => {
+                this.refreshIcons();
+                this.$refs.notesTextarea?.focus();
+            });
+        },
+        appendNote(tag) {
+            const current = (this.notes || '').trim();
+            if (!current) {
+                this.notes = tag;
+            } else if (!current.toLowerCase().includes(tag.toLowerCase())) {
+                this.notes = current + ', ' + tag;
+            }
+            this.$nextTick(() => this.$refs.notesTextarea?.focus());
         },
         openTagModal() {
             this.tagModalOpen = true;
