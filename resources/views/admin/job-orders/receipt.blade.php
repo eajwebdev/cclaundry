@@ -32,9 +32,9 @@
             .receipt {
                 box-shadow: none !important;
                 border: 0 !important;
-                width: 46mm !important;
-                max-width: 46mm !important;
-                min-width: 46mm !important;
+                width: 52mm !important;
+                max-width: 52mm !important;
+                min-width: 52mm !important;
                 margin: 0 auto !important;
             }
         }

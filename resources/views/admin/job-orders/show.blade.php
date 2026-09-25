@@ -11,7 +11,24 @@
     @media print {
         body * { visibility: hidden !important; }
         .receipt-print-area, .receipt-print-area * { visibility: visible !important; }
+        div[x-show*="receiptOpen"],
+        div[x-show*="receiptOpen"] > div {
+            position: static !important;
+            transform: none !important;
+            filter: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 58mm !important;
+            max-width: 58mm !important;
+            min-width: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            border: 0 !important;
+            overflow: visible !important;
+            display: block !important;
+        }
         .receipt-print-area {
+            position: fixed !important;
             left: 0 !important;
             right: 0 !important;
             top: 0 !important;
@@ -20,8 +37,10 @@
             width: 58mm !important;
             display: flex !important;
             justify-content: center !important;
-            position: absolute !important;
+            align-items: flex-start !important;
             padding: 0 !important;
+            background: #ffffff !important;
+            z-index: 999999 !important;
         }
         .receipt-print-actions { display: none !important; }
     }
