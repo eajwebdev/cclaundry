@@ -35,7 +35,7 @@ class JobOrderController extends Controller
         $user = $request->user();
         [$dateFrom, $dateTo] = $this->dateRange($request);
 
-        $ordersQuery = JobOrder::with(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'items', 'payments.receiver', 'payments.collectedBranch'])
+        $ordersQuery = JobOrder::with(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'creator', 'releaseLog.user', 'items', 'payments.receiver', 'payments.collectedBranch'])
             ->when($user->role !== 'super_admin' && $user->role !== 'admin', fn ($q) => $q->where('branch_id', $user->branch_id))
             ->when($dateFrom, fn ($q) => $q->whereDate('created_at', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
@@ -79,7 +79,7 @@ class JobOrderController extends Controller
     {
         $this->authorizeJobOrder($request, $jobOrder);
 
-        $jobOrder->load(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'creator', 'items.service', 'payments.receiver', 'payments.collectedBranch', 'cycles.user']);
+        $jobOrder->load(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'creator', 'releaseLog.user', 'items.service', 'payments.receiver', 'payments.collectedBranch', 'cycles.user']);
 
         return view('admin.job-orders.show', [
             'order' => $jobOrder,
@@ -91,7 +91,7 @@ class JobOrderController extends Controller
     {
         $this->authorizeJobOrderReceipt($request, $jobOrder);
 
-        $jobOrder->load(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'creator', 'items.service', 'payments.collectedBranch']);
+        $jobOrder->load(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'creator', 'releaseLog.user', 'items.service', 'payments.collectedBranch']);
 
         return view('admin.job-orders.receipt', [
             'order' => $jobOrder,

@@ -340,6 +340,30 @@ textarea {
     animation: machine-status-pulse 1.25s ease-out infinite;
 }
 
+.machine-status-grid {
+    --machine-card-min: 48px;
+}
+@media (min-width: 640px) {
+    .machine-status-grid {
+        --machine-card-min: 52px;
+    }
+}
+@media (min-width: 1024px) {
+    .machine-status-grid {
+        --machine-card-min: 58px;
+    }
+}
+@media (min-width: 1280px) {
+    .machine-status-grid {
+        --machine-card-min: 80px;
+    }
+}
+@media (min-width: 1536px) {
+    .machine-status-grid {
+        --machine-card-min: 104px;
+    }
+}
+
 @keyframes machine-ready-float {
     0%, 100% {
         transform: translateY(0) scale(1);

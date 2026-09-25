@@ -19,10 +19,47 @@ class JobOrder extends Model
     public function releaseBranch() { return $this->belongsTo(Branch::class, 'release_branch_id'); }
     public function customer() { return $this->belongsTo(Customer::class); }
     public function creator() { return $this->belongsTo(User::class, 'created_by'); }
+    public function releaseLog()
+    {
+        return $this->hasOne(ActivityLog::class, 'subject_id')
+            ->where('subject_type', self::class)
+            ->where('action', 'job_order_released')
+            ->latestOfMany();
+    }
     public function items() { return $this->hasMany(JobOrderItem::class); }
     public function payments() { return $this->hasMany(Payment::class); }
     public function cycles() { return $this->hasMany(CycleRecord::class); }
     public function latestCycle() { return $this->hasOne(CycleRecord::class)->latestOfMany(); }
+
+    public function releasingEmployee(): ?User
+    {
+        if ($this->relationLoaded('releaseLog') && $this->releaseLog?->user) {
+            return $this->releaseLog->user;
+        }
+
+        $log = ActivityLog::query()
+            ->where('subject_type', self::class)
+            ->where('subject_id', $this->id)
+            ->where(function ($q) {
+                $q->where('action', 'job_order_released')
+                  ->orWhere(function ($q2) {
+                      $q2->where('action', 'job_order_status_updated')
+                         ->where('properties->status', 'completed');
+                  });
+            })
+            ->latest('id')
+            ->with('user')
+            ->first();
+
+        return $log?->user;
+    }
+
+    public function responsibleEmployeeName(): ?string
+    {
+        $employee = $this->releasingEmployee() ?: $this->creator;
+
+        return $employee?->name ?: auth()->user()?->name;
+    }
 
     public function customerProgressStatus(): string
     {

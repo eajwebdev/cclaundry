@@ -217,7 +217,10 @@
 
     <div class="my-4 border-y border-dashed border-border py-3 text-xs">
         <div class="flex justify-between"><span>JO #</span><span class="font-medium">{{ $order->job_order_number }}</span></div>
-        <div class="flex justify-between"><span>Date</span><span>{{ $order->created_at->format('M d, Y h:i A') }}</span></div>
+        <div class="flex justify-between"><span>Date</span><span>{{ ($order->released_at ?: $order->created_at)->format('M d, Y h:i A') }}</span></div>
+        @if($employeeName = $order->responsibleEmployeeName())
+            <div class="flex justify-between"><span>Employee</span><span>{{ $employeeName }}</span></div>
+        @endif
         <div class="flex justify-between"><span>Customer</span><span>{{ $order->customer?->name }}</span></div>
         <div class="flex justify-between"><span>Transaction</span><span>{{ $order->transaction_type === 'delivery' ? 'Delivery / Pick-up' : 'Walk-in / Drop Off' }}</span></div>
     </div>
