@@ -314,8 +314,176 @@
       transform: translateY(-1px);
       box-shadow: 0 10px 20px -12px rgba(0,0,0,.3);
     }
-    .dl-btn:active { transform: translateY(0); }
-    .dl-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    /* ---- actions group (print & download) ---- */
+    .actions-group {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      width: 100%;
+      margin-top: 4px;
+    }
+    .print-btn {
+      color: #04121A;
+      background: linear-gradient(145deg, #7FE7FF, #3DE0C0);
+      border: 1px solid #35C4A8;
+    }
+    .print-btn:hover {
+      background: #8BF0FF;
+      color: #04121A;
+      box-shadow: 0 10px 20px -12px rgba(61,224,192,.6);
+    }
+    .print-btn svg {
+      stroke: #04121A;
+    }
+    .printer-badge {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--slate);
+      margin-top: -6px;
+      opacity: .85;
+    }
+
+    /* ---- VOZY P50 THERMAL PRINT CONFIGURATION (57mm x 50mm) ---- */
+    @page {
+      size: 57mm 50mm;
+      margin: 0;
+    }
+
+    .waybill-card {
+      display: none;
+    }
+
+    @media print {
+      *, *::before, *::after {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        box-sizing: border-box !important;
+      }
+      html, body {
+        width: 57mm !important;
+        height: 50mm !important;
+        max-width: 57mm !important;
+        max-height: 50mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        background: #FFFFFF !important;
+        color: #000000 !important;
+        display: block !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+      }
+      body::after {
+        display: none !important;
+      }
+      .card {
+        display: none !important;
+      }
+      .waybill-card {
+        display: flex !important;
+        width: 57mm !important;
+        height: 50mm !important;
+        max-width: 57mm !important;
+        max-height: 50mm !important;
+        padding: 1.2mm !important;
+        margin: 0 !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        box-sizing: border-box !important;
+        background: #FFFFFF !important;
+        color: #000000 !important;
+        overflow: hidden !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        page-break-before: avoid !important;
+        break-before: avoid !important;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+      }
+      .wb-frame {
+        width: 100% !important;
+        height: 100% !important;
+        border: 1.2px solid #000000 !important;
+        border-radius: 1.8mm !important;
+        padding: 1.2mm 1.4mm !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        text-align: center !important;
+        box-sizing: border-box !important;
+      }
+      .wb-header {
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+      }
+      .wb-store {
+        font-size: 8pt !important;
+        font-weight: 800 !important;
+        line-height: 1.15 !important;
+        text-transform: uppercase !important;
+        letter-spacing: -0.01em !important;
+        color: #000000 !important;
+        display: -webkit-box !important;
+        -webkit-line-clamp: 2 !important;
+        -webkit-box-orient: vertical !important;
+        overflow: hidden !important;
+      }
+      .wb-tag {
+        font-size: 5pt !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.08em !important;
+        text-transform: uppercase !important;
+        color: #000000 !important;
+        margin-top: 0.3mm !important;
+      }
+      .wb-divider {
+        width: 100% !important;
+        border-bottom: 0.8px dashed #000000 !important;
+        margin: 0.5mm 0 !important;
+      }
+      .wb-body {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        flex: 1 !important;
+      }
+      .wb-qr {
+        width: 25.5mm !important;
+        height: 25.5mm !important;
+        max-width: 25.5mm !important;
+        max-height: 25.5mm !important;
+        display: block !important;
+        object-fit: contain !important;
+        image-rendering: pixelated !important;
+        image-rendering: -moz-crisp-edges !important;
+        image-rendering: crisp-edges !important;
+      }
+      .wb-footer {
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+      }
+      .wb-apps {
+        font-size: 5.8pt !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.02em !important;
+        text-transform: uppercase !important;
+        color: #000000 !important;
+      }
+      .wb-hint {
+        font-size: 4.8pt !important;
+        font-weight: 600 !important;
+        color: #111111 !important;
+        margin-top: 0.3mm !important;
+      }
+    }
 
     /* ---- responsive (same as original) ---- */
     @media (max-width:980px) {
@@ -399,11 +567,18 @@
     <p class="store">{{ $branchName ?? $appBusinessName }}</p>
     <p class="hint">Scan the code to pay. Amount is entered in your app.</p>
 
-    <!-- DOWNLOAD BUTTON (added) -->
-    <a id="downloadQrBtn" class="dl-btn" download="{{ $qrDownload ?? 'QR.png' }}" href="#">
-      <svg viewBox="0 0 24 24"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="8 12 12 16 16 12"/><line x1="12" y1="2" x2="12" y2="16"/></svg>
-      Download QR
-    </a>
+    <!-- ACTIONS: PRINT WAYBILL (VOZY P50) & DOWNLOAD -->
+    <div class="actions-group">
+      <button type="button" id="printWaybillBtn" class="dl-btn print-btn" onclick="window.print()" title="Print waybill label for VOZY P50 (57mm x 50mm)">
+        <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Print Waybill
+      </button>
+      <a id="downloadQrBtn" class="dl-btn" download="{{ $qrDownload ?? 'QR.png' }}" href="#">
+        <svg viewBox="0 0 24 24"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><polyline points="8 12 12 16 16 12"/><line x1="12" y1="2" x2="12" y2="16"/></svg>
+        Download QR
+      </a>
+    </div>
+    <span class="printer-badge">Ready for VOZY P50 &bull; 57&times;50mm</span>
 
     <details class="steps" id="steps">
       <summary>
@@ -423,6 +598,25 @@
     <p class="foot">Powered by QRPH</p>
   </section>
 </main>
+
+<!-- THERMAL WAYBILL PRINT TEMPLATE (VOZY P50: 57mm x 50mm) -->
+<div class="waybill-card" id="waybillCard" aria-hidden="true">
+  <div class="wb-frame">
+    <div class="wb-header">
+      <div class="wb-store">{{ $branchName ?? $appBusinessName }}</div>
+      <div class="wb-tag">Official Payment Waybill &bull; QRPH</div>
+    </div>
+    <div class="wb-divider"></div>
+    <div class="wb-body">
+      <img id="waybillQrImage" class="wb-qr" src="{{ asset($qrImage ?? 'uploads/pay.png') }}" alt="QR Code for {{ $branchName ?? $appBusinessName }}">
+    </div>
+    <div class="wb-divider"></div>
+    <div class="wb-footer">
+      <div class="wb-apps">GCash &bull; Maya &bull; QRPH Banks</div>
+      <div class="wb-hint">Scan with camera or e-wallet to pay</div>
+    </div>
+  </div>
+</div>
 
 <script>
   (function() {
@@ -455,9 +649,13 @@
     // Function to set the download link
     function setDownloadLink() {
       var url = getImageUrl();
+      var wbQr = document.getElementById('waybillQrImage');
       if (url && url !== '#') {
         downloadBtn.href = url;
         downloadBtn.download = @json($qrDownload ?? 'QR.png');
+        if (wbQr && wbQr.getAttribute('src') !== url) {
+          wbQr.src = url;
+        }
       } else {
         // Fallback: if no valid URL, we'll try to use canvas to generate
         // But we keep it simple
@@ -484,6 +682,10 @@
       mutations.forEach(function(mutation) {
         if (mutation.attributeName === 'src') {
           setDownloadLink();
+          var wbQr = document.getElementById('waybillQrImage');
+          if (wbQr && qrImg) {
+            wbQr.src = qrImg.src;
+          }
         }
       });
     });

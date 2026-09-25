@@ -5,17 +5,22 @@
 @section('content')
 @php($dateRangeValue = request('date_range') ?: ($dateFrom && $dateTo ? $dateFrom.' to '.$dateTo : ''))
 <style>
+    @page {
+        size: 57mm 50mm;
+        margin: 0;
+    }
     @media print {
         body * { visibility: hidden !important; }
         .receipt-print-area, .receipt-print-area * { visibility: visible !important; }
         .receipt-print-area {
             left: 0 !important;
             margin: 0 auto !important;
-            max-width: 420px !important;
+            max-width: 57mm !important;
             position: absolute !important;
             right: 0 !important;
             top: 0 !important;
-            width: 100% !important;
+            width: 57mm !important;
+            padding: 0 !important;
         }
         .receipt-print-actions { display: none !important; }
     }

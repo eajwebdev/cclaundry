@@ -6,9 +6,25 @@
     <title>{{ $order->job_order_number }} Receipt</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
+        @page {
+            size: 57mm 50mm;
+            margin: 0;
+        }
         @media print {
             .no-print { display: none !important; }
-            body { background: white !important; }
+            html, body {
+                background: white !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 57mm !important;
+            }
+            main {
+                max-width: 57mm !important;
+                width: 57mm !important;
+                margin: 0 auto !important;
+                padding: 0 !important;
+                min-height: 0 !important;
+            }
             .receipt { box-shadow: none !important; border: 0 !important; }
         }
     </style>
