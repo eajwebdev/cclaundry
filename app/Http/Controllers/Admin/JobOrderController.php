@@ -1074,11 +1074,42 @@ class JobOrderController extends Controller
                 continue;
             }
 
+            $hasPlasticBagUsage = false;
+
             foreach ($service->inventoryUsages as $usage) {
                 $inventory = $this->productionInventoryForUsage($order, $usage);
 
+                if (InventoryConsumption::isPlasticBag($inventory->sku, $inventory->name)) {
+                    $hasPlasticBagUsage = true;
+                }
+
                 $deductions[$inventory->id] = ($deductions[$inventory->id] ?? 0)
                     + InventoryConsumption::forOrderLine($service, $usage, (float) $item['quantity']);
+            }
+
+            // For Regular Laundry, ensure 1 plastic bag is consumed per load even if
+            // the service recipe in this branch does not have it explicitly attached yet.
+            if (InventoryConsumption::isRegularLaundry($service) && ! $hasPlasticBagUsage) {
+                $productionBranchId = (int) ($order->processing_branch_id ?: $order->branch_id);
+                $plasticInventory = Inventory::query()
+                    ->where('branch_id', $productionBranchId)
+                    ->where('is_active', true)
+                    ->where(function ($query) {
+                        $query->where('sku', 'like', 'PKG-PLASTIC%')
+                            ->orWhere('sku', 'PKG-LAUNDRY-BAG')
+                            ->orWhere('name', 'like', '%plastic%')
+                            ->orWhere('name', 'like', '%bag%');
+                    })
+                    ->orderByRaw("CASE WHEN sku = 'PKG-PLASTIC' OR name = 'Plastic Packaging' THEN 0 WHEN sku = 'PKG-LAUNDRY-BAG' OR name = 'Laundry Bag' THEN 1 ELSE 2 END")
+                    ->first();
+
+                if ($plasticInventory) {
+                    $virtualUsage = new \App\Models\ServiceInventoryUsage(['quantity' => 1]);
+                    $virtualUsage->setRelation('inventory', $plasticInventory);
+
+                    $deductions[$plasticInventory->id] = ($deductions[$plasticInventory->id] ?? 0)
+                        + InventoryConsumption::forOrderLine($service, $virtualUsage, (float) $item['quantity']);
+                }
             }
         }
 

@@ -148,8 +148,8 @@
                 <a href="{{ route('admin.inventory.index', ['branch_id' => $service->branch_id ?: $selectedBranchId]) }}" target="_blank" class="text-xs font-medium text-primary hover:underline">View Inventory</a>
             </div>
             <p class="text-xs text-muted">Quantity deducted from stock for every 1 service quantity sold. Leave zero when no stock is consumed.</p>
-            @if(mb_strtolower(trim((string) $service->name)) === 'regular laundry')
-                <p class="mt-1 text-xs font-medium text-primary">Regular Laundry uses the configured 5 kg detergent/fabric-conditioner weight formula.</p>
+            @if(\App\Support\InventoryConsumption::isRegularLaundry($service))
+                <p class="mt-1 text-xs font-medium text-primary">Regular Laundry uses the configured formula: Detergent 40 ml (+5 ml every 1 kg after 5 kg), Fabcon 20 ml (5 kg), 25 ml (6&ndash;7 kg), 30 ml (8 kg+), and 1 plastic bag.</p>
             @endif
         </div>
         {{-- The stock listed is this page's branch. A new service placed in

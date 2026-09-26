@@ -29,41 +29,6 @@
             justify-content: center !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
         }
-        /* Neutralize parent modal wrappers in index & show during print */
-        div[x-show*="receiptOpen"],
-        div[x-show*="receiptOpen"] > div {
-            position: static !important;
-            transform: none !important;
-            filter: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            width: 58mm !important;
-            max-width: 58mm !important;
-            min-width: 0 !important;
-            background: transparent !important;
-            box-shadow: none !important;
-            border: 0 !important;
-            overflow: visible !important;
-            display: block !important;
-        }
-        .receipt-print-area {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            width: 58mm !important;
-            max-width: 58mm !important;
-            margin: 0 auto !important;
-            padding: 0 !important;
-            display: flex !important;
-            justify-content: center !important;
-            align-items: flex-start !important;
-            background: #ffffff !important;
-            z-index: 999999 !important;
-        }
-        .receipt-print-actions {
-            display: none !important;
-        }
         .receipt {
             width: 52mm !important;
             max-width: 52mm !important;

@@ -27,6 +27,7 @@ class DefaultServiceInventoryUsages
             'Regular Laundry' => [
                 'Detergent Powder' => 0.04,
                 'Fabric Conditioner' => 0.02,
+                'Plastic Packaging' => 1,
             ],
             'Uniform Steaming (Kids)' => ['Hanger' => 1],
             'Uniform Steaming (Adult)' => ['Hanger' => 1],
@@ -47,8 +48,7 @@ class DefaultServiceInventoryUsages
 
         $inventory = Inventory::query()
             ->where('branch_id', $branch->id)
-            ->get()
-            ->keyBy('name');
+            ->get();
 
         foreach (self::rules() as $serviceName => $items) {
             $service = $services->get($serviceName);
@@ -57,12 +57,16 @@ class DefaultServiceInventoryUsages
                 continue;
             }
 
+            $syncedInventoryIds = [];
+
             foreach ($items as $inventoryName => $quantity) {
-                $stock = $inventory->get($inventoryName);
+                $stock = self::findStockForBranch($inventory, $inventoryName);
 
                 if (! $stock) {
                     continue;
                 }
+
+                $syncedInventoryIds[] = $stock->id;
 
                 ServiceInventoryUsage::updateOrCreate(
                     [
@@ -72,16 +76,21 @@ class DefaultServiceInventoryUsages
                     ['quantity' => $quantity]
                 );
             }
-
-            $validInventoryIds = collect($items)
-                ->keys()
-                ->map(fn (string $inventoryName) => $inventory->get($inventoryName)?->id)
-                ->filter()
-                ->values();
-
-            $service->inventoryUsages()
-                ->whereNotIn('inventory_id', $validInventoryIds)
-                ->delete();
         }
+    }
+
+    private static function findStockForBranch($inventoryCollection, string $preferredName): ?Inventory
+    {
+        $direct = $inventoryCollection->firstWhere('name', $preferredName);
+        if ($direct) {
+            return $direct;
+        }
+
+        return match ($preferredName) {
+            'Detergent Powder' => $inventoryCollection->first(fn ($item) => InventoryConsumption::isDetergent($item->sku, $item->name)),
+            'Fabric Conditioner' => $inventoryCollection->first(fn ($item) => InventoryConsumption::isFabricConditioner($item->sku, $item->name)),
+            'Plastic Packaging' => $inventoryCollection->first(fn ($item) => InventoryConsumption::isPlasticBag($item->sku, $item->name)),
+            default => null,
+        };
     }
 }

@@ -103,7 +103,41 @@
             @endunless
         </div>
     </div>
+<script>
+    window.printThermalReceipt = function(url) {
+        if (!url) return;
+        let frame = document.getElementById('receipt-thermal-print-frame');
+        if (!frame) {
+            frame = document.createElement('iframe');
+            frame.id = 'receipt-thermal-print-frame';
+            frame.style.position = 'fixed';
+            frame.style.top = '-9999px';
+            frame.style.left = '-9999px';
+            frame.style.width = '58mm';
+            frame.style.height = '100px';
+            frame.style.border = '0';
+            frame.style.opacity = '0';
+            frame.style.pointerEvents = 'none';
+            document.body.appendChild(frame);
+        }
 
+        let isHandled = false;
+        frame.onload = function() {
+            if (isHandled) return;
+            isHandled = true;
+            setTimeout(function() {
+                try {
+                    frame.contentWindow.focus();
+                    frame.contentWindow.print();
+                } catch (e) {
+                    window.open(url, '_blank');
+                }
+            }, 300);
+        };
+
+        frame.src = url;
+    };
+</script>
 @stack('scripts')
 @if($isPos)
 <script>

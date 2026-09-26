@@ -11,9 +11,22 @@
     }
     @media print {
         body * { visibility: hidden !important; }
-        .receipt-print-area, .receipt-print-area * { visibility: visible !important; }
-        div[x-show*="receiptOpen"],
-        div[x-show*="receiptOpen"] > div {
+        .receipt-modal:not(.is-active-receipt),
+        .receipt-modal:not(.is-active-receipt) *,
+        [x-cloak],
+        [style*="display: none"],
+        [style*="display:none"],
+        [style*="display: none"] *,
+        [style*="display:none"] * {
+            display: none !important;
+            visibility: hidden !important;
+        }
+        .is-active-receipt,
+        .is-active-receipt .receipt-print-area,
+        .is-active-receipt .receipt-print-area * {
+            visibility: visible !important;
+        }
+        .is-active-receipt {
             position: static !important;
             transform: none !important;
             filter: none !important;
@@ -28,7 +41,20 @@
             overflow: visible !important;
             display: block !important;
         }
-        .receipt-print-area {
+        .is-active-receipt > div {
+            position: static !important;
+            transform: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 58mm !important;
+            max-width: 58mm !important;
+            box-shadow: none !important;
+            border: 0 !important;
+            background: transparent !important;
+            overflow: visible !important;
+            display: block !important;
+        }
+        .is-active-receipt .receipt-print-area {
             position: fixed !important;
             left: 0 !important;
             right: 0 !important;
@@ -580,12 +606,15 @@
             </div>
         @endif
 
-        <div x-cloak x-show="receiptOpen === {{ $order->id }}" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div x-cloak x-show="receiptOpen === {{ $order->id }}"
+             :class="{ 'is-active-receipt': receiptOpen === {{ $order->id }} }"
+             class="receipt-modal fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
             <div @click.outside="receiptOpen = null" class="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-4 shadow-2xl dark:bg-gray-900">
                 <div class="receipt-print-actions mb-3 flex items-center justify-between gap-2">
                     <h2 class="inline-flex min-w-0 items-center gap-2 text-sm font-semibold"><span data-lucide="receipt" class="h-4 w-4 text-primary"></span><span class="truncate">{{ $order->job_order_number }} Receipt</span></h2>
                     <div class="flex gap-2">
-                        <button type="button" onclick="window.print()" class="inline-flex h-8 items-center gap-2 rounded-md bg-primary px-3 text-xs font-medium text-white hover:opacity-90"><span data-lucide="printer" class="h-3.5 w-3.5"></span>Print</button>
+                        <button type="button" onclick="printThermalReceipt('{{ route('admin.job-orders.receipt', $order) }}')" class="inline-flex h-8 items-center gap-2 rounded-md bg-primary px-3 text-xs font-medium text-white hover:opacity-90"><span data-lucide="printer" class="h-3.5 w-3.5"></span>Print</button>
+                        <a href="{{ route('admin.job-orders.receipt', $order) }}" target="_blank" title="Open receipt in dedicated tab" class="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium hover:bg-smoke dark:border-gray-800 dark:hover:bg-gray-950"><span data-lucide="external-link" class="h-3.5 w-3.5"></span>Tab</a>
                         <button type="button" @click="receiptOpen = null" class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-smoke dark:border-gray-800 dark:hover:bg-gray-950"><span data-lucide="x" class="h-4 w-4"></span></button>
                     </div>
                 </div>

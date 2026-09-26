@@ -31,9 +31,9 @@ class ServiceCategories
 
         return match (true) {
             str_contains($name, 'dry') && (str_contains($name, 'extend') || str_contains($name, 'extra')) => 'dry_extend',
-            str_contains($name, 'fabcon'), str_contains($name, 'fabric conditioner') => 'fabcon',
+            str_contains($name, 'fabcon'), str_contains($name, 'fabric conditioner'), str_contains($name, 'fab con'), str_contains($name, 'yen yen') => 'fabcon',
             str_contains($name, 'finishing spray') => 'finishing_spray',
-            str_contains($name, 'detergent') => 'detergent',
+            str_contains($name, 'detergent'), str_contains($name, 'mrs bloom'), str_contains($name, 'mrs. bloom') => 'detergent',
             str_contains($name, 'delivery'), str_contains($name, 'pickup') => 'delivery',
             str_contains($name, 'small machine') => 'small',
             str_contains($name, 'big machine') => 'big',
