@@ -1197,7 +1197,7 @@ class ExampleTest extends TestCase
             ->assertSee('lg:grid-cols-5', false)
             ->assertSee('Beginning comes from the previous Z Reading ending')
             ->assertSeeInOrder(['Daily Operations Summary', 'Cash Count', 'Machine Counter Readings'])
-            ->assertSeeInOrder(['Wash 1', 'Wash 5', 'Dry 1', 'Dry 5'])
+            ->assertSeeInOrder(['Dry 5', 'Dry 1', 'Wash 5', 'Wash 1'])
             ->assertSee('aria-label="Beginning Wash 1"', false)
             ->assertSee('disabled', false)
             ->assertSee('5055')

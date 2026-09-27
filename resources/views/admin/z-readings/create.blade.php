@@ -186,40 +186,48 @@
                         <h2 class="text-base font-semibold">Machine Counter Readings</h2>
                         <p class="text-xs text-muted">Beginning comes from the previous Z Reading ending; ending is auto-computed from detected cycles for the selected date.</p>
                     </div>
-                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                        @foreach(['wash' => 'Wash', 'dry' => 'Dry'] as $type => $label)
-                            @for($machine = 1; $machine <= $machineCount; $machine++)
-                                <div class="overflow-hidden rounded-md border border-border dark:border-gray-800">
-                                    <div class="bg-smoke px-3 py-2 text-center text-xs font-semibold uppercase dark:bg-gray-950">{{ $label }} {{ $machine }}</div>
-                                    <div class="grid grid-cols-2 gap-2 p-2">
-                                        @foreach(['beginning' => 'Beginning', 'ending' => 'Ending'] as $field => $fieldLabel)
-                                            <label>
-                                                <span class="text-[11px] font-medium uppercase text-muted">{{ $fieldLabel }}</span>
-                                                @if($field === 'beginning')
-                                                    <input type="hidden" name="machine_counters[{{ $machine }}][{{ $type }}][{{ $field }}]" x-model.number="machineCounters['{{ $machine }}']['{{ $type }}']['{{ $field }}']">
-                                                    <input
-                                                        x-model.number="machineCounters['{{ $machine }}']['{{ $type }}']['{{ $field }}']"
-                                                        type="number"
-                                                        min="0"
-                                                        step="1"
-                                                        inputmode="numeric"
-                                                        disabled
-                                                        class="mt-1 h-9 w-full rounded-md border border-border bg-smoke px-2 text-right text-sm font-semibold text-muted dark:border-gray-800 dark:bg-gray-950"
-                                                        aria-label="{{ $fieldLabel }} {{ $label }} {{ $machine }}"
-                                                    >
-                                                @else
-                                                    <input type="hidden" name="machine_counters[{{ $machine }}][{{ $type }}][{{ $field }}]" x-model.number="machineCounters['{{ $machine }}']['{{ $type }}']['{{ $field }}']">
-                                                    <div class="mt-1 h-9 rounded-md border border-border bg-smoke px-2 py-2 text-right text-sm font-semibold dark:border-gray-800 dark:bg-gray-950" x-text="machineCounters['{{ $machine }}']['{{ $type }}']['{{ $field }}']"></div>
-                                                @endif
-                                            </label>
-                                        @endforeach
-                                    </div>
-                                    <div class="flex justify-between border-t border-border bg-blue-50 px-3 py-2 text-xs font-semibold dark:border-gray-800 dark:bg-blue-950/30">
-                                        <span>Total {{ $label }} Cycle</span>
-                                        <span x-text="cycleTotal('{{ $machine }}', '{{ $type }}')"></span>
-                                    </div>
+                    <div class="space-y-4">
+                        @foreach(['dry' => 'Dry', 'wash' => 'Wash'] as $type => $label)
+                            <div>
+                                <div class="mb-2 flex items-center gap-1.5 sm:gap-2">
+                                    <span class="h-2 w-2 rounded-full sm:h-2.5 sm:w-2.5 {{ $type === 'wash' ? 'bg-sky-500' : 'bg-violet-500' }}"></span>
+                                    <h3 class="text-xs font-semibold uppercase tracking-[0.12em] text-muted sm:text-sm sm:tracking-[0.14em]">{{ $label }} Machines</h3>
                                 </div>
-                            @endfor
+                                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                                    @for($machine = $machineCount; $machine >= 1; $machine--)
+                                        <div class="overflow-hidden rounded-md border border-border dark:border-gray-800">
+                                            <div class="bg-smoke px-3 py-2 text-center text-xs font-semibold uppercase dark:bg-gray-950">{{ $label }} {{ $machine }}</div>
+                                            <div class="grid grid-cols-2 gap-2 p-2">
+                                                @foreach(['beginning' => 'Beginning', 'ending' => 'Ending'] as $field => $fieldLabel)
+                                                    <label>
+                                                        <span class="text-[11px] font-medium uppercase text-muted">{{ $fieldLabel }}</span>
+                                                        @if($field === 'beginning')
+                                                            <input type="hidden" name="machine_counters[{{ $machine }}][{{ $type }}][{{ $field }}]" x-model.number="machineCounters['{{ $machine }}']['{{ $type }}']['{{ $field }}']">
+                                                            <input
+                                                                x-model.number="machineCounters['{{ $machine }}']['{{ $type }}']['{{ $field }}']"
+                                                                type="number"
+                                                                min="0"
+                                                                step="1"
+                                                                inputmode="numeric"
+                                                                disabled
+                                                                class="mt-1 h-9 w-full rounded-md border border-border bg-smoke px-2 text-right text-sm font-semibold text-muted dark:border-gray-800 dark:bg-gray-950"
+                                                                aria-label="{{ $fieldLabel }} {{ $label }} {{ $machine }}"
+                                                            >
+                                                        @else
+                                                            <input type="hidden" name="machine_counters[{{ $machine }}][{{ $type }}][{{ $field }}]" x-model.number="machineCounters['{{ $machine }}']['{{ $type }}']['{{ $field }}']">
+                                                            <div class="mt-1 h-9 rounded-md border border-border bg-smoke px-2 py-2 text-right text-sm font-semibold dark:border-gray-800 dark:bg-gray-950" x-text="machineCounters['{{ $machine }}']['{{ $type }}']['{{ $field }}']"></div>
+                                                        @endif
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                            <div class="flex justify-between border-t border-border bg-blue-50 px-3 py-2 text-xs font-semibold dark:border-gray-800 dark:bg-blue-950/30">
+                                                <span>Total {{ $label }} Cycle</span>
+                                                <span x-text="cycleTotal('{{ $machine }}', '{{ $type }}')"></span>
+                                            </div>
+                                        </div>
+                                    @endfor
+                                </div>
+                            </div>
                         @endforeach
                     </div>
                 </div>

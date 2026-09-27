@@ -206,21 +206,7 @@
 <table>
     <tr>
         <td class="no-border" style="width:50%; padding-right:6px;">
-            @for($machine = 1; $machine <= $machineCount; $machine++)
-                @php
-                    $counter = data_get($reading->machine_counters, $machine.'.wash', []);
-                    $systemCycles = (int) $machineCycles->where('machine_number', $machine)->where('cycle_type', 'wash')->sum('cycle_count');
-                @endphp
-                <table class="machine">
-                    <tr><th colspan="2">Wash {{ $machine }}</th></tr>
-                    <tr><td>Wash Beginning</td><td class="right">{{ $counter['beginning'] ?? '' }}</td></tr>
-                    <tr><td>Wash Ending</td><td class="right">{{ $counter['ending'] ?? '' }}</td></tr>
-                    <tr class="blue"><td>Total Wash Cycle</td><td class="right">{{ $counter['total'] ?? $systemCycles }}</td></tr>
-                </table>
-            @endfor
-        </td>
-        <td class="no-border" style="width:50%; padding-left:6px;">
-            @for($machine = 1; $machine <= $machineCount; $machine++)
+            @for($machine = $machineCount; $machine >= 1; $machine--)
                 @php
                     $counter = data_get($reading->machine_counters, $machine.'.dry', []);
                     $systemCycles = (int) $machineCycles->where('machine_number', $machine)->where('cycle_type', 'dry')->sum('cycle_count');
@@ -233,12 +219,26 @@
                 </table>
             @endfor
         </td>
+        <td class="no-border" style="width:50%; padding-left:6px;">
+            @for($machine = $machineCount; $machine >= 1; $machine--)
+                @php
+                    $counter = data_get($reading->machine_counters, $machine.'.wash', []);
+                    $systemCycles = (int) $machineCycles->where('machine_number', $machine)->where('cycle_type', 'wash')->sum('cycle_count');
+                @endphp
+                <table class="machine">
+                    <tr><th colspan="2">Wash {{ $machine }}</th></tr>
+                    <tr><td>Wash Beginning</td><td class="right">{{ $counter['beginning'] ?? '' }}</td></tr>
+                    <tr><td>Wash Ending</td><td class="right">{{ $counter['ending'] ?? '' }}</td></tr>
+                    <tr class="blue"><td>Total Wash Cycle</td><td class="right">{{ $counter['total'] ?? $systemCycles }}</td></tr>
+                </table>
+            @endfor
+        </td>
     </tr>
 </table>
 
 <table style="margin-top:5px;">
-    <tr class="total"><td>Total Wash Cycle</td><td class="right">{{ number_format((int) (collect($reading->machine_counters)->sum(fn ($counter) => data_get($counter, 'wash.total', 0)) ?: $machineCycles->where('cycle_type', 'wash')->sum('cycle_count'))) }}</td></tr>
     <tr class="total"><td>Total Dry Cycle</td><td class="right">{{ number_format((int) (collect($reading->machine_counters)->sum(fn ($counter) => data_get($counter, 'dry.total', 0)) ?: $machineCycles->where('cycle_type', 'dry')->sum('cycle_count'))) }}</td></tr>
+    <tr class="total"><td>Total Wash Cycle</td><td class="right">{{ number_format((int) (collect($reading->machine_counters)->sum(fn ($counter) => data_get($counter, 'wash.total', 0)) ?: $machineCycles->where('cycle_type', 'wash')->sum('cycle_count'))) }}</td></tr>
 </table>
 
 <table style="margin-top:8px;">
