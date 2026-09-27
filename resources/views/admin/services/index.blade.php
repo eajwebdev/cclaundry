@@ -42,8 +42,8 @@
     </div>
 
     <div class="rounded-lg border border-border bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <form method="GET" action="{{ route('admin.services.index') }}" class="grid grid-cols-1 gap-2 md:grid-cols-[1fr_11rem_10rem_9rem_auto]">
-            <div class="flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 dark:border-gray-800 dark:bg-gray-950">
+        <form method="GET" action="{{ route('admin.services.index') }}" class="flex flex-wrap items-center gap-2">
+            <div class="flex h-9 min-w-[200px] flex-1 items-center gap-2 rounded-md border border-border bg-white px-3 dark:border-gray-800 dark:bg-gray-950">
                 <span data-lucide="search" class="h-4 w-4 text-muted"></span>
                 <input name="search" value="{{ request('search') }}" type="search" placeholder="Search services..." class="w-full bg-transparent text-sm outline-none">
             </div>
@@ -58,6 +58,13 @@
                 <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id }}">
             @endif
 
+            <select name="category_id" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+                <option value="">All categories</option>
+                @foreach($serviceCategories as $category)
+                    <option value="{{ $category->id }}" @selected((string) request('category_id') === (string) $category->id)>{{ $category->name }}</option>
+                @endforeach
+            </select>
+
             <select name="pricing_type" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
                 <option value="">All types</option>
                 @foreach(['kilo', 'load', 'piece', 'custom'] as $type)
@@ -65,10 +72,23 @@
                 @endforeach
             </select>
 
+            <select name="landing" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+                <option value="">Landing: All</option>
+                <option value="yes" @selected(request('landing') === 'yes')>On Landing Page</option>
+                <option value="no" @selected(request('landing') === 'no')>Internal Only</option>
+            </select>
+
             <select name="status" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
                 <option value="">All status</option>
                 <option value="active" @selected(request('status') === 'active')>Active</option>
                 <option value="inactive" @selected(request('status') === 'inactive')>Inactive</option>
+            </select>
+
+            <select name="per_page" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950" onchange="this.form.submit()">
+                <option value="25" @selected((int) request('per_page', 50) === 25)>25 per page</option>
+                <option value="50" @selected((int) request('per_page', 50) === 50)>50 per page</option>
+                <option value="100" @selected((int) request('per_page', 50) === 100)>100 per page</option>
+                <option value="all" @selected(request('per_page') === 'all')>Show all</option>
             </select>
 
             <button type="submit" title="Filter" aria-label="Filter services" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border hover:bg-smoke dark:border-gray-800 dark:hover:bg-gray-950">
@@ -147,6 +167,13 @@
     </div>
 
     <div class="overflow-hidden rounded-lg border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div class="flex items-center justify-between border-b border-border px-4 py-3 dark:border-gray-800">
+            <div>
+                <h2 class="text-sm font-semibold">Services & Add-ons</h2>
+                <p class="text-xs text-muted">Complete pricing catalog including base laundry services and add-ons.</p>
+            </div>
+            <span class="text-xs text-muted">{{ $services->total() }} service{{ $services->total() === 1 ? '' : 's' }}</span>
+        </div>
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead class="border-b border-border bg-smoke text-xs uppercase text-muted dark:border-gray-800 dark:bg-gray-950">
@@ -185,7 +212,7 @@
                             <td class="px-4 py-3">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $service->price, 2) }}</td>
                             <td class="px-4 py-3">
                                 <span class="{{ \App\Support\StatusBadge::classes($service->is_active ? 'active' : 'inactive') }}">
-                                    {{ $service->is_active ? 'Active' : 'Inactive' }}
+                                     {{ $service->is_active ? 'Active' : 'Inactive' }}
                                 </span>
                             </td>
                             <td class="px-4 py-3 text-right">
@@ -208,7 +235,12 @@
                 </tbody>
             </table>
         </div>
-        <div class="border-t border-border px-4 py-3 dark:border-gray-800">{{ $services->links() }}</div>
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between border-t border-border px-4 py-3 gap-2 dark:border-gray-800">
+            <div class="text-xs text-muted">
+                Showing {{ $services->firstItem() ?? 0 }} to {{ $services->lastItem() ?? 0 }} of {{ $services->total() }} services
+            </div>
+            <div>{{ $services->links() }}</div>
+        </div>
     </div>
 
     <div x-cloak x-show="createOpen" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

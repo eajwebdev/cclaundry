@@ -35,13 +35,19 @@ class LaundryServiceController extends Controller
             ? ($request->integer('branch_id') ?: $branches->first()?->id)
             : $user->branch_id;
 
-        $services = LaundryService::with(['branch', 'inventoryUsages'])
+        $perPage = $request->input('per_page') === 'all'
+            ? 500
+            : max(10, min(100, $request->integer('per_page', 50)));
+
+        $services = LaundryService::with(['branch', 'serviceCategory', 'inventoryUsages'])
             ->where('branch_id', $selectedBranchId)
+            ->when($request->filled('category_id'), fn ($query) => $query->where('service_category_id', $request->integer('category_id')))
+            ->when($request->filled('landing'), fn ($query) => $query->where('show_on_landing', $request->landing === 'yes'))
             ->when(in_array($request->pricing_type, self::PRICING_TYPES, true), fn ($query) => $query->where('pricing_type', $request->pricing_type))
             ->when(in_array($request->status, self::STATUS_FILTERS, true), fn ($query) => $query->where('is_active', $request->status === 'active'))
             ->when($request->filled('search'), fn ($query) => $query->where('name', 'like', "%{$request->search}%"))
             ->latest()
-            ->paginate(10)
+            ->paginate($perPage)
             ->withQueryString();
         $inventoryItems = Inventory::query()
             ->where('branch_id', $selectedBranchId)
