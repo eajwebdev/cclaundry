@@ -484,20 +484,23 @@ class DashboardController extends Controller
             ->whereDate('due_date', '<=', $dateTo)
             ->sum('balance');
 
-        $washing = (clone $orders)->where('status', 'washing')->count();
-        $drying = (clone $orders)->where('status', 'drying')->count();
-        $folding = (clone $orders)->where('status', 'folding')->count();
-        $readyPickup = (clone $orders)->where('status', 'ready_for_pickup')->count();
-        $readyDelivery = (clone $orders)->where('status', 'ready_for_delivery')->count();
+        $washing = (clone $ordersInRange)->where('status', 'washing')->count();
+        $drying = (clone $ordersInRange)->where('status', 'drying')->count();
+        $folding = (clone $ordersInRange)->where('status', 'folding')->count();
+        $readyPickup = (clone $ordersInRange)->where('status', 'ready_for_pickup')->count();
+        $readyDelivery = (clone $ordersInRange)->where('status', 'ready_for_delivery')->count();
         $completed = (clone $ordersInRange)->where('status', 'completed')->count();
         $cancelled = (clone $ordersInRange)->where('status', 'cancelled')->count();
-        $openCount = (clone $orders)->whereNotIn('status', ['completed', 'cancelled'])->count();
+        $openCount = (clone $ordersInRange)->whereNotIn('status', ['completed', 'cancelled'])->count();
 
         $finishedCount = $readyPickup + $readyDelivery;
         if ($finishedCount > 0) {
-            $actionNotice = "{$finishedCount} orders are finished and waiting to leave the shop. Send the rider for {$readyDelivery} deliveries and text {$readyPickup} customers to pick up.";
+            $deliveriesText = $readyDelivery === 1 ? '1 delivery' : "{$readyDelivery} deliveries";
+            $pickupsText = $readyPickup === 1 ? '1 customer' : "{$readyPickup} customers";
+            $ordersText = $finishedCount === 1 ? '1 order is' : "{$finishedCount} orders are";
+            $actionNotice = "{$ordersText} finished and waiting to leave the shop. Send the rider for {$deliveriesText} and text {$pickupsText} to pick up.";
         } else {
-            $actionNotice = "0 orders are finished and waiting to leave the shop. Send the rider for 0 deliveries and text 0 customers to pick up.";
+            $actionNotice = "No finished orders waiting to leave the shop right now.";
         }
 
         $cashDrawer = (float) $financial['expected_cash_drawer'];
@@ -580,7 +583,7 @@ class DashboardController extends Controller
             ->has('jobOrders', '>=', 3)
             ->count();
 
-        $recentOrders = (clone $orders)
+        $recentOrders = (clone $ordersInRange)
             ->with(['customer', 'branch'])
             ->latest()
             ->limit(8)

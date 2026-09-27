@@ -245,7 +245,7 @@
                     </div>
                 </div>
 
-                <div class="mt-4 text-[11px] text-[#8C827A] pt-2 border-t border-[#F2ECE3]" x-text="`Cancelled today: ${data.today.pipeline.cancelled_count} order`"></div>
+                <div class="mt-4 text-[11px] text-[#8C827A] pt-2 border-t border-[#F2ECE3]" x-text="`Cancelled today: ${data.today.pipeline.cancelled_count} ${data.today.pipeline.cancelled_count === 1 ? 'order' : 'orders'}`"></div>
             </div>
 
             {{-- Cash check at closing (4 cols) --}}
