@@ -4,809 +4,1176 @@
 
 @section('content')
 <div
-    x-data="dashboardPage(@js(route('dashboard.data', request()->query())), @js($dashboardData), @js($dateRangeValue))"
-    class="space-y-4"
+    x-data="dashboardPage(@js(route('dashboard.data', request()->query())), @js($dashboardData), @js($dateRangeValue), @js($activeTab), @js($currentPeriod))"
+    class="min-h-screen bg-[#F5F2EC] text-[#1E2024] p-4 sm:p-6 lg:p-8 space-y-6 rounded-2xl"
+    style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;"
 >
-    <div class="flex flex-col gap-3 rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 lg:flex-row lg:items-center lg:justify-between">
+    {{-- ============================================================== --}}
+    {{-- HEADER SECTION                                                 --}}
+    {{-- ============================================================== --}}
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-            <div class="mb-2 inline-flex items-center gap-1.5 rounded-md border border-border bg-smoke px-2.5 py-1 text-xs font-medium text-muted dark:border-gray-800 dark:bg-gray-950">
-                <span data-lucide="dashboard" class="h-3.5 w-3.5"></span>
-                {{ $canChooseBranch ? 'Executive overview' : 'Branch command center' }}
+            <div class="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.18em] text-[#8C827A] font-serif">
+                {{ $settings->business_name ?: 'CANES & COTTONS LAUNDRY' }}
             </div>
-            <h1 class="text-xl font-semibold tracking-normal">
-                {{ $canChooseBranch ? 'Business Dashboard' : auth()->user()->branch?->name.' Dashboard' }}
-            </h1>
-            <p class="text-sm text-muted">
-                Live sales, physical collections, workflow, receivables, and inventory signals.
-                <span class="ml-1" x-text="`Updated ${data.generated_at}`"></span>
-            </p>
+            <h1
+                class="text-2xl sm:text-3xl font-bold tracking-tight text-[#1E2024] mt-0.5"
+                style="font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;"
+                x-text="headerTitle"
+            ></h1>
+            <p class="text-xs text-[#7A726A] mt-1 font-normal" x-text="headerSubtitle"></p>
         </div>
 
-        <form method="GET" action="{{ route('dashboard') }}" class="grid grid-cols-1 gap-2 sm:grid-cols-[12rem_16rem_auto]">
-            @if($canChooseBranch)
-                <select name="branch_id" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
-                    <option value="">All branches</option>
-                    @foreach($branches as $branch)
-                        <option value="{{ $branch->id }}" @selected((int) $selectedBranchId === (int) $branch->id)>{{ $branch->name }}</option>
-                    @endforeach
-                </select>
-            @else
-                <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id }}">
-            @endif
-
-            <div class="flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 dark:border-gray-800 dark:bg-gray-950">
-                <span data-lucide="calendar" class="h-4 w-4 text-muted"></span>
-                <input x-ref="dateRange" x-model="dateRange" name="date_range" type="text" class="w-full bg-transparent text-sm outline-none" autocomplete="off">
-            </div>
-
-            <button class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:opacity-90">
-                <span data-lucide="search" class="h-4 w-4"></span>
-                Apply
-            </button>
-        </form>
-    </div>
-
-    <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7 sm:gap-3 lg:gap-3.5">
-        <template x-for="card in statCards" :key="card.key">
-            <div class="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-border bg-white p-3.5 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-gray-800 dark:bg-gray-900">
-                <div>
-                    <div class="flex items-center justify-between gap-1.5">
-                        <span class="truncate text-[10px] font-bold uppercase tracking-wider text-muted sm:text-[11px]" x-text="card.label"></span>
-                        <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:h-8 sm:w-8 sm:rounded-xl" :class="card.iconClass">
-                            <span :data-lucide="card.icon" class="h-3.5 w-3.5 sm:h-4 sm:w-4"></span>
+        {{-- Top Right Controls --}}
+        <div class="flex flex-wrap items-center gap-3">
+            {{-- TAB 1: Branch & Period Filters --}}
+            <template x-if="activeTab === 'today'">
+                <div class="flex flex-wrap items-center gap-3">
+                    @if($canChooseBranch)
+                        <div class="flex items-center gap-1.5 text-xs text-[#7A726A]">
+                            <span>Branch</span>
+                            <select
+                                name="branch_id"
+                                @change="changeBranch($event.target.value)"
+                                class="h-8 rounded-md border border-[#DCD6CC] bg-white px-2.5 text-xs font-medium text-[#1E2024] outline-none shadow-2xs"
+                            >
+                                <option value="">All branches</option>
+                                @foreach($branches as $branch)
+                                    <option value="{{ $branch->id }}" @selected((int) $selectedBranchId === (int) $branch->id)>{{ $branch->name }}</option>
+                                @endforeach
+                            </select>
                         </div>
-                    </div>
-                    <div class="mt-2.5 flex items-center justify-between gap-2 sm:mt-3">
-                        <div class="min-w-0">
-                            <p class="truncate text-xl font-extrabold tracking-tight text-dark dark:text-white sm:text-2xl leading-none" x-text="data.stats[card.key]"></p>
-                            <p class="mt-1 text-[9px] font-bold uppercase tracking-wider sm:text-[10px]" :class="card.subClass" x-text="card.subtitle"></p>
-                        </div>
-                        <div class="flex h-7 w-14 shrink-0 items-center justify-end sm:h-8 sm:w-16">
-                            <svg class="h-full w-full" viewBox="0 0 72 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path :d="card.sparkArea" :fill="card.sparkColor" fill-opacity="0.2"/>
-                                <path :d="card.sparkPath" :stroke="card.sparkColor" stroke-width="2" stroke-linecap="round"/>
-                                <circle :cx="card.sparkDotX" :cy="card.sparkDotY" r="2.5" :fill="card.sparkColor"/>
-                            </svg>
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-3.5 space-y-1.5 pt-1.5 border-t border-border/60 dark:border-gray-800/80">
-                    <div class="flex items-center justify-between text-[10px] sm:text-[11px]">
-                        <span class="text-muted" x-text="card.footerLabel"></span>
-                        <span class="font-bold" :class="card.subClass" x-text="card.footerVal"></span>
-                    </div>
-                    <div class="h-1.5 w-full overflow-hidden rounded-full" :class="card.trackClass">
-                        <div class="h-full rounded-full transition-all duration-300" :class="card.barClass" :style="`width: ${card.percent || 75}%;`"></div>
-                    </div>
-                </div>
-            </div>
-        </template>
-    </div>
+                    @endif
 
-    <div class="overflow-hidden rounded-lg border border-amber-200 bg-white shadow-sm dark:border-amber-900/60 dark:bg-gray-900">
-        <div class="flex flex-col gap-2 border-b border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/60 dark:bg-amber-500/10 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <h2 class="inline-flex items-center gap-2 text-base font-semibold text-amber-900 dark:text-amber-200">
-                    <span data-lucide="alert-triangle" class="h-4 w-4"></span>
-                    Low Stock Purchase List
-                </h2>
-                <p class="text-sm text-amber-800/80 dark:text-amber-300/80">The 10 most recently updated active items at or below their quantity alarm.</p>
-            </div>
-            @if(auth()->user()->hasMenuAccess('inventory'))
-                <a href="{{ route('admin.inventory.index', array_filter(['branch_id' => $selectedBranchId, 'stock_status' => 'low'])) }}" class="inline-flex h-8 items-center justify-center rounded-md border border-amber-300 bg-white px-3 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-gray-900 dark:text-amber-200">Manage stock</a>
-            @endif
-        </div>
-        <div class="grid gap-px bg-border dark:bg-gray-800 sm:grid-cols-2 xl:grid-cols-5">
-            <template x-for="item in data.low_stock_items" :key="item.id">
-                <div class="bg-white p-3 dark:bg-gray-900">
-                    <p class="truncate text-sm font-semibold" x-text="item.name"></p>
-                    <p class="truncate text-xs text-muted" x-text="`${item.branch} · ${item.supplier}`"></p>
-                    <p class="mt-2 text-sm font-bold text-red-700 dark:text-red-300">
-                        <span x-text="`${item.quantity} ${item.unit}`"></span>
-                        <span class="font-normal text-muted" x-text="` / alarm ${item.reorder_level}`"></span>
-                    </p>
+                    <div class="inline-flex items-center rounded-lg bg-[#EAE5DC] p-0.5 text-xs border border-[#DDD7CE]">
+                        <button
+                            type="button"
+                            @click="changePeriod('today')"
+                            :class="currentPeriod === 'today' ? 'bg-white text-[#1E2024] font-semibold shadow-xs' : 'text-[#7A726A] hover:text-[#1E2024] font-medium'"
+                            class="px-3 py-1 rounded-md transition-all"
+                        >Today</button>
+                        <button
+                            type="button"
+                            @click="changePeriod('this_week')"
+                            :class="currentPeriod === 'this_week' ? 'bg-white text-[#1E2024] font-semibold shadow-xs' : 'text-[#7A726A] hover:text-[#1E2024] font-medium'"
+                            class="px-3 py-1 rounded-md transition-all"
+                        >This week</button>
+                        <button
+                            type="button"
+                            @click="changePeriod('this_month')"
+                            :class="currentPeriod === 'this_month' ? 'bg-white text-[#1E2024] font-semibold shadow-xs' : 'text-[#7A726A] hover:text-[#1E2024] font-medium'"
+                            class="px-3 py-1 rounded-md transition-all"
+                        >This month</button>
+                    </div>
                 </div>
             </template>
-            <div x-show="data.low_stock_items.length === 0" class="bg-white p-6 text-center text-sm text-muted dark:bg-gray-900 sm:col-span-2 xl:col-span-5">All active inventory items are above their quantity alarms.</div>
+
+            {{-- TAB 2: Supplies Controls --}}
+            <template x-if="activeTab === 'supplies'">
+                <div class="flex items-center gap-3">
+                    <span class="text-[11px] text-[#6B21A8] bg-[#F3E8FF] border border-[#E9D5FF] px-2 py-0.5 rounded-full font-medium">Sample figures</span>
+                    <div class="h-8 rounded-md border border-[#DCD6CC] bg-white px-3 flex items-center text-xs font-medium text-[#1E2024] shadow-2xs" x-text="`${currentMonthYear} ▾`"></div>
+                    @if(auth()->user()->hasMenuAccess('inventory'))
+                        <a href="{{ route('admin.inventory.index') }}" class="inline-flex items-center gap-1 rounded-md bg-[#82573A] hover:bg-[#6E482E] text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors">
+                            + Record stock in
+                        </a>
+                    @endif
+                </div>
+            </template>
+
+            {{-- TAB 3: Monthly Costs Controls --}}
+            <template x-if="activeTab === 'costs'">
+                <div class="flex items-center gap-3">
+                    <span class="text-[11px] text-[#6B21A8] bg-[#F3E8FF] border border-[#E9D5FF] px-2 py-0.5 rounded-full font-medium">Sample figures</span>
+                    <div class="h-8 rounded-md border border-[#DCD6CC] bg-white px-3 flex items-center text-xs font-medium text-[#1E2024] shadow-2xs" x-text="`${currentMonthYear} ▾`"></div>
+                    <a href="{{ route('admin.expenses.index') }}" class="inline-flex items-center gap-1 rounded-md bg-[#82573A] hover:bg-[#6E482E] text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors">
+                        + Record a bill or purchase
+                    </a>
+                </div>
+            </template>
         </div>
     </div>
 
-    <div class="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.8fr)]">
-        <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div class="mb-4 flex items-center justify-between">
-                <div>
-                    <h2 class="text-base font-semibold">Sales Trend</h2>
-                    <p class="text-sm text-muted">Sales owned by branch in the selected date range.</p>
-                </div>
-                <span data-lucide="payments" class="h-4 w-4 text-primary"></span>
-            </div>
-            <div class="h-72">
-                <canvas x-ref="salesChart"></canvas>
-            </div>
-        </div>
-
-        <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div class="mb-4 flex items-center justify-between">
-                <div>
-                    <h2 class="text-base font-semibold">Workflow Status</h2>
-                    <p class="text-sm text-muted">Job orders by status.</p>
-                </div>
-                <span data-lucide="activity" class="h-4 w-4 text-primary"></span>
-            </div>
-            <div class="h-72">
-                <canvas x-ref="statusChart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <div class="grid gap-4 xl:grid-cols-3">
-        <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div class="mb-4 flex items-center justify-between">
-                <div>
-                    <h2 class="text-base font-semibold">Payment Mix</h2>
-                    <p class="text-sm text-muted">Physical collections by method.</p>
-                </div>
-                <span data-lucide="payments" class="h-4 w-4 text-primary"></span>
-            </div>
-            <div class="h-64">
-                <canvas x-ref="paymentMixChart"></canvas>
-            </div>
-        </div>
-
-        <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div class="mb-4 flex items-center justify-between">
-                <div>
-                    <h2 class="text-base font-semibold">POS Type Mix</h2>
-                    <p class="text-sm text-muted">Walk-in/drop-off versus delivery orders.</p>
-                </div>
-                <span data-lucide="shopping-bag" class="h-4 w-4 text-primary"></span>
-            </div>
-            <div class="h-64">
-                <canvas x-ref="transactionTypeChart"></canvas>
-            </div>
-        </div>
-
-        <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div class="mb-4 flex items-center justify-between">
-                <div>
-                    <h2 class="text-base font-semibold">Financial Snapshot</h2>
-                    <p class="text-sm text-muted">Collections, expenses, receivables, and payables.</p>
-                </div>
-                <span data-lucide="scale" class="h-4 w-4 text-primary"></span>
-            </div>
-            <div class="h-64">
-                <canvas x-ref="financialChart"></canvas>
-            </div>
+    {{-- Sub-tabs row --}}
+    <div class="flex items-center">
+        <div class="inline-flex items-center gap-1 rounded-lg bg-[#EAE5DC] p-1 border border-[#DDD7CE]">
+            <button
+                type="button"
+                @click="switchTab('today')"
+                :class="activeTab === 'today' ? 'bg-white text-[#1E2024] font-semibold shadow-xs' : 'text-[#7A726A] hover:text-[#1E2024] font-medium'"
+                class="px-4 py-1.5 rounded-md text-xs sm:text-sm transition-all"
+            >
+                Today
+            </button>
+            <button
+                type="button"
+                @click="switchTab('supplies')"
+                :class="activeTab === 'supplies' ? 'bg-white text-[#1E2024] font-semibold shadow-xs' : 'text-[#7A726A] hover:text-[#1E2024] font-medium'"
+                class="px-4 py-1.5 rounded-md text-xs sm:text-sm transition-all"
+            >
+                Supplies & inventory
+            </button>
+            <button
+                type="button"
+                @click="switchTab('costs')"
+                :class="activeTab === 'costs' ? 'bg-white text-[#1E2024] font-semibold shadow-xs' : 'text-[#7A726A] hover:text-[#1E2024] font-medium'"
+                class="px-4 py-1.5 rounded-md text-xs sm:text-sm transition-all"
+            >
+                Monthly costs
+            </button>
         </div>
     </div>
 
-    <div class="grid gap-4 xl:grid-cols-2">
-        <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div class="mb-4 flex items-center justify-between">
+    {{-- ============================================================== --}}
+    {{-- TAB 1: TODAY AT THE SHOP                                       --}}
+    {{-- ============================================================== --}}
+    <div x-show="activeTab === 'today'" class="space-y-5">
+        {{-- Row 1: 4 Stat Cards --}}
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {{-- Card 1: Sales today --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs flex flex-col justify-between">
                 <div>
-                    <h2 class="text-base font-semibold">Top Selling Services</h2>
-                    <p class="text-sm text-muted">Ranked by service sales amount in the selected range.</p>
+                    <span class="text-xs font-normal text-[#7A726A]">Sales today</span>
+                    <div
+                        class="mt-2 text-3xl sm:text-[34px] font-bold text-[#1E2024] leading-tight"
+                        style="font-family: 'Playfair Display', Georgia, serif;"
+                        x-text="data.today.sales_today"
+                    ></div>
+                    <div class="mt-1 text-xs text-[#7A726A]" x-text="`${data.today.orders_count} orders · avg ${data.today.avg_per_order} per order`"></div>
                 </div>
-                <span data-lucide="services" class="h-4 w-4 text-primary"></span>
+                <div class="mt-4 text-xs text-[#9E958C] border-t border-[#F2ECE3] pt-2" x-text="`vs. same day last week: ${data.today.sales_vs_last_week}`"></div>
             </div>
-            <div class="h-72">
-                <canvas x-ref="topServicesChart"></canvas>
-            </div>
-            <div class="mt-3 divide-y divide-border text-sm dark:divide-gray-800">
-                <template x-for="service in data.top_services" :key="service.label">
-                    <div class="flex items-center justify-between gap-3 py-2">
-                        <span class="min-w-0 truncate font-medium" x-text="service.label"></span>
-                        <span class="shrink-0 text-xs text-muted" x-text="`${service.quantity} qty · ${service.amount}`"></span>
+
+            {{-- Card 2: Money collected --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs flex flex-col justify-between">
+                <div>
+                    <span class="text-xs font-normal text-[#7A726A]">Money collected</span>
+                    <div
+                        class="mt-2 text-3xl sm:text-[34px] font-bold text-[#1E2024] leading-tight"
+                        style="font-family: 'Playfair Display', Georgia, serif;"
+                        x-text="data.today.money_collected"
+                    ></div>
+                    <div class="mt-3 h-1 w-full bg-[#E5F2E6] rounded-full overflow-hidden">
+                        <div class="h-full bg-[#2E7D32]" style="width: 100%;"></div>
                     </div>
-                </template>
-                <p x-show="data.top_services.length === 0" class="py-6 text-center text-sm text-muted">No service sales in this date range.</p>
+                </div>
+                <div class="mt-4 text-xs text-[#1E2024] font-medium border-t border-[#F2ECE3] pt-2" x-text="`${data.today.collection_percent}% of today's sales collected`"></div>
+            </div>
+
+            {{-- Card 3: Customers still owe us --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs flex flex-col justify-between">
+                <div>
+                    <span class="text-xs font-normal text-[#7A726A]">Customers still owe us</span>
+                    <div
+                        class="mt-2 text-3xl sm:text-[34px] font-bold text-[#B45309] leading-tight"
+                        style="font-family: 'Playfair Display', Georgia, serif;"
+                        x-text="data.today.customers_owe"
+                    ></div>
+                    <div class="mt-1 text-xs text-[#7A726A]">Unpaid balances on open orders</div>
+                </div>
+                <div class="mt-4 text-xs border-t border-[#F2ECE3] pt-2">
+                    <a href="{{ route('admin.receivables.index') }}" class="font-medium text-[#82573A] hover:underline inline-flex items-center gap-1">
+                        <span>See who to follow up</span>
+                        <span>→</span>
+                    </a>
+                </div>
+            </div>
+
+            {{-- Card 4: Net for the day (Dark Card) --}}
+            <div class="rounded-xl bg-[#181A1F] text-white p-5 shadow-xs flex flex-col justify-between border border-[#2B2D33]">
+                <div>
+                    <span class="text-xs font-normal text-gray-400">Net for the day</span>
+                    <div
+                        class="mt-2 text-3xl sm:text-[34px] font-bold text-white leading-tight"
+                        style="font-family: 'Playfair Display', Georgia, serif;"
+                        x-text="data.today.net_for_day"
+                    ></div>
+                    <div class="mt-1 text-xs text-gray-300" x-text="`Collected ${data.today.money_collected} – expenses ${data.today.expenses_day}`"></div>
+                </div>
+                <div class="mt-4 text-xs text-gray-400 border-t border-gray-800 pt-2" x-text="`Supplier bills due: ${data.today.bills_due}`"></div>
             </div>
         </div>
 
-        <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div class="mb-4 flex items-center justify-between">
+        {{-- Row 2: Pipeline + Cash Closing --}}
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            {{-- Where the laundry is right now (8 cols) --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs lg:col-span-8 flex flex-col justify-between">
                 <div>
-                    <h2 class="text-base font-semibold">Top Selling Presets</h2>
-                    <p class="text-sm text-muted">Preset sales from POS preset cart selections.</p>
-                </div>
-                <span data-lucide="tag" class="h-4 w-4 text-primary"></span>
-            </div>
-            <div class="h-72">
-                <canvas x-ref="topPresetsChart"></canvas>
-            </div>
-            <div class="mt-3 divide-y divide-border text-sm dark:divide-gray-800">
-                <template x-for="preset in data.top_presets" :key="preset.label">
-                    <div class="flex items-center justify-between gap-3 py-2">
-                        <span class="min-w-0 truncate font-medium" x-text="preset.label"></span>
-                        <span class="shrink-0 text-xs text-muted" x-text="`${preset.orders_count} order(s) · ${preset.amount}`"></span>
+                    <div class="flex items-center justify-between pb-3">
+                        <h2 class="text-sm font-bold text-[#1E2024]">Where the laundry is right now</h2>
+                        <span class="text-xs text-[#8C827A]" x-text="`${data.today.pipeline.open_count} open · ${data.today.pipeline.done_count} done · ${data.today.pipeline.cancelled_count} cancelled`"></span>
                     </div>
-                </template>
-                <p x-show="data.top_presets.length === 0" class="py-6 text-center text-sm text-muted">Preset sales will appear for new orders saved from preset cart selections.</p>
+
+                    {{-- 6 Stage Boxes --}}
+                    <div class="grid grid-cols-3 sm:grid-cols-6 gap-2.5 mt-2">
+                        {{-- 1. Washing --}}
+                        <div class="rounded-lg border border-[#E5DFD6] p-2.5 text-center bg-[#FAF8F5]">
+                            <span class="text-[10px] text-[#7A726A] block">1 · Washing</span>
+                            <span class="text-2xl font-bold font-serif text-[#1E2024] mt-1 block" x-text="data.today.pipeline.washing"></span>
+                        </div>
+                        {{-- 2. Drying --}}
+                        <div class="rounded-lg border border-[#E5DFD6] p-2.5 text-center bg-[#FAF8F5]">
+                            <span class="text-[10px] text-[#7A726A] block">2 · Drying</span>
+                            <span class="text-2xl font-bold font-serif text-[#1E2024] mt-1 block" x-text="data.today.pipeline.drying"></span>
+                        </div>
+                        {{-- 3. Folding --}}
+                        <div class="rounded-lg border border-[#E5DFD6] p-2.5 text-center bg-[#FAF8F5]">
+                            <span class="text-[10px] text-[#7A726A] block">3 · Folding</span>
+                            <span class="text-2xl font-bold font-serif text-[#1E2024] mt-1 block" x-text="data.today.pipeline.folding"></span>
+                        </div>
+                        {{-- 4a. Ready for pickup (Cyan) --}}
+                        <div class="rounded-lg border border-[#BDE0EB] p-2.5 text-center bg-[#E5F3F6]">
+                            <span class="text-[10px] text-[#0E7490] font-medium block leading-tight">4a · Ready for<br>pickup</span>
+                            <span class="text-2xl font-bold font-serif text-[#0E7490] mt-1 block" x-text="data.today.pipeline.ready_pickup"></span>
+                        </div>
+                        {{-- 4b. Ready for delivery (Amber) --}}
+                        <div class="rounded-lg border border-[#FADBB8] p-2.5 text-center bg-[#FDF1E2]">
+                            <span class="text-[10px] text-[#C2410C] font-medium block leading-tight">4b · Ready for<br>delivery</span>
+                            <span class="text-2xl font-bold font-serif text-[#C2410C] mt-1 block" x-text="data.today.pipeline.ready_delivery"></span>
+                        </div>
+                        {{-- 5. Completed (Green) --}}
+                        <div class="rounded-lg border border-[#CDE5D1] p-2.5 text-center bg-[#F0F7F1]">
+                            <span class="text-[10px] text-[#15803D] block">5 · Completed</span>
+                            <span class="text-2xl font-bold font-serif text-[#15803D] mt-1 block" x-text="data.today.pipeline.completed"></span>
+                        </div>
+                    </div>
+
+                    {{-- Notice banner --}}
+                    <div class="mt-4 rounded-lg bg-[#FCF8EE] border border-[#F5EACB] p-3 flex items-start gap-2.5">
+                        <span class="h-4 w-4 rounded-full border border-amber-600 text-amber-700 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">!</span>
+                        <p class="text-xs text-[#5C4F41] leading-relaxed" x-text="data.today.pipeline.notice"></p>
+                    </div>
+                </div>
+
+                <div class="mt-4 text-[11px] text-[#8C827A] pt-2 border-t border-[#F2ECE3]" x-text="`Cancelled today: ${data.today.pipeline.cancelled_count} order`"></div>
+            </div>
+
+            {{-- Cash check at closing (4 cols) --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs lg:col-span-4 flex flex-col justify-between">
+                <div>
+                    <h2 class="text-sm font-bold text-[#1E2024] pb-3">Cash check at closing</h2>
+
+                    <div class="space-y-3 mt-1 text-xs">
+                        <div class="flex items-center justify-between">
+                            <span class="flex items-center gap-1.5 text-[#5C554E]">
+                                <span class="h-2 w-2 rounded-xs bg-[#82573A]"></span>
+                                Cash in drawer (expected)
+                            </span>
+                            <span class="font-bold text-[#1E2024]" x-text="data.today.cash_check.cash_drawer"></span>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <span class="flex items-center gap-1.5 text-[#5C554E]">
+                                <span class="h-2 w-2 rounded-xs bg-[#0284C7]"></span>
+                                GCash (expected)
+                            </span>
+                            <span class="font-bold text-[#1E2024]" x-text="data.today.cash_check.gcash"></span>
+                        </div>
+
+                        <div class="pt-2 border-t border-[#E5DFD6] flex items-center justify-between font-bold">
+                            <span class="text-[#1E2024]">Total expected</span>
+                            <span class="text-sm text-[#1E2024]" x-text="data.today.cash_check.total_expected"></span>
+                        </div>
+
+                        {{-- Cash actually counted --}}
+                        <div class="pt-2">
+                            <div class="text-[#7A726A] mb-1">Cash actually counted</div>
+                            <div class="flex items-center gap-1 text-[#8C827A]">
+                                <span>₱</span>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    x-model="countedCash"
+                                    placeholder="enter at closing"
+                                    class="w-full px-2 py-1 text-xs rounded-md border border-[#DCD6CC] bg-[#FAF8F5] outline-none text-[#1E2024]"
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Difference --}}
+                <div class="mt-4 pt-3 border-t border-[#F2ECE3] text-xs text-[#8C827A]" x-text="cashDifferenceText"></div>
             </div>
         </div>
-    </div>
 
-    <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <div class="overflow-hidden rounded-lg border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div class="flex items-center justify-between border-b border-border px-4 py-3 dark:border-gray-800">
+        {{-- Row 3: What customers ordered + How orders came in + Supplies/Visitors --}}
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            {{-- Col 1: What customers ordered (4 cols) --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs lg:col-span-4 flex flex-col justify-between">
                 <div>
-                    <h2 class="text-base font-semibold">Recent Job Orders</h2>
-                    <p class="text-sm text-muted">Live latest transactions.</p>
+                    <h2 class="text-sm font-bold text-[#1E2024] pb-3">What customers ordered</h2>
+
+                    <div class="space-y-4 mt-1">
+                        <template x-for="item in data.today.ordered_services" :key="item.name">
+                            <div class="flex items-start justify-between text-xs">
+                                <div>
+                                    <div class="font-semibold text-[#1E2024]" x-text="item.name"></div>
+                                    <div class="text-[11px] text-[#8C827A] mt-0.5" x-text="item.detail"></div>
+                                </div>
+                                <div class="font-bold text-xs text-[#1E2024] shrink-0 ml-2" x-text="item.amount"></div>
+                            </div>
+                        </template>
+                        <template x-if="!data.today.ordered_services || data.today.ordered_services.length === 0">
+                            <div class="py-6 text-center text-[#8C827A] italic text-xs">No orders recorded for this period</div>
+                        </template>
+                    </div>
                 </div>
-                <a href="{{ route('admin.job-orders.index') }}" class="inline-flex h-8 items-center rounded-md border border-border px-3 text-sm hover:bg-smoke dark:border-gray-800 dark:hover:bg-gray-950">View all</a>
+
+                <div class="mt-4 text-xs text-[#7A726A] pt-2 border-t border-[#F2ECE3]" x-text="`Kilos washed today: ${data.today.total_kg_washed} kg`"></div>
             </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="border-b border-border bg-smoke text-xs uppercase text-muted dark:border-gray-800 dark:bg-gray-950">
-                        <tr>
-                            <th class="px-4 py-3">JO #</th>
-                            <th class="px-4 py-3">Customer</th>
-                            <th class="px-4 py-3">Branch</th>
-                            <th class="px-4 py-3">Status</th>
-                            <th class="px-4 py-3 text-right">Total</th>
+
+            {{-- Col 2: How orders came in (4 cols) --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs lg:col-span-4 flex flex-col justify-between">
+                <div>
+                    <h2 class="text-sm font-bold text-[#1E2024] pb-3">How orders came in</h2>
+
+                    {{-- Horizontal Stacked Bar --}}
+                    <div class="mt-2 flex h-7 w-full rounded-md overflow-hidden bg-gray-100">
+                        <template x-if="data.today.order_sources.delivery_count === 0 && data.today.order_sources.walk_in_count === 0">
+                            <div class="h-full flex items-center justify-center text-[10px] text-[#8C827A] w-full">No orders recorded yet</div>
+                        </template>
+                        <template x-if="data.today.order_sources.delivery_count > 0 || data.today.order_sources.walk_in_count > 0">
+                            <div class="flex h-full w-full">
+                                <div class="h-full bg-[#0284C7] flex items-center px-2 text-[11px] font-bold text-white transition-all" :style="`width: ${data.today.order_sources.delivery_pct}%`" x-text="`~${data.today.order_sources.delivery_pct}%`"></div>
+                                <div class="h-full bg-[#EA580C] transition-all" :style="`width: ${data.today.order_sources.walk_in_pct}%`"></div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="mt-4 space-y-2 text-xs">
+                        <div class="flex items-center justify-between">
+                            <span class="flex items-center gap-1.5 text-[#5C554E]">
+                                <span class="h-2 w-2 rounded-xs bg-[#0284C7]"></span>
+                                Delivery / pick-up
+                            </span>
+                            <span class="font-medium text-[#1E2024]" x-text="`~${data.today.order_sources.delivery_pct}%`"></span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="flex items-center gap-1.5 text-[#5C554E]">
+                                <span class="h-2 w-2 rounded-xs bg-[#EA580C]"></span>
+                                Walk-in drop-off
+                            </span>
+                            <span class="font-medium text-[#1E2024]" x-text="`~${data.today.order_sources.walk_in_pct}%`"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 text-xs text-[#7A726A] pt-2 border-t border-[#F2ECE3]">
+                    Most business is delivery — rider capacity matters.
+                </div>
+            </div>
+
+            {{-- Col 3: Supplies & Website visitors (4 cols) --}}
+            <div class="space-y-4 lg:col-span-4 flex flex-col justify-between">
+                {{-- Supplies OK Card --}}
+                <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs flex items-start gap-3">
+                    <span class="text-base text-[#15803D] font-bold shrink-0 mt-0.5">✓</span>
+                    <div>
+                        <div class="text-xs font-bold text-[#1E2024]" x-text="data.today.supplies.title"></div>
+                        <div class="text-xs text-[#7A726A] mt-0.5 leading-snug" x-text="data.today.supplies.description"></div>
+                        <button type="button" @click="switchTab('supplies')" class="mt-1.5 text-xs font-medium text-[#82573A] hover:underline inline-block">
+                            View supplies →
+                        </button>
+                    </div>
+                </div>
+
+                {{-- Website visitors today Card --}}
+                <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs flex flex-col justify-between">
+                    <div>
+                        <span class="text-xs font-normal text-[#7A726A]">Website visitors today</span>
+                        <div
+                            class="mt-1 text-3xl sm:text-[34px] font-bold text-[#1E2024] leading-tight"
+                            style="font-family: 'Playfair Display', Georgia, serif;"
+                            x-text="data.today.website.visitors_count"
+                        ></div>
+                        <div class="mt-1 text-xs text-[#7A726A]" x-text="data.today.website.subtitle"></div>
+                    </div>
+                    <div class="mt-3 text-xs text-[#8C827A] border-t border-[#F2ECE3] pt-2" x-text="data.today.website.repeat_text"></div>
+                </div>
+            </div>
+        </div>
+
+        {{-- Row 4: Today's orders --}}
+        <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs">
+            <div class="flex items-center justify-between pb-3 border-b border-[#F2ECE3]">
+                <h2 class="text-sm font-bold text-[#1E2024]">Today's orders</h2>
+                <a href="{{ route('admin.job-orders.index') }}" class="text-xs font-medium text-[#82573A] hover:underline">
+                    View all orders →
+                </a>
+            </div>
+
+            <div class="overflow-x-auto mt-2">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="text-[#8C827A] text-[10px] uppercase font-bold tracking-wider border-b border-[#F2ECE3]">
+                            <th class="py-2.5 font-semibold">Order</th>
+                            <th class="py-2.5 font-semibold">Customer</th>
+                            <th class="py-2.5 font-semibold">Status</th>
+                            <th class="py-2.5 font-semibold">Next Step</th>
+                            <th class="py-2.5 font-semibold text-right">Total</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-border dark:divide-gray-800">
-                        <template x-for="order in data.recent_orders" :key="order.id">
-                            <tr>
-                                <td class="px-4 py-3"><a :href="order.url" class="font-medium hover:text-primary" x-text="order.number"></a></td>
-                                <td class="px-4 py-3" x-text="order.customer"></td>
-                                <td class="px-4 py-3" x-text="order.branch"></td>
-                                <td class="px-4 py-3"><span :class="order.status_badge" x-text="order.status"></span></td>
-                                <td class="px-4 py-3 text-right font-medium" x-text="order.total"></td>
+                    <tbody class="divide-y divide-[#F7F3EC]">
+                        <template x-for="order in data.today.recent_orders" :key="order.id">
+                            <tr class="hover:bg-[#FAF8F5] transition-colors">
+                                <td class="py-3 font-mono font-medium text-[#1E2024]">
+                                    <a :href="order.url" class="hover:underline" x-text="order.number"></a>
+                                </td>
+                                <td class="py-3 text-[#5C554E]" x-text="order.customer"></td>
+                                <td class="py-3">
+                                    <span
+                                        class="inline-block px-2.5 py-0.5 text-[10px] font-semibold rounded-full"
+                                        :class="{
+                                            'bg-[#FDF1E2] text-[#C2410C]': order.status === 'ready_for_delivery',
+                                            'bg-[#E5F3F6] text-[#0E7490]': order.status === 'ready_for_pickup',
+                                            'bg-[#F0F7F1] text-[#15803D]': order.status === 'completed',
+                                            'bg-gray-100 text-gray-700': !['ready_for_delivery', 'ready_for_pickup', 'completed'].includes(order.status)
+                                        }"
+                                        x-text="order.status_label"
+                                    ></span>
+                                </td>
+                                <td class="py-3 text-[#7A726A]" x-text="order.next_step"></td>
+                                <td class="py-3 text-right font-bold text-[#1E2024]" x-text="order.total"></td>
                             </tr>
                         </template>
-                        <tr x-show="data.recent_orders.length === 0">
-                            <td colspan="5" class="px-4 py-10 text-center text-muted">No recent job orders.</td>
+                        <template x-if="!data.today.recent_orders || data.today.recent_orders.length === 0">
+                            <tr>
+                                <td colspan="5" class="py-6 text-center text-[#8C827A] italic text-xs">No orders recorded today</td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {{-- ============================================================== --}}
+    {{-- TAB 2: SUPPLIES & INVENTORY                                    --}}
+    {{-- ============================================================== --}}
+    <div x-show="activeTab === 'supplies'" class="space-y-5" style="display: none;">
+        {{-- Row 1: 4 Stat Cards --}}
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {{-- Card 1: Reorder now --}}
+            <div class="rounded-xl border border-[#F5D8D8] bg-[#FDF9F9] p-5 shadow-xs flex flex-col justify-between">
+                <div>
+                    <span class="text-xs font-normal text-rose-800">Reorder now</span>
+                    <div
+                        class="mt-2 text-3xl sm:text-[34px] font-bold text-rose-700 leading-tight"
+                        style="font-family: 'Playfair Display', Georgia, serif;"
+                        x-text="`${data.supplies.reorder_count} items`"
+                    ></div>
+                    <div class="mt-1 text-xs text-rose-800/80" x-text="data.supplies.urgent_warning"></div>
+                </div>
+                <div class="mt-4 text-xs border-t border-rose-200/60 pt-2">
+                    <a href="{{ route('admin.inventory.index') }}" class="font-medium text-rose-800 hover:underline inline-flex items-center gap-1">
+                        <span>Build shopping list</span>
+                        <span>→</span>
+                    </a>
+                </div>
+            </div>
+
+            {{-- Card 2: Supplies used this month --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs flex flex-col justify-between">
+                <div>
+                    <span class="text-xs font-normal text-[#7A726A]">Supplies used this month</span>
+                    <div
+                        class="mt-2 text-3xl sm:text-[34px] font-bold text-[#1E2024] leading-tight"
+                        style="font-family: 'Playfair Display', Georgia, serif;"
+                        x-text="data.supplies.supplies_used_month"
+                    ></div>
+                    <div class="mt-1 text-xs text-[#7A726A]" x-text="data.supplies.restocked_note"></div>
+                </div>
+                <div class="mt-4 text-xs text-[#8C827A] border-t border-[#F2ECE3] pt-2">
+                    Net monthly material consumption
+                </div>
+            </div>
+
+            {{-- Card 3: Supply cost per kg washed --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs flex flex-col justify-between">
+                <div>
+                    <span class="text-xs font-normal text-[#7A726A]">Supply cost per kg washed</span>
+                    <div
+                        class="mt-2 text-3xl sm:text-[34px] font-bold text-[#1E2024] leading-tight"
+                        style="font-family: 'Playfair Display', Georgia, serif;"
+                        x-text="data.supplies.cost_per_kg"
+                    ></div>
+                    <div class="mt-1 text-xs text-[#7A726A]" x-text="data.supplies.cost_per_kg_sub"></div>
+                </div>
+                <div class="mt-4 text-xs text-[#15803D] font-medium border-t border-[#F2ECE3] pt-2">
+                    Target under ₱1.40
+                </div>
+            </div>
+
+            {{-- Card 4: Add-on sales --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs flex flex-col justify-between">
+                <div>
+                    <span class="text-xs font-normal text-[#7A726A]">Add-on sales</span>
+                    <div
+                        class="mt-2 text-3xl sm:text-[34px] font-bold text-[#0D9488] leading-tight"
+                        style="font-family: 'Playfair Display', Georgia, serif;"
+                        x-text="data.supplies.addon_sales_total"
+                    ></div>
+                    <div class="mt-1 text-xs text-[#7A726A]" x-text="data.supplies.addon_sales_sub"></div>
+                </div>
+                <div class="mt-4 text-xs text-[#82573A] font-medium border-t border-[#F2ECE3] pt-2">
+                    Incremental revenue per cycle
+                </div>
+            </div>
+        </div>
+
+        {{-- Row 2: Consumables — stock left (Full-Width Card) --}}
+        <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-[#F2ECE3] gap-2">
+                <h2 class="text-sm font-bold text-[#1E2024]">Consumables — stock left</h2>
+                <div class="flex items-center gap-3 text-xs text-[#7A726A]">
+                    <span class="flex items-center gap-1 font-mono text-gray-500 font-bold">| <span class="font-sans font-normal text-xs text-[#7A726A]">Reorder point</span></span>
+                    <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-[#15803D]"></span> OK</span>
+                    <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-[#D97706]"></span> Low</span>
+                    <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-[#E11D48]"></span> Reorder now</span>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto mt-2">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="text-[#8C827A] text-[10px] uppercase font-bold tracking-wider border-b border-[#F2ECE3]">
+                            <th class="py-2.5 font-semibold">Item</th>
+                            <th class="py-2.5 font-semibold">On Hand</th>
+                            <th class="py-2.5 font-semibold">Used in Sep</th>
+                            <th class="py-2.5 font-semibold">Daily Use</th>
+                            <th class="py-2.5 font-semibold text-center">Days Left</th>
+                            <th class="py-2.5 font-semibold text-right">Status</th>
                         </tr>
+                    </thead>
+                    <tbody class="divide-y divide-[#F7F3EC]">
+                        <template x-for="item in data.supplies.consumables" :key="item.name">
+                            <tr class="hover:bg-[#FAF8F5] transition-colors">
+                                <td class="py-3 font-semibold text-[#1E2024]">
+                                    <div x-text="item.name"></div>
+                                    <div class="text-[10px] text-[#8C827A] font-normal" x-text="item.unit"></div>
+                                </td>
+                                <td class="py-3">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-28 sm:w-36 h-2 bg-[#EAE5DC] rounded-full relative overflow-hidden">
+                                            <div
+                                                class="h-full rounded-full transition-all"
+                                                :class="{
+                                                    'bg-[#E11D48]': item.status === 'Reorder now',
+                                                    'bg-[#D97706]': item.status === 'Low soon',
+                                                    'bg-[#15803D]': item.status === 'OK'
+                                                }"
+                                                :style="`width: ${item.percent}%`"
+                                            ></div>
+                                            <span class="absolute top-0 bottom-0 w-0.5 bg-[#4B5563] z-10" :style="`left: ${item.marker_pct ?? 35}%;`"></span>
+                                        </div>
+                                        <span class="font-bold text-xs text-[#1E2024] whitespace-nowrap" x-text="item.quantity"></span>
+                                    </div>
+                                </td>
+                                <td class="py-3 text-[#5C554E]" x-text="item.used_in_sep"></td>
+                                <td class="py-3 text-[#5C554E]" x-text="item.daily_use"></td>
+                                <td class="py-3 text-center font-bold text-sm" :class="item.days_left <= 7 ? 'text-rose-600' : 'text-[#1E2024]'" x-text="item.days_left"></td>
+                                <td class="py-3 text-right">
+                                    <span
+                                        class="inline-block px-2.5 py-0.5 text-[10px] font-semibold rounded-full"
+                                        :class="{
+                                            'bg-[#FEE2E2] text-[#B91C1C] border border-[#FECACA]': item.status === 'Reorder now',
+                                            'bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A]': item.status === 'Low soon',
+                                            'bg-[#DCFCE7] text-[#15803D] border border-[#BBF7D0]': item.status === 'OK'
+                                        }"
+                                        x-text="item.status"
+                                    ></span>
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-if="!data.supplies.consumables || data.supplies.consumables.length === 0">
+                            <tr>
+                                <td colspan="6" class="py-6 text-center text-[#8C827A] italic text-xs">No active consumables found in inventory</td>
+                            </tr>
+                        </template>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div class="mb-4 flex items-center justify-between">
+        {{-- Row 3: Stock movement by week + Add-ons sold --}}
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            {{-- Stock movement by week (6 cols) --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs lg:col-span-6 flex flex-col justify-between">
                 <div>
-                    <h2 class="text-base font-semibold">Branch Sales</h2>
-                    <p class="text-sm text-muted">Sales owned by branch in the selected range.</p>
-                </div>
-                <span data-lucide="branches" class="h-4 w-4 text-primary"></span>
-            </div>
-            <div class="h-80">
-                <canvas x-ref="branchSalesChart"></canvas>
-            </div>
-        </div>
-    </div>
+                    <div class="flex items-center justify-between pb-3 border-b border-[#F2ECE3]">
+                        <h2 class="text-sm font-bold text-[#1E2024]">Stock movement by week</h2>
+                        <div class="flex items-center gap-3 text-[11px] text-[#7A726A]">
+                            <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-xs bg-[#0F766E]"></span> Restocked (in)</span>
+                            <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-xs bg-[#D97706]"></span> Used (out)</span>
+                        </div>
+                    </div>
 
-    <div class="overflow-hidden rounded-lg border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <div class="flex flex-col gap-2 border-b border-border px-4 py-3 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <h2 class="text-base font-semibold">Customers Who Trust {{ $appBusinessName }}</h2>
-                <p class="text-sm text-muted">Customers with 10 or more laundry orders, ranked by total orders entrusted to the store.</p>
+                    {{-- Weekly In / Out Bars (Center Baseline) --}}
+                    <div class="flex items-center gap-3 mt-6">
+                        {{-- Left Axis Labels --}}
+                        <div class="flex flex-col justify-between h-36 text-[10px] font-semibold text-[#7A726A] pb-8 shrink-0">
+                            <span>In ↑</span>
+                            <span>Out ↓</span>
+                        </div>
+
+                        {{-- 4 Columns --}}
+                        <div class="grid grid-cols-4 gap-2 flex-1 text-center">
+                            <template x-for="w in data.supplies.stock_movement_by_week" :key="w.week">
+                                <div class="flex flex-col items-center">
+                                    {{-- Upper Half: In (Restocked) --}}
+                                    <div class="h-16 w-full flex flex-col justify-end items-center">
+                                        <div class="text-[10px] font-bold text-[#0F766E] mb-1" x-text="w.in > 0 ? `₱${w.in.toLocaleString()}` : ''"></div>
+                                        <template x-if="w.in > 0">
+                                            <div class="w-10 bg-[#0F766E] rounded-t-xs" :style="`height: ${Math.max(4, Math.min(48, Math.round((w.in / (data.supplies.max_weekly_val || 5000)) * 48)))}px;`"></div>
+                                        </template>
+                                        <template x-if="w.in === 0">
+                                            <span class="text-[9px] text-[#A8A29E] italic pb-1">no restock</span>
+                                        </template>
+                                    </div>
+
+                                    {{-- Center Baseline --}}
+                                    <div class="w-full h-px bg-[#DCD6CC]"></div>
+
+                                    {{-- Lower Half: Out (Used) --}}
+                                    <div class="h-16 w-full flex flex-col justify-start items-center">
+                                        <template x-if="w.out > 0">
+                                            <div class="w-10 bg-[#D97706] rounded-b-xs" :style="`height: ${Math.max(4, Math.min(48, Math.round((w.out / (data.supplies.max_weekly_val || 5000)) * 48)))}px;`"></div>
+                                        </template>
+                                        <template x-if="w.out === 0">
+                                            <div class="w-10 h-1 bg-[#EAE5DC] rounded-b-xs"></div>
+                                        </template>
+                                        <div class="text-[10px] font-bold text-[#D97706] mt-1" x-text="w.out > 0 ? `₱${w.out.toLocaleString()}` : ''"></div>
+                                    </div>
+
+                                    {{-- Week & Stock Label --}}
+                                    <div class="text-xs font-semibold text-[#1E2024] mt-1" x-text="w.week"></div>
+                                    <div class="text-[10px] text-[#8C827A]" x-text="`stock ₱${w.stock.toLocaleString()}`"></div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 text-xs text-[#7A726A] pt-2 border-t border-[#F2ECE3]" x-text="data.supplies.movement_caption"></div>
             </div>
-            @if(auth()->user()->hasMenuAccess('customers'))
-                <a href="{{ route('admin.customers.index') }}" class="inline-flex h-8 items-center justify-center rounded-md border border-border px-3 text-sm hover:bg-smoke dark:border-gray-800 dark:hover:bg-gray-950">View customers</a>
-            @endif
+
+            {{-- Add-ons sold (6 cols) --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs lg:col-span-6 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between pb-3 border-b border-[#F2ECE3]">
+                        <h2 class="text-sm font-bold text-[#1E2024]">Add-ons sold</h2>
+                        <span class="text-xs font-semibold text-[#7A726A]" x-text="`${data.supplies.addon_sales_total} in ${currentMonthName}`"></span>
+                    </div>
+
+                    <div class="space-y-3 mt-3">
+                        <template x-for="addon in data.supplies.addons_sold" :key="addon.name">
+                            <div class="flex items-center justify-between text-xs">
+                                <div class="w-40 shrink-0">
+                                    <div class="font-semibold text-[#1E2024]" x-text="addon.name"></div>
+                                    <div class="text-[10px] text-[#8C827A]" x-text="addon.rate_label"></div>
+                                </div>
+                                <div class="flex-1 mx-3">
+                                    <div class="h-2 w-full bg-[#EAE5DC] rounded-full overflow-hidden">
+                                        <div class="h-full bg-[#0F766E] rounded-full" :style="`width: ${(addon.revenue_raw / 1000) * 100}%`"></div>
+                                    </div>
+                                </div>
+                                <div class="w-16 text-right">
+                                    <div class="font-bold text-[#1E2024]" x-text="addon.revenue"></div>
+                                    <div class="text-[10px] text-[#8C827A]" x-text="addon.sold"></div>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="!data.supplies.addons_sold || data.supplies.addons_sold.length === 0">
+                            <div class="py-6 text-center text-[#8C827A] italic text-xs">No add-ons sold yet this month</div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="mt-4 text-xs text-[#7A726A] pt-2 border-t border-[#F2ECE3]" x-text="data.supplies.upsell_tip"></div>
+            </div>
         </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm">
-                <thead class="border-b border-border bg-smoke text-xs uppercase text-muted dark:border-gray-800 dark:bg-gray-950">
-                    <tr>
-                        <th class="px-4 py-3">Customer</th>
-                        <th class="px-4 py-3">Contact</th>
-                        <th class="px-4 py-3">Branch</th>
-                        <th class="px-4 py-3 text-center">Laundry Orders</th>
-                        <th class="px-4 py-3">Latest Service</th>
-                        <th class="px-4 py-3">Status</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-border dark:divide-gray-800">
-                    <template x-for="customer in data.trusted_customers" :key="customer.id">
-                        <tr>
-                            <td class="px-4 py-3 font-medium" x-text="customer.name"></td>
-                            <td class="px-4 py-3 text-muted" x-text="customer.phone"></td>
-                            <td class="px-4 py-3" x-text="customer.branch"></td>
-                            <td class="px-4 py-3 text-center font-semibold" x-text="customer.orders_count"></td>
-                            <td class="px-4 py-3" x-text="customer.latest_order"></td>
-                            <td class="px-4 py-3"><span :class="customer.status_badge" x-text="customer.status"></span></td>
+
+        {{-- Row 4: Latest stock movements --}}
+        <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs">
+            <div class="flex items-center justify-between pb-3 border-b border-[#F2ECE3]">
+                <h2 class="text-sm font-bold text-[#1E2024]">Latest stock movements</h2>
+                <a href="{{ route('admin.inventory.index') }}" class="text-xs font-medium text-[#82573A] hover:underline">
+                    Full stock ledger →
+                </a>
+            </div>
+
+            <div class="overflow-x-auto mt-2">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="text-[#8C827A] text-[10px] uppercase font-bold tracking-wider border-b border-[#F2ECE3]">
+                            <th class="py-2.5 font-semibold">Date</th>
+                            <th class="py-2.5 font-semibold">Type</th>
+                            <th class="py-2.5 font-semibold">Item</th>
+                            <th class="py-2.5 font-semibold">Qty</th>
+                            <th class="py-2.5 font-semibold">Note</th>
+                            <th class="py-2.5 font-semibold text-right">Value</th>
                         </tr>
-                    </template>
-                    <tr x-show="data.trusted_customers.length === 0">
-                        <td colspan="6" class="px-4 py-10 text-center text-muted">Customer laundry history will appear here after the first job order.</td>
-                    </tr>
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody class="divide-y divide-[#F7F3EC]">
+                        <template x-for="m in data.supplies.stock_movements" :key="m.item + m.date">
+                            <tr class="hover:bg-[#FAF8F5] transition-colors">
+                                <td class="py-2.5 text-[#7A726A]" x-text="m.date"></td>
+                                <td class="py-2.5">
+                                    <span class="inline-block px-2 py-0.5 text-[10px] font-semibold rounded-md border" :class="m.type_badge" x-text="m.type"></span>
+                                </td>
+                                <td class="py-2.5 font-semibold text-[#1E2024]" x-text="m.item"></td>
+                                <td class="py-2.5 font-mono font-medium text-[#1E2024]" x-text="m.qty"></td>
+                                <td class="py-2.5 text-[#7A726A]" x-text="m.note"></td>
+                                <td class="py-2.5 text-right font-bold text-[#1E2024]" x-text="m.value"></td>
+                            </tr>
+                        </template>
+                        <template x-if="!data.supplies.stock_movements || data.supplies.stock_movements.length === 0">
+                            <tr>
+                                <td colspan="6" class="py-6 text-center text-[#8C827A] italic text-xs">No stock movements recorded yet</td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
-    <div class="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.6fr)]">
-        <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div class="mb-4 flex items-center justify-between">
+    {{-- ============================================================== --}}
+    {{-- TAB 3: MONTHLY COSTS                                           --}}
+    {{-- ============================================================== --}}
+    <div x-show="activeTab === 'costs'" class="space-y-5" style="display: none;">
+        {{-- Row 1: 4 Stat Cards --}}
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {{-- Card 1: Bills this month --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs flex flex-col justify-between">
                 <div>
-                    <h2 class="text-base font-semibold">Daily Website Visitors</h2>
-                    <p class="text-sm text-muted">Distinct browsers per day. A browser is counted once each day, even if it reloads the page.</p>
+                    <span class="text-xs font-normal text-[#7A726A]">Bills this month</span>
+                    <div
+                        class="mt-2 text-3xl sm:text-[34px] font-bold text-[#1E2024] leading-tight"
+                        style="font-family: 'Playfair Display', Georgia, serif;"
+                        x-text="data.monthly_costs.bills_this_month"
+                    ></div>
+                    <div class="mt-1 text-xs text-[#7A726A]" x-text="data.monthly_costs.bills_vs_aug"></div>
                 </div>
-                <span data-lucide="mouse-pointer-click" class="h-4 w-4 text-primary"></span>
+                <div class="mt-4 text-xs text-[#8C827A] border-t border-[#F2ECE3] pt-2">
+                    Rent, electricity, water, LPG, taxes
+                </div>
             </div>
-            <div class="h-64">
-                <canvas x-ref="siteVisitsChart"></canvas>
+
+            {{-- Card 2: Payroll this month --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs flex flex-col justify-between">
+                <div>
+                    <span class="text-xs font-normal text-[#7A726A]">Payroll this month</span>
+                    <div
+                        class="mt-2 text-3xl sm:text-[34px] font-bold text-[#1E2024] leading-tight"
+                        style="font-family: 'Playfair Display', Georgia, serif;"
+                        x-text="data.monthly_costs.payroll_this_month"
+                    ></div>
+                    <div class="mt-1 text-xs text-[#7A726A]" x-text="data.monthly_costs.payroll_sub"></div>
+                </div>
+                <div class="mt-4 text-xs text-[#8C827A] border-t border-[#F2ECE3] pt-2">
+                    Base wages + employer share
+                </div>
+            </div>
+
+            {{-- Card 3: Still to pay --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs flex flex-col justify-between">
+                <div>
+                    <span class="text-xs font-normal text-[#7A726A]">Still to pay</span>
+                    <div
+                        class="mt-2 text-3xl sm:text-[34px] font-bold text-[#B45309] leading-tight"
+                        style="font-family: 'Playfair Display', Georgia, serif;"
+                        x-text="data.monthly_costs.still_to_pay"
+                    ></div>
+                    <div class="mt-1 text-xs text-[#7A726A]" x-text="data.monthly_costs.still_to_pay_sub"></div>
+                </div>
+                <div class="mt-4 text-xs text-amber-700 font-medium border-t border-[#F2ECE3] pt-2">
+                    Due in current cycle
+                </div>
+            </div>
+
+            {{-- Card 4: Left for the shop (Dark Card) --}}
+            <div class="rounded-xl bg-[#181A1F] text-white p-5 shadow-xs flex flex-col justify-between border border-[#2B2D33]">
+                <div>
+                    <span class="text-xs font-normal text-gray-400">Left for the shop</span>
+                    <div
+                        class="mt-2 text-3xl sm:text-[34px] font-bold text-white leading-tight"
+                        style="font-family: 'Playfair Display', Georgia, serif;"
+                        x-text="data.monthly_costs.left_for_shop"
+                    ></div>
+                    <div class="mt-1 text-xs text-gray-300" x-text="data.monthly_costs.left_margin_sub"></div>
+                </div>
+                <div class="mt-4 text-xs text-gray-400 border-t border-gray-800 pt-2">
+                    Operating margin after all costs
+                </div>
             </div>
         </div>
 
-        <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div class="mb-4 flex items-center justify-between">
+        {{-- Row 2: Monthly bills (6 months) + September bills --}}
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            {{-- Monthly bills — last 6 months (7 cols) --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs lg:col-span-7 flex flex-col justify-between">
                 <div>
-                    <h2 class="text-base font-semibold">New vs Returning Visitors</h2>
-                    <p class="text-sm text-muted">First-time browsers compared with browsers seen before the selected period.</p>
+                    <div class="flex items-center justify-between pb-3 border-b border-[#F2ECE3]">
+                        <h2 class="text-sm font-bold text-[#1E2024]">Monthly bills — last 6 months</h2>
+                        <span class="text-xs text-[#8C827A]">Apr – Sep 2026</span>
+                    </div>
+
+                    <div class="flex items-center gap-3 text-xs text-[#7A726A] mt-3">
+                        <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-xs bg-[#82573A]"></span> Rent</span>
+                        <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-xs bg-[#1D4ED8]"></span> Electricity</span>
+                        <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-xs bg-[#0284C7]"></span> Water</span>
+                        <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-xs bg-[#F59E0B]"></span> LPG</span>
+                        <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-xs bg-[#1E293B]"></span> Taxes</span>
+                    </div>
+
+                    {{-- 6-Month Stacked Bars --}}
+                    <div class="grid grid-cols-6 gap-2 mt-6 text-center items-end">
+                        <template x-for="(month, idx) in data.monthly_costs.bills_history_6m.months" :key="month">
+                            <div class="flex flex-col items-center">
+                                <div class="text-[10px] font-bold text-[#1E2024]" x-text="data.monthly_costs.bills_history_6m.totals[idx]"></div>
+                                <div class="w-8 h-32 bg-[#FAF8F5] rounded-md my-1.5 flex flex-col justify-end overflow-hidden border border-[#EAE5DC]">
+                                    <template x-if="data.monthly_costs.bills_history_6m.breakdown && data.monthly_costs.bills_history_6m.breakdown[idx]?.total > 0">
+                                        <div class="w-full flex flex-col justify-end" :style="`height: ${Math.max(8, Math.min(100, Math.round((data.monthly_costs.bills_history_6m.breakdown[idx].total / (data.monthly_costs.bills_history_6m.max_bill || 1)) * 100)))}%`">
+                                            <div class="w-full bg-[#1E293B]" :style="`height: ${(data.monthly_costs.bills_history_6m.breakdown[idx].taxes / data.monthly_costs.bills_history_6m.breakdown[idx].total) * 100}%`"></div>
+                                            <div class="w-full bg-[#F59E0B]" :style="`height: ${(data.monthly_costs.bills_history_6m.breakdown[idx].lpg / data.monthly_costs.bills_history_6m.breakdown[idx].total) * 100}%`"></div>
+                                            <div class="w-full bg-[#0284C7]" :style="`height: ${(data.monthly_costs.bills_history_6m.breakdown[idx].water / data.monthly_costs.bills_history_6m.breakdown[idx].total) * 100}%`"></div>
+                                            <div class="w-full bg-[#1D4ED8]" :style="`height: ${(data.monthly_costs.bills_history_6m.breakdown[idx].electricity / data.monthly_costs.bills_history_6m.breakdown[idx].total) * 100}%`"></div>
+                                            <div class="w-full bg-[#82573A]" :style="`height: ${(data.monthly_costs.bills_history_6m.breakdown[idx].rent / data.monthly_costs.bills_history_6m.breakdown[idx].total) * 100}%`"></div>
+                                        </div>
+                                    </template>
+                                    <template x-if="!data.monthly_costs.bills_history_6m.breakdown || data.monthly_costs.bills_history_6m.breakdown[idx]?.total <= 0">
+                                        <div class="w-full h-1 bg-[#DCD6CC] rounded-xs"></div>
+                                    </template>
+                                </div>
+                                <div class="text-xs font-semibold text-[#7A726A]" x-text="month"></div>
+                            </div>
+                        </template>
+                    </div>
                 </div>
-                <span data-lucide="users" class="h-4 w-4 text-primary"></span>
+
+                <div class="mt-4 pt-3 border-t border-[#F2ECE3] space-y-1 text-xs text-[#7A726A]">
+                    <div x-text="data.monthly_costs.bills_history_6m.insight_1"></div>
+                    <div class="text-[11px] text-[#8C827A]" x-text="data.monthly_costs.bills_history_6m.insight_2"></div>
+                </div>
             </div>
-            <div class="h-64">
-                <canvas x-ref="visitorSummaryChart"></canvas>
+
+            {{-- September bills checklist (5 cols) --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs lg:col-span-5 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between pb-3 border-b border-[#F2ECE3]">
+                        <h2 class="text-sm font-bold text-[#1E2024]" x-text="`${currentMonthName} bills`"></h2>
+                        <span class="text-xs font-semibold text-[#8C827A]" x-text="data.monthly_costs.paid_bills_count"></span>
+                    </div>
+
+                    <div class="space-y-3 mt-3">
+                        <template x-for="bill in data.monthly_costs.bills_list" :key="bill.title">
+                            <div class="flex items-center justify-between text-xs pb-2 border-b border-[#FAF8F5] last:border-0">
+                                <div>
+                                    <div class="font-semibold text-[#1E2024]" x-text="bill.title"></div>
+                                    <div class="text-[10px] text-[#8C827A]" x-text="bill.due_info"></div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-[#1E2024]" x-text="bill.amount"></span>
+                                    <template x-if="bill.is_paid">
+                                        <span class="px-2 py-0.5 text-[10px] font-semibold rounded-md bg-[#DCFCE7] text-[#15803D]">Paid</span>
+                                    </template>
+                                    <template x-if="!bill.is_paid">
+                                        <a href="{{ route('admin.accounts-payable.index') }}" class="px-2 py-0.5 text-[10px] font-medium rounded-md border border-[#DCD6CC] bg-white text-[#1E2024] hover:bg-gray-50 shadow-2xs">Mark paid</a>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="!data.monthly_costs.bills_list || data.monthly_costs.bills_list.length === 0">
+                            <div class="py-6 text-center text-[#8C827A] italic text-xs">No bills or accounts payable recorded for this month</div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-[#E5DFD6] flex items-center justify-between text-xs">
+                    <span class="font-bold text-[#1E2024]">Total</span>
+                    <span class="font-bold text-sm text-[#1E2024]" x-text="data.monthly_costs.bills_this_month"></span>
+                </div>
+            </div>
+        </div>
+
+        {{-- Row 3: Payroll — September (Full-Width Card) --}}
+        <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs">
+            <div class="flex items-center justify-between pb-3 border-b border-[#F2ECE3]">
+                <h2 class="text-sm font-bold text-[#1E2024]" x-text="`Payroll — ${currentMonthName}`"></h2>
+                <span class="text-xs text-[#8C827A]">Paid twice a month · 15th and 30th</span>
+            </div>
+
+            {{-- 4 Mini Payroll Stats --}}
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                <div class="rounded-lg bg-[#FAF8F5] p-3 border border-[#EAE5DC]">
+                    <span class="text-[10px] text-[#8C827A] block">Total payroll cost</span>
+                    <span class="text-lg font-bold text-[#1E2024] block mt-0.5" x-text="data.monthly_costs.payroll_summary.total_cost"></span>
+                    <span class="text-[10px] text-[#7A726A] block mt-0.5" x-text="data.monthly_costs.payroll_summary.breakdown"></span>
+                </div>
+                <div class="rounded-lg bg-[#FAF8F5] p-3 border border-[#EAE5DC]">
+                    <span class="text-[10px] text-[#8C827A] block">Attendance</span>
+                    <span class="text-lg font-bold text-[#1E2024] block mt-0.5" x-text="data.monthly_costs.payroll_summary.attendance_pct"></span>
+                    <span class="text-[10px] text-[#7A726A] block mt-0.5" x-text="data.monthly_costs.payroll_summary.attendance_sub"></span>
+                </div>
+                <div class="rounded-lg bg-[#FAF8F5] p-3 border border-[#EAE5DC]">
+                    <span class="text-[10px] text-[#8C827A] block">Payroll per kg washed</span>
+                    <span class="text-lg font-bold text-[#1E2024] block mt-0.5" x-text="data.monthly_costs.payroll_summary.payroll_per_kg"></span>
+                    <span class="text-[10px] text-[#7A726A] block mt-0.5" x-text="data.monthly_costs.payroll_summary.per_kg_sub"></span>
+                </div>
+                <div class="rounded-lg bg-[#FAF8F5] p-3 border border-[#EAE5DC]">
+                    <span class="text-[10px] text-[#8C827A] block">Next payout</span>
+                    <span class="text-lg font-bold text-[#1E2024] block mt-0.5" x-text="data.monthly_costs.payroll_summary.next_payout"></span>
+                    <span class="text-[10px] text-[#7A726A] block mt-0.5" x-text="data.monthly_costs.payroll_summary.next_payout_sub"></span>
+                </div>
+            </div>
+
+            {{-- Employee Table --}}
+            <div class="overflow-x-auto mt-4">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="text-[#8C827A] text-[10px] uppercase font-bold tracking-wider border-b border-[#F2ECE3]">
+                            <th class="py-2.5 font-semibold">Employee</th>
+                            <th class="py-2.5 font-semibold">Daily Rate</th>
+                            <th class="py-2.5 font-semibold">Days</th>
+                            <th class="py-2.5 font-semibold">Wages</th>
+                            <th class="py-2.5 font-semibold">Employer Share</th>
+                            <th class="py-2.5 font-semibold">Total Cost</th>
+                            <th class="py-2.5 font-semibold text-right">Pay Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-[#F7F3EC]">
+                        <template x-for="emp in data.monthly_costs.employees" :key="emp.name">
+                            <tr class="hover:bg-[#FAF8F5] transition-colors">
+                                <td class="py-2.5">
+                                    <div class="flex items-center gap-2">
+                                        <span class="h-6 w-6 rounded-full bg-[#EAE5DC] text-[#82573A] text-[10px] font-bold flex items-center justify-center shrink-0" x-text="emp.initials"></span>
+                                        <div>
+                                            <div class="font-semibold text-[#1E2024]" x-text="emp.name"></div>
+                                            <div class="text-[10px] text-[#8C827A]" x-text="emp.role"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="py-2.5 text-[#5C554E]" x-text="emp.rate"></td>
+                                <td class="py-2.5 text-[#5C554E]" x-text="emp.days"></td>
+                                <td class="py-2.5 font-medium text-[#1E2024]" x-text="emp.wages"></td>
+                                <td class="py-2.5 text-[#7A726A]" x-text="emp.employer_share"></td>
+                                <td class="py-2.5 font-bold text-[#1E2024]" x-text="emp.total_cost"></td>
+                                <td class="py-2.5 text-right whitespace-nowrap">
+                                    <span class="inline-block px-1.5 py-0.5 text-[9px] font-medium rounded-xs bg-[#DCFCE7] text-[#15803D] mr-1" x-text="emp.pay_status_1"></span>
+                                    <span class="inline-block px-1.5 py-0.5 text-[9px] font-medium rounded-xs bg-[#FEF3C7] text-[#B45309]" x-text="emp.pay_status_2"></span>
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-if="!data.monthly_costs.employees || data.monthly_costs.employees.length === 0">
+                            <tr>
+                                <td colspan="7" class="py-6 text-center text-[#8C827A] italic text-xs">No active staff members found in system</td>
+                            </tr>
+                        </template>
+                    </tbody>
+                    <tfoot class="border-t border-[#EAE5DC] font-semibold text-[#1E2024] bg-[#FAF8F5]" x-show="data.monthly_costs.employees && data.monthly_costs.employees.length > 0">
+                        <tr>
+                            <td class="py-2.5" x-text="`${data.monthly_costs.employees.length} employees`"></td>
+                            <td class="py-2.5 text-[#7A726A]">—</td>
+                            <td class="py-2.5 text-[#5C554E]" x-text="data.monthly_costs.total_employee_days"></td>
+                            <td class="py-2.5" x-text="data.monthly_costs.total_employee_wages"></td>
+                            <td class="py-2.5 text-[#7A726A]" x-text="data.monthly_costs.total_employee_share"></td>
+                            <td class="py-2.5 font-bold" x-text="data.monthly_costs.total_employee_cost"></td>
+                            <td class="py-2.5 text-right text-[10px] text-[#8C827A] font-normal">Employer share = SSS, PhilHealth, Pag-IBIG (estimate)</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        {{-- Row 4: Waterfall Card + Other Purchases --}}
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            {{-- From sales to what's left (7 cols) --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs lg:col-span-7 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between pb-3 border-b border-[#F2ECE3]">
+                        <h2 class="text-sm font-bold text-[#1E2024]">From sales to what's left</h2>
+                        <span class="text-xs text-[#8C827A]" x-text="currentMonthName"></span>
+                    </div>
+
+                    {{-- Waterfall Visual Flow --}}
+                    <div class="grid grid-cols-6 gap-2 mt-6 text-center items-end">
+                        <div class="flex flex-col items-center">
+                            <span class="text-[10px] font-bold text-[#0F766E]" x-text="data.monthly_costs.waterfall.sales"></span>
+                            <div class="w-8 bg-[#0F766E] rounded-xs my-1.5 transition-all" :style="`height: ${Math.max(4, Math.min(112, Math.round((data.monthly_costs.waterfall.sales_raw / (data.monthly_costs.waterfall.max_val || 1)) * 112)))}px;`"></div>
+                            <span class="text-[10px] font-semibold text-[#1E2024]">Sales</span>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <span class="text-[10px] font-bold text-[#4F46E5]" x-text="data.monthly_costs.waterfall.payroll"></span>
+                            <div class="w-8 bg-[#4F46E5] rounded-xs my-1.5 transition-all" :style="`height: ${Math.max(4, Math.min(112, Math.round((data.monthly_costs.waterfall.payroll_raw / (data.monthly_costs.waterfall.max_val || 1)) * 112)))}px;`"></div>
+                            <span class="text-[10px] font-semibold text-[#1E2024]">Payroll</span>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <span class="text-[10px] font-bold text-[#EA580C]" x-text="data.monthly_costs.waterfall.bills"></span>
+                            <div class="w-8 bg-[#EA580C] rounded-xs my-1.5 transition-all" :style="`height: ${Math.max(4, Math.min(112, Math.round((data.monthly_costs.waterfall.bills_raw / (data.monthly_costs.waterfall.max_val || 1)) * 112)))}px;`"></div>
+                            <span class="text-[10px] font-semibold text-[#1E2024]">Bills</span>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <span class="text-[10px] font-bold text-[#BE123C]" x-text="data.monthly_costs.waterfall.supplies"></span>
+                            <div class="w-8 bg-[#BE123C] rounded-xs my-1.5 transition-all" :style="`height: ${Math.max(4, Math.min(112, Math.round((data.monthly_costs.waterfall.supplies_raw / (data.monthly_costs.waterfall.max_val || 1)) * 112)))}px;`"></div>
+                            <span class="text-[10px] font-semibold text-[#1E2024]">Supplies</span>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <span class="text-[10px] font-bold text-[#7E22CE]" x-text="data.monthly_costs.waterfall.other"></span>
+                            <div class="w-8 bg-[#7E22CE] rounded-xs my-1.5 transition-all" :style="`height: ${Math.max(4, Math.min(112, Math.round((data.monthly_costs.waterfall.other_raw / (data.monthly_costs.waterfall.max_val || 1)) * 112)))}px;`"></div>
+                            <span class="text-[10px] font-semibold text-[#1E2024]">Other</span>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <span class="text-[10px] font-bold text-[#181A1F]" x-text="data.monthly_costs.waterfall.left"></span>
+                            <div class="w-8 bg-[#181A1F] rounded-xs my-1.5 transition-all" :style="`height: ${Math.max(4, Math.min(112, Math.round((Math.abs(data.monthly_costs.waterfall.left_raw) / (data.monthly_costs.waterfall.max_val || 1)) * 112)))}px;`"></div>
+                            <span class="text-[10px] font-bold text-[#1E2024]">Left for shop</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-[#F2ECE3] text-xs text-[#7A726A] leading-relaxed" x-text="data.monthly_costs.rule_of_thumb"></div>
+            </div>
+
+            {{-- Other purchases (5 cols) --}}
+            <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs lg:col-span-5 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between pb-3 border-b border-[#F2ECE3]">
+                        <h2 class="text-sm font-bold text-[#1E2024]">Other purchases</h2>
+                        <span class="text-xs font-semibold text-[#7A726A]" x-text="`${data.monthly_costs.other_purchases.total} · ${data.monthly_costs.other_purchases.vs_aug}`"></span>
+                    </div>
+
+                    {{-- Category Breakdown Bars --}}
+                    <div class="space-y-2.5 mt-3 text-xs">
+                        <template x-for="cat in data.monthly_costs.other_purchases.breakdown" :key="cat.label">
+                            <div class="flex items-center justify-between">
+                                <span class="w-36 text-[#5C554E] truncate" x-text="cat.label"></span>
+                                <div class="flex-1 mx-2">
+                                    <div class="h-2 w-full bg-[#EAE5DC] rounded-full overflow-hidden">
+                                        <div class="h-full bg-[#4C1D95]" :style="`width: ${cat.pct}%`"></div>
+                                    </div>
+                                </div>
+                                <span class="font-bold text-[#1E2024] w-14 text-right" x-text="cat.amount"></span>
+                            </div>
+                        </template>
+                        <template x-if="!data.monthly_costs.other_purchases.breakdown || data.monthly_costs.other_purchases.breakdown.length === 0">
+                            <div class="py-4 text-center text-[#8C827A] italic text-xs">No other purchases recorded this month</div>
+                        </template>
+                    </div>
+
+                    {{-- Latest Receipts --}}
+                    <div class="mt-4 pt-3 border-t border-[#F2ECE3]">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-[#8C827A] block mb-2">Latest Receipts</span>
+                        <div class="space-y-1.5 text-xs">
+                            <template x-for="rec in data.monthly_costs.other_purchases.latest_receipts" :key="rec.title">
+                                <div class="flex items-center justify-between text-[#7A726A]">
+                                    <span x-text="`${rec.date} · ${rec.title}`"></span>
+                                    <span class="font-bold text-[#1E2024]" x-text="rec.amount"></span>
+                                </div>
+                            </template>
+                            <template x-if="!data.monthly_costs.other_purchases.latest_receipts || data.monthly_costs.other_purchases.latest_receipts.length === 0">
+                                <div class="text-xs text-[#8C827A] italic py-1">No expense receipts recorded yet</div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-function dashboardPage(fetchUrl, initialData, initialDateRange) {
+function dashboardPage(fetchUrl, initialData, initialRange, initialTab = 'today', initialPeriod = 'today') {
     return {
         data: initialData,
-        dateRange: initialDateRange,
-        salesChart: null,
-        statusChart: null,
-        paymentMixChart: null,
-        transactionTypeChart: null,
-        financialChart: null,
-        topServicesChart: null,
-        topPresetsChart: null,
-        branchSalesChart: null,
-        siteVisitsChart: null,
-        visitorSummaryChart: null,
-        statCards: [
-            {
-                key: 'sales',
-                label: 'Sales Owned',
-                subtitle: 'Revenue',
-                icon: 'payments',
-                iconClass: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400',
-                subClass: 'text-emerald-600 dark:text-emerald-400',
-                barClass: 'bg-emerald-500',
-                trackClass: 'bg-emerald-100/70 dark:bg-emerald-950/60',
-                sparkColor: '#059669',
-                sparkPath: 'M2 22 C 18 20, 36 14, 66 6',
-                sparkArea: 'M2 22 C 18 20, 36 14, 66 6 L 66 26 L 2 26 Z',
-                sparkDotX: 66,
-                sparkDotY: 6,
-                footerLabel: 'Branch Sales:',
-                footerVal: 'Owned',
-                percent: 88,
-            },
-            {
-                key: 'collections',
-                label: 'Physical Collections',
-                subtitle: 'Received',
-                icon: 'receipt',
-                iconClass: 'bg-teal-50 text-teal-600 dark:bg-teal-950/50 dark:text-teal-400',
-                subClass: 'text-teal-600 dark:text-teal-400',
-                barClass: 'bg-teal-500',
-                trackClass: 'bg-teal-100/70 dark:bg-teal-950/60',
-                sparkColor: '#0d9488',
-                sparkPath: 'M2 18 C 14 20, 22 8, 34 12 C 46 16, 54 8, 66 12',
-                sparkArea: 'M2 18 C 14 20, 22 8, 34 12 C 46 16, 54 8, 66 12 L 66 26 L 2 26 Z',
-                sparkDotX: 66,
-                sparkDotY: 12,
-                footerLabel: 'Total Collected:',
-                footerVal: 'Net Cash In',
-                percent: 82,
-            },
-            {
-                key: 'cash_drawer',
-                label: 'Expected Cash Drawer',
-                subtitle: 'Physical Cash',
-                icon: 'wallet',
-                iconClass: 'bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400',
-                subClass: 'text-amber-600 dark:text-amber-400',
-                barClass: 'bg-amber-500',
-                trackClass: 'bg-amber-100/70 dark:bg-amber-950/60',
-                sparkColor: '#d97706',
-                sparkPath: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6',
-                sparkArea: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6 L 66 26 L 2 26 Z',
-                sparkDotX: 66,
-                sparkDotY: 6,
-                footerLabel: 'Register Status:',
-                footerVal: 'Drawer Total',
-                percent: 74,
-            },
-            {
-                key: 'gcash',
-                label: 'Expected GCash',
-                subtitle: 'E-Wallet',
-                icon: 'smartphone',
-                iconClass: 'bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400',
-                subClass: 'text-blue-600 dark:text-blue-400',
-                barClass: 'bg-blue-500',
-                trackClass: 'bg-blue-100/70 dark:bg-blue-950/60',
-                sparkColor: '#2563eb',
-                sparkPath: 'M2 18 C 16 18, 24 10, 36 14 C 48 18, 56 12, 66 8',
-                sparkArea: 'M2 18 C 16 18, 24 10, 36 14 C 48 18, 56 12, 66 8 L 66 26 L 2 26 Z',
-                sparkDotX: 66,
-                sparkDotY: 8,
-                footerLabel: 'Digital Pay:',
-                footerVal: 'Verified',
-                percent: 68,
-            },
-            {
-                key: 'expenses',
-                label: 'Recorded Expenses',
-                subtitle: 'Outflow',
-                icon: 'expense',
-                iconClass: 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400',
-                subClass: 'text-rose-600 dark:text-rose-400',
-                barClass: 'bg-rose-500',
-                trackClass: 'bg-rose-100/70 dark:bg-rose-950/60',
-                sparkColor: '#e11d48',
-                sparkPath: 'M2 10 C 18 12, 34 18, 66 22',
-                sparkArea: 'M2 10 C 18 12, 34 18, 66 22 L 66 26 L 2 26 Z',
-                sparkDotX: 66,
-                sparkDotY: 22,
-                footerLabel: 'Total Spent:',
-                footerVal: 'Operational',
-                percent: 55,
-            },
-            {
-                key: 'accounts_payable',
-                label: 'Accounts Payable',
-                subtitle: 'Due to Pay',
-                icon: 'receivables',
-                iconClass: 'bg-orange-50 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400',
-                subClass: 'text-orange-600 dark:text-orange-400',
-                barClass: 'bg-orange-500',
-                trackClass: 'bg-orange-100/70 dark:bg-orange-950/60',
-                sparkColor: '#f97316',
-                sparkPath: 'M2 18 C 14 20, 22 8, 34 12 C 46 16, 54 8, 66 12',
-                sparkArea: 'M2 18 C 14 20, 22 8, 34 12 C 46 16, 54 8, 66 12 L 66 26 L 2 26 Z',
-                sparkDotX: 66,
-                sparkDotY: 12,
-                footerLabel: 'Supplier Payables:',
-                footerVal: 'Pending',
-                percent: 50,
-            },
-            {
-                key: 'receivables',
-                label: 'Unpaid Customer Balance',
-                subtitle: 'To Collect',
-                icon: 'receivables',
-                iconClass: 'bg-violet-50 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400',
-                subClass: 'text-violet-600 dark:text-violet-400',
-                barClass: 'bg-violet-500',
-                trackClass: 'bg-violet-100/70 dark:bg-violet-950/60',
-                sparkColor: '#7c3aed',
-                sparkPath: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6',
-                sparkArea: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6 L 66 26 L 2 26 Z',
-                sparkDotX: 66,
-                sparkDotY: 6,
-                footerLabel: 'Credit Balance:',
-                footerVal: 'Receivables',
-                percent: 62,
-            },
-            {
-                key: 'over_short',
-                label: 'Z Reading Over / Short',
-                subtitle: 'Reconciliation',
-                icon: 'scale',
-                iconClass: 'bg-cyan-50 text-cyan-600 dark:bg-cyan-950/50 dark:text-cyan-400',
-                subClass: 'text-cyan-600 dark:text-cyan-400',
-                barClass: 'bg-cyan-500',
-                trackClass: 'bg-cyan-100/70 dark:bg-cyan-950/60',
-                sparkColor: '#0891b2',
-                sparkPath: 'M2 18 C 16 18, 24 10, 36 14 C 48 18, 56 12, 66 8',
-                sparkArea: 'M2 18 C 16 18, 24 10, 36 14 C 48 18, 56 12, 66 8 L 66 26 L 2 26 Z',
-                sparkDotX: 66,
-                sparkDotY: 8,
-                footerLabel: 'Daily Audit:',
-                footerVal: 'Balanced',
-                percent: 78,
-            },
-            {
-                key: 'orders',
-                label: 'Orders in Period',
-                subtitle: 'Job Orders',
-                icon: 'jobOrders',
-                iconClass: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400',
-                subClass: 'text-indigo-600 dark:text-indigo-400',
-                barClass: 'bg-indigo-500',
-                trackClass: 'bg-indigo-100/70 dark:bg-indigo-950/60',
-                sparkColor: '#4f46e5',
-                sparkPath: 'M2 22 C 18 20, 36 14, 66 6',
-                sparkArea: 'M2 22 C 18 20, 36 14, 66 6 L 66 26 L 2 26 Z',
-                sparkDotX: 66,
-                sparkDotY: 6,
-                footerLabel: 'Order Volume:',
-                footerVal: 'Transactions',
-                percent: 92,
-            },
-            {
-                key: 'open_orders',
-                label: 'Open Orders',
-                subtitle: 'In Process',
-                icon: 'laundry',
-                iconClass: 'bg-sky-50 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400',
-                subClass: 'text-sky-600 dark:text-sky-400',
-                barClass: 'bg-sky-500',
-                trackClass: 'bg-sky-100/70 dark:bg-sky-950/60',
-                sparkColor: '#0284c7',
-                sparkPath: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6',
-                sparkArea: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6 L 66 26 L 2 26 Z',
-                sparkDotX: 66,
-                sparkDotY: 6,
-                footerLabel: 'Active Cycles:',
-                footerVal: 'In Store',
-                percent: 70,
-            },
-            {
-                key: 'ready_for_pickup',
-                label: 'Ready for Pickup',
-                subtitle: 'Store Pickup',
-                icon: 'packageCheck',
-                iconClass: 'bg-teal-50 text-teal-600 dark:bg-teal-950/50 dark:text-teal-400',
-                subClass: 'text-teal-600 dark:text-teal-400',
-                barClass: 'bg-teal-500',
-                trackClass: 'bg-teal-100/70 dark:bg-teal-950/60',
-                sparkColor: '#0d9488',
-                sparkPath: 'M2 22 C 18 20, 36 14, 66 6',
-                sparkArea: 'M2 22 C 18 20, 36 14, 66 6 L 66 26 L 2 26 Z',
-                sparkDotX: 66,
-                sparkDotY: 6,
-                footerLabel: 'Awaiting Claim:',
-                footerVal: 'Pick up',
-                percent: 75,
-            },
-            {
-                key: 'ready_for_delivery',
-                label: 'Ready for Delivery',
-                subtitle: 'Outbound',
-                icon: 'truck',
-                iconClass: 'bg-orange-50 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400',
-                subClass: 'text-orange-600 dark:text-orange-400',
-                barClass: 'bg-orange-500',
-                trackClass: 'bg-orange-100/70 dark:bg-orange-950/60',
-                sparkColor: '#f97316',
-                sparkPath: 'M2 18 C 14 20, 22 8, 34 12 C 46 16, 54 8, 66 12',
-                sparkArea: 'M2 18 C 14 20, 22 8, 34 12 C 46 16, 54 8, 66 12 L 66 26 L 2 26 Z',
-                sparkDotX: 66,
-                sparkDotY: 12,
-                footerLabel: 'Dispatch Queue:',
-                footerVal: 'Deliver',
-                percent: 65,
-            },
-            {
-                key: 'unique_site_visits',
-                label: 'Website Visitors',
-                subtitle: 'Web Traffic',
-                icon: 'users',
-                iconClass: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400',
-                subClass: 'text-emerald-600 dark:text-emerald-400',
-                barClass: 'bg-emerald-500',
-                trackClass: 'bg-emerald-100/70 dark:bg-emerald-950/60',
-                sparkColor: '#059669',
-                sparkPath: 'M2 22 C 18 20, 36 14, 66 6',
-                sparkArea: 'M2 22 C 18 20, 36 14, 66 6 L 66 26 L 2 26 Z',
-                sparkDotX: 66,
-                sparkDotY: 6,
-                footerLabel: 'Distinct Users:',
-                footerVal: 'Browsers',
-                percent: 86,
-            },
-            {
-                key: 'daily_unique_site_visits',
-                label: 'Daily Unique Visits',
-                subtitle: 'Daily Active',
-                icon: 'mouse-pointer-click',
-                iconClass: 'bg-cyan-50 text-cyan-600 dark:bg-cyan-950/50 dark:text-cyan-400',
-                subClass: 'text-cyan-600 dark:text-cyan-400',
-                barClass: 'bg-cyan-500',
-                trackClass: 'bg-cyan-100/70 dark:bg-cyan-950/60',
-                sparkColor: '#0891b2',
-                sparkPath: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6',
-                sparkArea: 'M2 16 C 16 14, 26 22, 40 14 C 52 8, 58 10, 66 6 L 66 26 L 2 26 Z',
-                sparkDotX: 66,
-                sparkDotY: 6,
-                footerLabel: 'Counter Status:',
-                footerVal: '• Live Counter',
-                percent: 100,
-            },
-        ],
-        init() {
-            this.$nextTick(() => {
-                this.initDateRange();
-                this.drawCharts();
-                window.renderLucideIcons();
-            });
+        dateRange: initialRange,
+        activeTab: initialTab || 'today',
+        currentPeriod: initialPeriod || 'today',
+        countedCash: '',
 
+        init() {
             window.setInterval(() => this.refresh(), 30000);
         },
-        initDateRange() {
-            if (!window.flatpickr) return;
 
-            window.flatpickr(this.$refs.dateRange, {
-                mode: 'range',
-                dateFormat: 'Y-m-d',
-                defaultDate: this.dateRange ? this.dateRange.split(' to ') : null,
-                onClose: (dates, value) => this.dateRange = value,
-            });
+        get currentMonthName() {
+            return this.data.current_month_name || 'September';
         },
+
+        get currentMonthYear() {
+            return this.data.current_month_year || 'September 2026';
+        },
+
+        get headerTitle() {
+            if (this.activeTab === 'supplies') return 'Supplies & inventory';
+            if (this.activeTab === 'costs') return 'Monthly costs';
+            return 'Today at the shop';
+        },
+
+        get headerSubtitle() {
+            const branch = this.data.today?.header?.branch_name || 'Main Branch';
+            const updated = this.data.today?.header?.time_formatted || '8:47 PM';
+            const date = this.data.today?.header?.date_formatted || 'Sunday, September 27';
+            const monthYear = this.currentMonthYear;
+
+            if (this.activeTab === 'supplies') {
+                return `${monthYear} · ${branch} · what came in, what went out, what to reorder`;
+            }
+            if (this.activeTab === 'costs') {
+                return `${monthYear} · payroll, bills, extra purchases, and what's left for the shop`;
+            }
+            return `${date} · ${branch} · updated ${updated}`;
+        },
+
+        get cashDifferenceText() {
+            if (!this.countedCash || isNaN(parseFloat(this.countedCash))) {
+                return 'Difference: shows here once counted';
+            }
+            const counted = parseFloat(this.countedCash);
+            const expected = parseFloat(this.data.today?.cash_check?.cash_drawer_raw ?? 0);
+            const diff = counted - expected;
+            if (Math.abs(diff) < 0.01) {
+                return 'Difference: balanced (₱0.00)';
+            }
+            if (diff > 0) {
+                return `Difference: +₱${diff.toFixed(2)} over`;
+            }
+            return `Difference: -₱${Math.abs(diff).toFixed(2)} short`;
+        },
+
+        switchTab(tab) {
+            this.activeTab = tab;
+            const url = new URL(window.location);
+            url.searchParams.set('tab', tab);
+            window.history.replaceState({}, '', url);
+        },
+
+        changePeriod(period) {
+            this.currentPeriod = period;
+            const url = new URL(window.location);
+            url.searchParams.set('period', period);
+            url.searchParams.delete('date_range');
+            window.location.href = url.toString();
+        },
+
+        changeBranch(branchId) {
+            const url = new URL(window.location);
+            if (branchId) {
+                url.searchParams.set('branch_id', branchId);
+            } else {
+                url.searchParams.delete('branch_id');
+            }
+            window.location.href = url.toString();
+        },
+
         refresh() {
             fetch(fetchUrl, { headers: { 'Accept': 'application/json' } })
                 .then(response => response.json())
                 .then(payload => {
                     this.data = payload;
-                    this.updateCharts();
-                    this.$nextTick(() => window.renderLucideIcons());
-                });
-        },
-        drawCharts() {
-            const color = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#2E7D32';
-            const grid = document.documentElement.classList.contains('dark') ? '#1f2937' : '#e2e8f0';
-
-            this.salesChart = new window.Chart(this.$refs.salesChart, {
-                type: 'line',
-                data: {
-                    labels: this.data.charts.sales.labels,
-                    datasets: [{
-                        label: 'Sales',
-                        data: this.data.charts.sales.values,
-                        borderColor: color,
-                        backgroundColor: color + '22',
-                        fill: true,
-                        tension: 0.35,
-                    }]
-                },
-                options: this.chartOptions(grid)
-            });
-
-            this.siteVisitsChart = new window.Chart(this.$refs.siteVisitsChart, {
-                type: 'line',
-                data: {
-                    labels: this.data.charts.site_visits.labels,
-                    datasets: [{
-                        label: 'Daily unique visitors',
-                        data: this.data.charts.site_visits.values,
-                        borderColor: '#0ea5e9',
-                        backgroundColor: '#0ea5e922',
-                        fill: true,
-                        tension: 0.35,
-                    }]
-                },
-                options: this.chartOptions(grid)
-            });
-
-            this.visitorSummaryChart = new window.Chart(this.$refs.visitorSummaryChart, {
-                type: 'doughnut',
-                data: this.dataset('visitor_summary', ['#0ea5e9', '#f59e0b']),
-                options: this.pieOptions()
-            });
-
-            this.statusChart = new window.Chart(this.$refs.statusChart, {
-                type: 'bar',
-                data: {
-                    labels: this.data.charts.status.labels,
-                    datasets: [{
-                        label: 'Orders',
-                        data: this.data.charts.status.values,
-                        backgroundColor: color,
-                        borderRadius: 6,
-                    }]
-                },
-                options: this.chartOptions(grid)
-            });
-
-            this.paymentMixChart = new window.Chart(this.$refs.paymentMixChart, {
-                type: 'doughnut',
-                data: this.dataset('payment_mix', this.palette(color)),
-                options: this.pieOptions()
-            });
-
-            this.transactionTypeChart = new window.Chart(this.$refs.transactionTypeChart, {
-                type: 'pie',
-                data: this.dataset('transaction_types', this.palette(color)),
-                options: this.pieOptions()
-            });
-
-            this.financialChart = new window.Chart(this.$refs.financialChart, {
-                type: 'bar',
-                data: this.dataset('financial_snapshot', this.palette(color)),
-                options: this.chartOptions(grid)
-            });
-
-            this.topServicesChart = new window.Chart(this.$refs.topServicesChart, {
-                type: 'bar',
-                data: this.dataset('top_services', this.palette(color)),
-                options: this.horizontalOptions(grid)
-            });
-
-            this.topPresetsChart = new window.Chart(this.$refs.topPresetsChart, {
-                type: 'bar',
-                data: this.dataset('top_presets', this.palette(color)),
-                options: this.horizontalOptions(grid)
-            });
-
-            this.branchSalesChart = new window.Chart(this.$refs.branchSalesChart, {
-                type: 'bar',
-                data: this.dataset('branch_sales', this.palette(color)),
-                options: this.horizontalOptions(grid)
-            });
-        },
-        updateCharts() {
-            if (!this.salesChart || !this.statusChart) return;
-
-            this.salesChart.data.labels = this.data.charts.sales.labels;
-            this.salesChart.data.datasets[0].data = this.data.charts.sales.values;
-            this.salesChart.update();
-
-            this.siteVisitsChart.data.labels = this.data.charts.site_visits.labels;
-            this.siteVisitsChart.data.datasets[0].data = this.data.charts.site_visits.values;
-            this.siteVisitsChart.update();
-
-            this.updateChart(this.visitorSummaryChart, 'visitor_summary');
-
-            this.statusChart.data.labels = this.data.charts.status.labels;
-            this.statusChart.data.datasets[0].data = this.data.charts.status.values;
-            this.statusChart.update();
-
-            this.updateChart(this.paymentMixChart, 'payment_mix');
-            this.updateChart(this.transactionTypeChart, 'transaction_types');
-            this.updateChart(this.financialChart, 'financial_snapshot');
-            this.updateChart(this.topServicesChart, 'top_services');
-            this.updateChart(this.topPresetsChart, 'top_presets');
-            this.updateChart(this.branchSalesChart, 'branch_sales');
-        },
-        dataset(key, colors) {
-            return {
-                labels: this.data.charts[key].labels,
-                datasets: [{
-                    label: 'Amount',
-                    data: this.data.charts[key].values,
-                    backgroundColor: colors,
-                    borderColor: colors,
-                    borderRadius: 6,
-                }]
-            };
-        },
-        updateChart(chart, key) {
-            if (!chart) return;
-
-            chart.data.labels = this.data.charts[key].labels;
-            chart.data.datasets[0].data = this.data.charts[key].values;
-            chart.update();
-        },
-        palette(primary) {
-            return [primary, '#0ea5e9', '#f59e0b', '#10b981', '#6366f1', '#ef4444', '#14b8a6', '#8b5cf6'];
-        },
-        chartOptions(grid) {
-            return {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { grid: { color: grid }, ticks: { color: '#64748B' } },
-                    y: { beginAtZero: true, grid: { color: grid }, ticks: { color: '#64748B', precision: 0 } },
-                }
-            };
-        },
-        horizontalOptions(grid) {
-            const options = this.chartOptions(grid);
-            options.indexAxis = 'y';
-            return options;
-        },
-        pieOptions() {
-            return {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom' } },
-            };
+                })
+                .catch(() => {});
         }
-    }
+    };
 }
 </script>
 @endsection
