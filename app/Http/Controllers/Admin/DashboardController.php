@@ -758,6 +758,7 @@ class DashboardController extends Controller
                 'quantity' => rtrim(rtrim(number_format($qty, 2, '.', ''), '0'), '.') . ' ' . ($item->unit ?: 'units'),
                 'reorder_level' => rtrim(rtrim(number_format($reorder, 2, '.', ''), '0'), '.') . ' ' . ($item->unit ?: 'units'),
                 'used_in_sep' => rtrim(rtrim(number_format($used, 2, '.', ''), '0'), '.') . ' ' . ($item->unit ?: 'units'),
+                'used_this_month' => rtrim(rtrim(number_format($used, 2, '.', ''), '0'), '.') . ' ' . ($item->unit ?: 'units'),
                 'daily_use' => rtrim(rtrim(number_format($dailyUse, 2, '.', ''), '0'), '.') . ' ' . ($item->unit ?: 'units'),
                 'days_left' => $daysLeft,
                 'status' => $status,
@@ -976,8 +977,10 @@ class DashboardController extends Controller
         $billsDiff = $billsTotal - $lastMonthBills;
         if ($lastMonthBills > 0) {
             $billsVsLastMonth = ($billsDiff >= 0 ? "↑ {$this->money($currency, abs($billsDiff))}" : "↓ {$this->money($currency, abs($billsDiff))}") . " vs {$lastMonthName}";
+        } elseif ($billsTotal > 0) {
+            $billsVsLastMonth = $this->money($currency, $billsTotal) . " this month";
         } else {
-            $billsVsLastMonth = $this->money($currency, $billsTotal) . " vs {$lastMonthName}";
+            $billsVsLastMonth = "No bills recorded";
         }
 
         $staffUsers = User::query()
@@ -990,6 +993,7 @@ class DashboardController extends Controller
         $wagesSum = 0;
         $employerShareSum = 0;
         $totalDays = 0;
+        $currentDay = (int) now()->day;
 
         foreach ($staffUsers as $staff) {
             $salary = (float) $staff->monthly_salary;
@@ -1015,8 +1019,8 @@ class DashboardController extends Controller
                 'wages' => $this->money($currency, $wages),
                 'employer_share' => $this->money($currency, $share),
                 'total_cost' => $this->money($currency, $totalCost),
-                'pay_status_1' => '15th paid',
-                'pay_status_2' => '30th due',
+                'pay_status_1' => $currentDay >= 15 ? '15th: Paid' : '15th: Due',
+                'pay_status_2' => $currentDay >= 30 ? '30th: Paid' : '30th: Due',
             ];
         }
 
@@ -1085,6 +1089,23 @@ class DashboardController extends Controller
             ->get();
 
         $otherPurchasesTotal = (float) $otherExpenses->sum('amount');
+
+        $lastMonthOtherPurchases = (float) BranchExpense::query()
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->whereDate('expense_date', '>=', $lastMonthStart)
+            ->whereDate('expense_date', '<=', $lastMonthEnd)
+            ->whereNotIn('expense_type', ['utilities', 'rent', 'government_fees', 'payroll', 'supplies', 'inventory_purchase'])
+            ->sum('amount');
+
+        if ($lastMonthOtherPurchases > 0) {
+            $otherDiffPct = round((($otherPurchasesTotal - $lastMonthOtherPurchases) / $lastMonthOtherPurchases) * 100);
+            $sign = $otherDiffPct >= 0 ? '+' : '';
+            $vsLastMonthText = "{$sign}{$otherDiffPct}% vs {$lastMonthName}";
+        } elseif ($otherPurchasesTotal > 0) {
+            $vsLastMonthText = "Recorded this month";
+        } else {
+            $vsLastMonthText = "None recorded";
+        }
 
         $otherBreakdown = [];
         $grouped = (clone $otherExpenses)->groupBy('category');
@@ -1177,6 +1198,8 @@ class DashboardController extends Controller
             ];
         }
 
+        $billsRangeLabel = !empty($sixMonths) ? ($sixMonths[0] . ' – ' . end($sixMonths) . ' ' . now()->year) : '';
+
         $totalKgMonth = (float) JobOrderItem::query()
             ->join('job_orders', 'job_orders.id', '=', 'job_order_items.job_order_id')
             ->whereNull('job_orders.deleted_at')
@@ -1236,6 +1259,7 @@ class DashboardController extends Controller
         return [
             'bills_this_month' => $this->money($currency, $billsTotal),
             'bills_vs_aug' => $billsVsLastMonth,
+            'bills_vs_last_month' => $billsVsLastMonth,
             'payroll_this_month' => $this->money($currency, $totalPayrollCost),
             'payroll_sub' => "{$staffCount} staff · {$payrollPctOfSales}% of {$this->money($currency, $monthlySales)} sales",
             'still_to_pay' => $this->money($currency, $stillToPay),
@@ -1244,6 +1268,7 @@ class DashboardController extends Controller
             'left_margin_sub' => "{$marginPct}% margin · after payroll & all costs",
             'bills_history_6m' => [
                 'months' => $sixMonths,
+                'range_label' => $billsRangeLabel,
                 'totals' => $sixMonthsTotals,
                 'breakdown' => $sixMonthsBreakdown,
                 'max_bill' => $maxMonthBill,
@@ -1285,7 +1310,8 @@ class DashboardController extends Controller
             'rule_of_thumb' => $ruleOfThumb,
             'other_purchases' => [
                 'total' => $this->money($currency, $otherPurchasesTotal),
-                'vs_aug' => '0% vs last month',
+                'vs_aug' => $vsLastMonthText,
+                'vs_last_month' => $vsLastMonthText,
                 'breakdown' => $otherBreakdown,
                 'latest_receipts' => $latestReceipts,
             ],

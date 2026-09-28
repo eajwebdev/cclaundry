@@ -71,7 +71,6 @@
             {{-- TAB 2: Supplies Controls --}}
             <template x-if="activeTab === 'supplies'">
                 <div class="flex items-center gap-3">
-                    <span class="text-[11px] text-[#6B21A8] bg-[#F3E8FF] border border-[#E9D5FF] px-2 py-0.5 rounded-full font-medium">Sample figures</span>
                     <div class="h-8 rounded-md border border-[#DCD6CC] bg-white px-3 flex items-center text-xs font-medium text-[#1E2024] shadow-2xs" x-text="`${currentMonthYear} ▾`"></div>
                     @if(auth()->user()->hasMenuAccess('inventory'))
                         <a href="{{ route('admin.inventory.index') }}" class="inline-flex items-center gap-1 rounded-md bg-[#82573A] hover:bg-[#6E482E] text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors">
@@ -84,7 +83,6 @@
             {{-- TAB 3: Monthly Costs Controls --}}
             <template x-if="activeTab === 'costs'">
                 <div class="flex items-center gap-3">
-                    <span class="text-[11px] text-[#6B21A8] bg-[#F3E8FF] border border-[#E9D5FF] px-2 py-0.5 rounded-full font-medium">Sample figures</span>
                     <div class="h-8 rounded-md border border-[#DCD6CC] bg-white px-3 flex items-center text-xs font-medium text-[#1E2024] shadow-2xs" x-text="`${currentMonthYear} ▾`"></div>
                     <a href="{{ route('admin.expenses.index') }}" class="inline-flex items-center gap-1 rounded-md bg-[#82573A] hover:bg-[#6E482E] text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors">
                         + Record a bill or purchase
@@ -439,7 +437,7 @@
                         </template>
                         <template x-if="!data.today.recent_orders || data.today.recent_orders.length === 0">
                             <tr>
-                                <td colspan="5" class="py-6 text-center text-[#8C827A] italic text-xs">No orders recorded today</td>
+                                <td colspan="5" class="py-6 text-center text-[#8C827A] italic text-xs" x-text="currentPeriod === 'week' ? 'No orders recorded this week' : 'No orders recorded today'"></td>
                             </tr>
                         </template>
                     </tbody>
@@ -540,7 +538,7 @@
                         <tr class="text-[#8C827A] text-[10px] uppercase font-bold tracking-wider border-b border-[#F2ECE3]">
                             <th class="py-2.5 font-semibold">Item</th>
                             <th class="py-2.5 font-semibold">On Hand</th>
-                            <th class="py-2.5 font-semibold">Used in Sep</th>
+                            <th class="py-2.5 font-semibold" x-text="'Used in ' + currentMonthName"></th>
                             <th class="py-2.5 font-semibold">Daily Use</th>
                             <th class="py-2.5 font-semibold text-center">Days Left</th>
                             <th class="py-2.5 font-semibold text-right">Status</th>
@@ -570,7 +568,7 @@
                                         <span class="font-bold text-xs text-[#1E2024] whitespace-nowrap" x-text="item.quantity"></span>
                                     </div>
                                 </td>
-                                <td class="py-3 text-[#5C554E]" x-text="item.used_in_sep"></td>
+                                <td class="py-3 text-[#5C554E]" x-text="item.used_this_month || item.used_in_sep"></td>
                                 <td class="py-3 text-[#5C554E]" x-text="item.daily_use"></td>
                                 <td class="py-3 text-center font-bold text-sm" :class="item.days_left <= 7 ? 'text-rose-600' : 'text-[#1E2024]'" x-text="item.days_left"></td>
                                 <td class="py-3 text-right">
@@ -625,7 +623,7 @@
                                     <div class="h-16 w-full flex flex-col justify-end items-center">
                                         <div class="text-[10px] font-bold text-[#0F766E] mb-1" x-text="w.in > 0 ? `₱${w.in.toLocaleString()}` : ''"></div>
                                         <template x-if="w.in > 0">
-                                            <div class="w-10 bg-[#0F766E] rounded-t-xs" :style="`height: ${Math.max(4, Math.min(48, Math.round((w.in / (data.supplies.max_weekly_val || 5000)) * 48)))}px;`"></div>
+                                            <div class="w-10 bg-[#0F766E] rounded-t-xs" :style="`height: ${Math.max(4, Math.min(48, Math.round((w.in / (data.supplies.max_weekly_val || 1)) * 48)))}px;`"></div>
                                         </template>
                                         <template x-if="w.in === 0">
                                             <span class="text-[9px] text-[#A8A29E] italic pb-1">no restock</span>
@@ -638,10 +636,10 @@
                                     {{-- Lower Half: Out (Used) --}}
                                     <div class="h-16 w-full flex flex-col justify-start items-center">
                                         <template x-if="w.out > 0">
-                                            <div class="w-10 bg-[#D97706] rounded-b-xs" :style="`height: ${Math.max(4, Math.min(48, Math.round((w.out / (data.supplies.max_weekly_val || 5000)) * 48)))}px;`"></div>
+                                            <div class="w-10 bg-[#D97706] rounded-b-xs" :style="`height: ${Math.max(4, Math.min(48, Math.round((w.out / (data.supplies.max_weekly_val || 1)) * 48)))}px;`"></div>
                                         </template>
                                         <template x-if="w.out === 0">
-                                            <div class="w-10 h-1 bg-[#EAE5DC] rounded-b-xs"></div>
+                                            <span class="text-[9px] text-[#A8A29E] italic pt-1">no usage</span>
                                         </template>
                                         <div class="text-[10px] font-bold text-[#D97706] mt-1" x-text="w.out > 0 ? `₱${w.out.toLocaleString()}` : ''"></div>
                                     </div>
@@ -754,7 +752,7 @@
                         style="font-family: 'Playfair Display', Georgia, serif;"
                         x-text="data.monthly_costs.bills_this_month"
                     ></div>
-                    <div class="mt-1 text-xs text-[#7A726A]" x-text="data.monthly_costs.bills_vs_aug"></div>
+                    <div class="mt-1 text-xs text-[#7A726A]" x-text="data.monthly_costs.bills_vs_last_month || data.monthly_costs.bills_vs_aug"></div>
                 </div>
                 <div class="mt-4 text-xs text-[#8C827A] border-t border-[#F2ECE3] pt-2">
                     Rent, electricity, water, LPG, taxes
@@ -817,7 +815,7 @@
                 <div>
                     <div class="flex items-center justify-between pb-3 border-b border-[#F2ECE3]">
                         <h2 class="text-sm font-bold text-[#1E2024]">Monthly bills — last 6 months</h2>
-                        <span class="text-xs text-[#8C827A]">Apr – Sep 2026</span>
+                        <span class="text-xs text-[#8C827A]" x-text="data.monthly_costs.bills_history_6m.range_label || ''"></span>
                     </div>
 
                     <div class="flex items-center gap-3 text-xs text-[#7A726A] mt-3">
