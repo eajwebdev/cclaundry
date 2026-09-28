@@ -808,7 +808,7 @@
             </div>
         </div>
 
-        {{-- Row 2: Monthly bills (6 months) + September bills --}}
+        {{-- Row 2: Monthly bills (6 months) + Current month bills --}}
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
             {{-- Monthly bills — last 6 months (7 cols) --}}
             <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs lg:col-span-7 flex flex-col justify-between">
@@ -857,7 +857,7 @@
                 </div>
             </div>
 
-            {{-- September bills checklist (5 cols) --}}
+            {{-- Current month bills checklist (5 cols) --}}
             <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs lg:col-span-5 flex flex-col justify-between">
                 <div>
                     <div class="flex items-center justify-between pb-3 border-b border-[#F2ECE3]">
@@ -896,7 +896,7 @@
             </div>
         </div>
 
-        {{-- Row 3: Payroll — September (Full-Width Card) --}}
+        {{-- Row 3: Payroll — Current month (Full-Width Card) --}}
         <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs">
             <div class="flex items-center justify-between pb-3 border-b border-[#F2ECE3]">
                 <h2 class="text-sm font-bold text-[#1E2024]" x-text="`Payroll — ${currentMonthName}`"></h2>
@@ -1046,7 +1046,7 @@
                 <div>
                     <div class="flex items-center justify-between pb-3 border-b border-[#F2ECE3]">
                         <h2 class="text-sm font-bold text-[#1E2024]">Other purchases</h2>
-                        <span class="text-xs font-semibold text-[#7A726A]" x-text="`${data.monthly_costs.other_purchases.total} · ${data.monthly_costs.other_purchases.vs_aug}`"></span>
+                        <span class="text-xs font-semibold text-[#7A726A]" x-text="`${data.monthly_costs.other_purchases.total} · ${data.monthly_costs.other_purchases.vs_last_month || data.monthly_costs.other_purchases.vs_aug}`"></span>
                     </div>
 
                     {{-- Category Breakdown Bars --}}
@@ -1102,11 +1102,11 @@ function dashboardPage(fetchUrl, initialData, initialRange, initialTab = 'today'
         },
 
         get currentMonthName() {
-            return this.data.current_month_name || 'September';
+            return this.data.current_month_name || new Date().toLocaleString('en-US', { month: 'long' });
         },
 
         get currentMonthYear() {
-            return this.data.current_month_year || 'September 2026';
+            return this.data.current_month_year || new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
         },
 
         get headerTitle() {
@@ -1117,8 +1117,8 @@ function dashboardPage(fetchUrl, initialData, initialRange, initialTab = 'today'
 
         get headerSubtitle() {
             const branch = this.data.today?.header?.branch_name || 'Main Branch';
-            const updated = this.data.today?.header?.time_formatted || '8:47 PM';
-            const date = this.data.today?.header?.date_formatted || 'Sunday, September 27';
+            const updated = this.data.today?.header?.time_formatted || new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            const date = this.data.today?.header?.date_formatted || new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
             const monthYear = this.currentMonthYear;
 
             if (this.activeTab === 'supplies') {

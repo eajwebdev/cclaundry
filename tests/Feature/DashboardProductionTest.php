@@ -154,8 +154,11 @@ class DashboardProductionTest extends TestCase
         $this->assertArrayHasKey('employees', $payload['monthly_costs']);
         $this->assertArrayHasKey('bills_history_6m', $payload['monthly_costs']);
         $this->assertCount(6, $payload['monthly_costs']['bills_history_6m']['months']);
+        $this->assertNotEmpty($payload['monthly_costs']['bills_history_6m']['range_label']);
+        $this->assertArrayHasKey('bills_vs_last_month', $payload['monthly_costs']);
         $this->assertArrayHasKey('waterfall', $payload['monthly_costs']);
         $this->assertArrayHasKey('other_purchases', $payload['monthly_costs']);
+        $this->assertArrayHasKey('vs_last_month', $payload['monthly_costs']['other_purchases']);
     }
 
     private function payment(Branch $branch, Customer $customer, JobOrder $order, string $number, float $amount, $paidAt): Payment
