@@ -959,8 +959,16 @@
                                 <td class="py-2.5 text-[#7A726A]" x-text="emp.employer_share"></td>
                                 <td class="py-2.5 font-bold text-[#1E2024]" x-text="emp.total_cost"></td>
                                 <td class="py-2.5 text-right whitespace-nowrap">
-                                    <span class="inline-block px-1.5 py-0.5 text-[9px] font-medium rounded-xs bg-[#DCFCE7] text-[#15803D] mr-1" x-text="emp.pay_status_1"></span>
-                                    <span class="inline-block px-1.5 py-0.5 text-[9px] font-medium rounded-xs bg-[#FEF3C7] text-[#B45309]" x-text="emp.pay_status_2"></span>
+                                    <span
+                                        class="inline-block px-1.5 py-0.5 text-[9px] font-medium rounded-xs mr-1"
+                                        :class="emp.pay_status_1.includes('Paid') ? 'bg-[#DCFCE7] text-[#15803D]' : 'bg-[#FEF3C7] text-[#B45309]'"
+                                        x-text="emp.pay_status_1"
+                                    ></span>
+                                    <span
+                                        class="inline-block px-1.5 py-0.5 text-[9px] font-medium rounded-xs"
+                                        :class="emp.pay_status_2.includes('Paid') ? 'bg-[#DCFCE7] text-[#15803D]' : 'bg-[#FEF3C7] text-[#B45309]'"
+                                        x-text="emp.pay_status_2"
+                                    ></span>
                                 </td>
                             </tr>
                         </template>
