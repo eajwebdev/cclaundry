@@ -16,4 +16,5 @@ class Inventory extends Model
     public function branch() { return $this->belongsTo(Branch::class); }
     public function supplier() { return $this->belongsTo(Supplier::class); }
     public function movements() { return $this->hasMany(InventoryMovement::class); }
+    public function serviceUsages() { return $this->hasMany(ServiceInventoryUsage::class); }
 }

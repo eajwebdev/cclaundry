@@ -175,6 +175,66 @@ class InventoryReliabilityTest extends TestCase
         ]);
     }
 
+    public function test_deleting_inventory_removes_recipe_links_and_does_not_block_future_job_orders(): void
+    {
+        $this->settings();
+        $admin = User::factory()->create(['role' => 'super_admin', 'access' => ['inventory', 'job_orders']]);
+        $branch = Branch::query()->create(['name' => 'Main Branch', 'code' => 'MAIN', 'is_active' => true]);
+        $customer = Customer::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Booking Customer',
+            'billing_type' => 'regular',
+            'is_active' => true,
+        ]);
+        $stock = Inventory::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Fabric Conditioner',
+            'unit' => 'sachets',
+            'quantity' => 10,
+            'reorder_level' => 2,
+            'unit_cost' => 12,
+            'is_active' => true,
+        ]);
+        $service = LaundryService::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Conditioner Add-on',
+            'pricing_type' => 'load',
+            'price' => 20,
+            'is_active' => true,
+        ]);
+        $usage = $service->inventoryUsages()->create([
+            'inventory_id' => $stock->id,
+            'quantity' => 1,
+        ]);
+
+        $this->actingAs($admin)
+            ->delete(route('admin.inventory.destroy', $stock))
+            ->assertRedirect();
+
+        $this->assertSoftDeleted('inventories', ['id' => $stock->id]);
+        $this->assertDatabaseMissing('service_inventory_usages', ['id' => $usage->id]);
+
+        $this->post(route('admin.job-orders.store'), [
+            'branch_id' => $branch->id,
+            'customer_id' => $customer->id,
+            'items' => [[
+                'laundry_service_id' => $service->id,
+                'description' => $service->name,
+                'quantity' => 1,
+                'unit_price' => 20,
+            ]],
+            'payment_type' => 'unpaid',
+            'transaction_type' => 'delivery',
+            'send_sms' => 0,
+        ])->assertRedirect(route('admin.job-orders.index'));
+
+        $this->assertDatabaseHas('job_orders', [
+            'branch_id' => $branch->id,
+            'customer_id' => $customer->id,
+            'total' => 20,
+        ]);
+    }
+
     private function settings(): void
     {
         SystemSetting::query()->create([

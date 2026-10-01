@@ -162,11 +162,18 @@ class InventoryController extends Controller
     public function destroy(Request $request, Inventory $inventory)
     {
         $this->authorizeInventory($request, $inventory);
-        $inventory->delete();
 
-        Activity::log($request, 'inventory_deleted', $inventory, [
-            'name' => $inventory->name,
-        ], $inventory->branch_id);
+        DB::transaction(function () use ($request, $inventory) {
+            // Inventories are soft-deleted, so the database foreign key never
+            // runs its cascade. Remove recipe links explicitly or future job
+            // orders will fail while trying to deduct a deleted stock item.
+            $inventory->serviceUsages()->delete();
+            $inventory->delete();
+
+            Activity::log($request, 'inventory_deleted', $inventory, [
+                'name' => $inventory->name,
+            ], $inventory->branch_id);
+        });
 
         return back()->with('success', 'Inventory item deleted successfully.');
     }
