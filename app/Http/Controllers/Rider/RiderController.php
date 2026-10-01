@@ -87,7 +87,7 @@ class RiderController extends Controller
                         ->where('delivery_preference', 'deliver')
                         ->whereHas('jobOrder', fn ($order) => $order->where('status', 'ready_for_delivery')));
             })
-            ->with(['items', 'customer:id,name,phone', 'branch:id,name,address', 'jobOrder:id,job_order_number,status,updated_at'])
+            ->with(['items', 'customer:id,name,phone', 'branch:id,name,address', 'jobOrder:id,job_order_number,status,total,updated_at'])
             ->orderByRaw('CASE WHEN delivery_date IS NULL THEN 1 ELSE 0 END')
             ->orderBy('delivery_date')
             ->orderBy('id')
@@ -591,6 +591,7 @@ class RiderController extends Controller
             'tag_code' => ['required_if:status,picked_up', 'nullable', 'string', 'max:24'],
             'collected_amount' => ['nullable', 'numeric', 'min:0', 'max:100000'],
             'collected_payment_method' => ['nullable', Rule::in(['cash', 'gcash', 'unpaid'])],
+            'change_returned' => ['nullable', 'boolean'],
             // Sent by the phone so a resend from a dead spot can be recognised
             // as the same tap rather than a second one.
             'client_token' => ['nullable', 'string', 'max:40'],
@@ -661,6 +662,13 @@ class RiderController extends Controller
 
                 return $this->riderStatusError($request, "Cannot mark as delivered: Order is currently in cycle ({$statusLabel}). It must be marked \"Ready for Delivery\" in Cycle Monitoring first.");
             }
+
+            if ($pickupRequest->needsChangeReturned() && ! $request->boolean('change_returned')) {
+                return $this->riderStatusError(
+                    $request,
+                    'Return PHP '.number_format($pickupRequest->changeDue(), 2).' change to the customer and confirm it before marking this delivery complete.'
+                );
+            }
         }
 
         $tagCode = null;
@@ -711,6 +719,16 @@ class RiderController extends Controller
                     if (! $currentOrder || $currentOrder->status !== 'ready_for_delivery' || ! $current->wantsDelivery()) {
                         return false;
                     }
+
+                    $changeDue = $current->collected_payment_method === 'cash'
+                        ? max(round((float) $current->collected_amount - (float) $currentOrder->total, 2), 0)
+                        : 0;
+
+                    if ($changeDue > 0 && $current->change_returned_at === null && ! ($validated['change_returned'] ?? false)) {
+                        return false;
+                    }
+                } else {
+                    $changeDue = 0;
                 }
 
                 $pickupRiderId = $current->rider_id;
@@ -724,6 +742,9 @@ class RiderController extends Controller
                     'tag_date' => $collectedAt?->toDateString() ?: $current->tag_date,
                     'picked_up_at' => $collectedAt ?: $current->picked_up_at,
                     'delivered_at' => $target === 'completed' ? now() : null,
+                    'change_returned_at' => $target === 'completed' && $changeDue > 0
+                        ? ($current->change_returned_at ?: now())
+                        : $current->change_returned_at,
                     // Payment is taken at the door, so what the rider took is
                     // recorded with the collection rather than after the fact.
                     'collected_amount' => $target === 'picked_up'
@@ -741,6 +762,8 @@ class RiderController extends Controller
                     'collected_amount' => $validated['collected_amount'] ?? null,
                     'rider_id' => $rider->id,
                     'pickup_rider_id' => $pickupRiderId,
+                    'change_returned' => $target === 'completed' && $changeDue > 0,
+                    'change_amount' => $changeDue,
                 ], $current->branch_id);
 
                 return true;
@@ -811,7 +834,9 @@ class RiderController extends Controller
     {
         $message = $target === 'picked_up'
             ? 'Collected under tag '.($tagCode ?: $pickupRequest->tag_code).'. Bring it to the branch.'
-            : 'Delivered. Nice work.';
+            : ($pickupRequest->change_returned_at && $pickupRequest->changeDue() > 0
+                ? 'Delivered and PHP '.number_format($pickupRequest->changeDue(), 2).' change returned. Nice work.'
+                : 'Delivered. Nice work.');
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -976,7 +1001,7 @@ class RiderController extends Controller
             ->whereHas('jobOrder', fn ($order) => $order->where('status', 'ready_for_delivery'));
 
         return $mine->union($claimable)->union($readyDeliveries)
-            ->with(['customer:id,name,phone', 'branch:id,name', 'jobOrder:id,job_order_number,status'])
+            ->with(['customer:id,name,phone', 'branch:id,name', 'jobOrder:id,job_order_number,status,total'])
             ->get()
             ->map(function (PickupRequest $job) use ($rider) {
                 $isMine = (int) $job->rider_id === (int) $rider->id;

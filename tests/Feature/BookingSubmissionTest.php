@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\Inventory;
 use App\Models\JobOrder;
 use App\Models\LaundryService;
 use App\Models\LaundryServiceCategory;
@@ -13,6 +14,7 @@ use App\Models\SystemSetting;
 use App\Models\SystemTrialSetting;
 use App\Models\User;
 use App\Support\Booking;
+use App\Support\LaundryDosingGuide;
 use Carbon\Carbon;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -571,6 +573,66 @@ class BookingSubmissionTest extends TestCase
 
         $this->assertSame('8.00', $line->billable_quantity);
         $this->assertSame('240.00', $line->line_total);
+    }
+
+    public function test_a_booked_dosing_profile_reduces_stock_when_it_becomes_a_job_order(): void
+    {
+        $this->service->update([
+            'name' => 'Duvet Cover',
+            'dosing_profile' => LaundryDosingGuide::DUVET_COVER,
+            'minimum_kilos' => 5,
+        ]);
+
+        $detergent = Inventory::query()->create([
+            'branch_id' => $this->branch->id,
+            'name' => 'Standard Liquid Detergent',
+            'sku' => 'SUP-DETERGENT',
+            'unit' => 'liter',
+            'quantity' => 1,
+            'reorder_level' => 0.1,
+            'unit_cost' => 80,
+            'is_active' => true,
+        ]);
+        $this->service->inventoryUsages()->create([
+            'inventory_id' => $detergent->id,
+            // The profile replaces this fixed amount with its weight-based dose.
+            'quantity' => 1,
+        ]);
+
+        $this->post(route('booking.store'), $this->payload([
+            'items' => [['key' => 'service:'.$this->service->id, 'quantity' => 8]],
+        ]))->assertSessionHasNoErrors();
+
+        $booking = PickupRequest::query()->with('items')->firstOrFail();
+        $admin = User::factory()->create(['role' => 'super_admin']);
+
+        $this->actingAs($admin)
+            ->post(route('admin.job-orders.store'), [
+                'branch_id' => $this->branch->id,
+                'processing_branch_id' => $this->branch->id,
+                'customer_id' => $booking->customer_id,
+                'pickup_request_id' => $booking->id,
+                'items' => [[
+                    'laundry_service_id' => $this->service->id,
+                    'description' => $this->service->name,
+                    'quantity' => 8,
+                    'unit_price' => $this->service->price,
+                ]],
+                'discount' => 0,
+                'paid_amount' => 0,
+                'payment_type' => 'unpaid',
+                'transaction_type' => 'delivery',
+            ])
+            ->assertRedirect(route('admin.job-orders.index'));
+
+        // Duvet cover at 8 kg consumes 60 ml: 1.000 L becomes 0.940 L.
+        $this->assertSame('0.9400', $detergent->fresh()->quantity);
+        $this->assertDatabaseHas('inventory_movements', [
+            'inventory_id' => $detergent->id,
+            'movement_type' => 'out',
+            'quantity' => 0.06,
+        ]);
+        $this->assertNotNull($booking->fresh()->job_order_id);
     }
 
     /** A service with no minimum set is untouched by the rule. */

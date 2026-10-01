@@ -24,6 +24,7 @@ class PickupRequest extends Model
         'collected_amount', 'collected_payment_method', 'rider_action_token',
         'status', 'job_order_id', 'handled_by',
         'rider_id', 'assigned_at', 'picked_up_at', 'delivered_at',
+        'change_returned_at',
         'confirmed_at', 'cancelled_at', 'cancellation_reason',
     ];
 
@@ -45,6 +46,7 @@ class PickupRequest extends Model
         'picked_up_at' => 'datetime',
         'tag_date' => 'date',
         'delivered_at' => 'datetime',
+        'change_returned_at' => 'datetime',
     ];
 
     public function customer() { return $this->belongsTo(Customer::class); }
@@ -82,6 +84,7 @@ class PickupRequest extends Model
             $this->updated_at?->format('Y-m-d H:i:s.u'),
             $this->tag_code,
             $this->collected_amount,
+            $this->change_returned_at?->format('Y-m-d H:i:s.u'),
             $order?->updated_at?->format('Y-m-d H:i:s.u'),
             $order?->job_order_number,
             $order?->total,
@@ -262,6 +265,45 @@ class PickupRequest extends Model
         }
 
         return ['state' => 'collected', 'type' => $method, 'paid' => $amount, 'method' => $method];
+    }
+
+    /** Cash handed to the pickup rider above the final job-order total. */
+    public function changeDue(): float
+    {
+        if ($this->collected_payment_method !== 'cash' || $this->collected_amount === null) {
+            return 0.0;
+        }
+
+        $order = $this->relationLoaded('jobOrder')
+            ? $this->jobOrder
+            : $this->jobOrder()->first();
+
+        if (! $order) {
+            return 0.0;
+        }
+
+        $recordedCashPayments = $order->payments()
+            ->where('payment_type', 'cash')
+            ->whereNotNull('tendered_amount')
+            ->get(['change_amount']);
+
+        if ($recordedCashPayments->isNotEmpty()) {
+            return max(round((float) $recordedCashPayments->sum('change_amount'), 2), 0);
+        }
+
+        return max(round((float) $this->collected_amount - (float) $order->total, 2), 0);
+    }
+
+    public function hasChangeDue(): bool
+    {
+        return $this->changeDue() > 0;
+    }
+
+    public function needsChangeReturned(): bool
+    {
+        return $this->wantsDelivery()
+            && $this->hasChangeDue()
+            && $this->change_returned_at === null;
     }
 
     /** "Cash" or "GCash", falling back to whatever is stored if it is neither. */

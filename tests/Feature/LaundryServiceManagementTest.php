@@ -9,6 +9,7 @@ use App\Models\ServicePreset;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Support\Booking;
+use App\Support\LaundryDosingGuide;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -151,6 +152,39 @@ class LaundryServiceManagementTest extends TestCase
 
         // Left blank on a load service, a load holds 10 kg.
         $this->assertSame(10.0, $this->service(['name' => 'Wash Only'])->kilosPerLoad());
+    }
+
+    public function test_staff_can_save_a_guide_consumption_preset_on_a_service(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('admin.services.store'), [
+                'branch_id' => $this->branch->id,
+                'name' => 'King Comforter',
+                'pricing_type' => 'kilo',
+                'price' => 55,
+                'dosing_profile' => LaundryDosingGuide::KING_COMFORTER,
+                'is_active' => 1,
+                'show_on_landing' => 1,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $service = LaundryService::query()->where('name', 'King Comforter')->firstOrFail();
+        $this->assertSame(LaundryDosingGuide::KING_COMFORTER, $service->dosing_profile);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.services.index', ['branch_id' => $this->branch->id]))
+            ->assertOk()
+            ->assertSee('Bedding — King comforter (10–15 kg)');
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.services.update', $service), [
+                'name' => 'King Comforter',
+                'pricing_type' => 'kilo',
+                'price' => 55,
+                'dosing_profile' => 'not-from-the-guide',
+                'is_active' => 1,
+            ])
+            ->assertSessionHasErrors('dosing_profile');
     }
 
     public function test_a_service_inside_a_preset_cannot_be_deleted(): void

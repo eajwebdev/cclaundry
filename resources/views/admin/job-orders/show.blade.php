@@ -141,6 +141,9 @@
                             <div>
                                 <p class="font-medium">{{ $payment->payment_number }}</p>
                                 <p class="text-xs text-muted">{{ \App\Support\StatusBadge::label($payment->payment_type) }} - {{ $payment->paid_at?->format('M d, Y h:i A') }}{{ $payment->reference_no ? ' - Ref: '.$payment->reference_no : '' }}</p>
+                                @if($payment->tendered_amount !== null)
+                                    <p class="mt-1 text-xs text-muted">Cash tendered {{ $settings->currency ?? 'PHP' }} {{ number_format((float) $payment->tendered_amount, 2) }} · Change {{ $settings->currency ?? 'PHP' }} {{ number_format((float) $payment->change_amount, 2) }}</p>
+                                @endif
                             </div>
                             <span class="font-semibold">{{ $settings->currency ?? 'PHP' }} {{ number_format((float) $payment->amount, 2) }}</span>
                         </div>

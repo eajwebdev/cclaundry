@@ -63,4 +63,28 @@ class ZReading extends Model
     {
         return $this->belongsTo(User::class, 'prepared_by');
     }
+
+    public function hasMachineReconciliation(): bool
+    {
+        return collect($this->machine_counters ?? [])->contains(
+            fn ($counter) => data_get($counter, 'wash.system_cycles') !== null
+                || data_get($counter, 'dry.system_cycles') !== null
+        );
+    }
+
+    public function unexplainedMachineCycles(): int
+    {
+        return (int) collect($this->machine_counters ?? [])->sum(
+            fn ($counter) => abs((int) data_get($counter, 'wash.unexplained_cycles', 0))
+                + abs((int) data_get($counter, 'dry.unexplained_cycles', 0))
+        );
+    }
+
+    public function documentedNonJobCycles(): int
+    {
+        return (int) collect($this->machine_counters ?? [])->sum(
+            fn ($counter) => (int) data_get($counter, 'wash.non_job_total', 0)
+                + (int) data_get($counter, 'dry.non_job_total', 0)
+        );
+    }
 }

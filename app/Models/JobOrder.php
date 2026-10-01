@@ -26,8 +26,10 @@ class JobOrder extends Model
             ->where('action', 'job_order_released')
             ->latestOfMany();
     }
+
     public function items() { return $this->hasMany(JobOrderItem::class); }
     public function payments() { return $this->hasMany(Payment::class); }
+    public function pickupRequest() { return $this->hasOne(PickupRequest::class); }
     public function cycles() { return $this->hasMany(CycleRecord::class); }
     public function latestCycle() { return $this->hasOne(CycleRecord::class)->latestOfMany(); }
 

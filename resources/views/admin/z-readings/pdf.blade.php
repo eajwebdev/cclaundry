@@ -209,13 +209,22 @@
             @for($machine = $machineCount; $machine >= 1; $machine--)
                 @php
                     $counter = data_get($reading->machine_counters, $machine.'.dry', []);
-                    $systemCycles = (int) $machineCycles->where('machine_number', $machine)->where('cycle_type', 'dry')->sum('cycle_count');
+                    $systemCycles = (int) ($counter['system_cycles'] ?? $machineCycles->where('machine_number', $machine)->where('cycle_type', 'dry')->sum('cycle_count'));
+                    $nonJobTotal = (int) ($counter['non_job_total'] ?? 0);
+                    $unexplained = (int) ($counter['unexplained_cycles'] ?? (($counter['total'] ?? $systemCycles) - $systemCycles - $nonJobTotal));
+                    $reasonSummary = collect($counter['non_job_cycles'] ?? [])->filter(fn ($count) => (int) $count > 0)->map(fn ($count, $reason) => ($nonJobCycleReasons[$reason] ?? str($reason)->replace('_', ' ')->title()).': '.$count)->implode(', ');
                 @endphp
                 <table class="machine">
                     <tr><th colspan="2">Dry {{ $machine }}</th></tr>
                     <tr><td>Dry Beginning</td><td class="right">{{ $counter['beginning'] ?? '' }}</td></tr>
                     <tr><td>Dry Ending</td><td class="right">{{ $counter['ending'] ?? '' }}</td></tr>
-                    <tr class="blue"><td>Total Dry Cycle</td><td class="right">{{ $counter['total'] ?? $systemCycles }}</td></tr>
+                    <tr class="blue"><td>Physical Counter Cycles</td><td class="right">{{ $counter['total'] ?? $systemCycles }}</td></tr>
+                    <tr><td>Job-order Cycles</td><td class="right">{{ $systemCycles }}</td></tr>
+                    <tr><td>Documented Non-job</td><td class="right">{{ $nonJobTotal }}</td></tr>
+                    <tr class="{{ $unexplained === 0 ? '' : 'yellow' }}"><td>Unexplained Difference</td><td class="right">{{ $unexplained }}</td></tr>
+                    @if($reasonSummary || filled($counter['notes'] ?? null))
+                        <tr><td colspan="2"><strong>Reason:</strong> {{ $reasonSummary ?: 'See notes' }}{{ filled($counter['notes'] ?? null) ? ' — '.$counter['notes'] : '' }}</td></tr>
+                    @endif
                 </table>
             @endfor
         </td>
@@ -223,13 +232,22 @@
             @for($machine = $machineCount; $machine >= 1; $machine--)
                 @php
                     $counter = data_get($reading->machine_counters, $machine.'.wash', []);
-                    $systemCycles = (int) $machineCycles->where('machine_number', $machine)->where('cycle_type', 'wash')->sum('cycle_count');
+                    $systemCycles = (int) ($counter['system_cycles'] ?? $machineCycles->where('machine_number', $machine)->where('cycle_type', 'wash')->sum('cycle_count'));
+                    $nonJobTotal = (int) ($counter['non_job_total'] ?? 0);
+                    $unexplained = (int) ($counter['unexplained_cycles'] ?? (($counter['total'] ?? $systemCycles) - $systemCycles - $nonJobTotal));
+                    $reasonSummary = collect($counter['non_job_cycles'] ?? [])->filter(fn ($count) => (int) $count > 0)->map(fn ($count, $reason) => ($nonJobCycleReasons[$reason] ?? str($reason)->replace('_', ' ')->title()).': '.$count)->implode(', ');
                 @endphp
                 <table class="machine">
                     <tr><th colspan="2">Wash {{ $machine }}</th></tr>
                     <tr><td>Wash Beginning</td><td class="right">{{ $counter['beginning'] ?? '' }}</td></tr>
                     <tr><td>Wash Ending</td><td class="right">{{ $counter['ending'] ?? '' }}</td></tr>
-                    <tr class="blue"><td>Total Wash Cycle</td><td class="right">{{ $counter['total'] ?? $systemCycles }}</td></tr>
+                    <tr class="blue"><td>Physical Counter Cycles</td><td class="right">{{ $counter['total'] ?? $systemCycles }}</td></tr>
+                    <tr><td>Job-order Cycles</td><td class="right">{{ $systemCycles }}</td></tr>
+                    <tr><td>Documented Non-job</td><td class="right">{{ $nonJobTotal }}</td></tr>
+                    <tr class="{{ $unexplained === 0 ? '' : 'yellow' }}"><td>Unexplained Difference</td><td class="right">{{ $unexplained }}</td></tr>
+                    @if($reasonSummary || filled($counter['notes'] ?? null))
+                        <tr><td colspan="2"><strong>Reason:</strong> {{ $reasonSummary ?: 'See notes' }}{{ filled($counter['notes'] ?? null) ? ' — '.$counter['notes'] : '' }}</td></tr>
+                    @endif
                 </table>
             @endfor
         </td>
@@ -237,8 +255,10 @@
 </table>
 
 <table style="margin-top:5px;">
-    <tr class="total"><td>Total Dry Cycle</td><td class="right">{{ number_format((int) (collect($reading->machine_counters)->sum(fn ($counter) => data_get($counter, 'dry.total', 0)) ?: $machineCycles->where('cycle_type', 'dry')->sum('cycle_count'))) }}</td></tr>
-    <tr class="total"><td>Total Wash Cycle</td><td class="right">{{ number_format((int) (collect($reading->machine_counters)->sum(fn ($counter) => data_get($counter, 'wash.total', 0)) ?: $machineCycles->where('cycle_type', 'wash')->sum('cycle_count'))) }}</td></tr>
+    <tr class="total"><td>Physical Dry Cycles</td><td class="right">{{ number_format((int) collect($reading->machine_counters)->sum(fn ($counter) => data_get($counter, 'dry.total', 0))) }}</td></tr>
+    <tr><td>Dry Job-order / Non-job / Unexplained</td><td class="right">{{ number_format((int) collect($reading->machine_counters)->sum(fn ($counter) => data_get($counter, 'dry.system_cycles', 0))) }} / {{ number_format((int) collect($reading->machine_counters)->sum(fn ($counter) => data_get($counter, 'dry.non_job_total', 0))) }} / {{ number_format((int) collect($reading->machine_counters)->sum(fn ($counter) => data_get($counter, 'dry.unexplained_cycles', 0))) }}</td></tr>
+    <tr class="total"><td>Physical Wash Cycles</td><td class="right">{{ number_format((int) collect($reading->machine_counters)->sum(fn ($counter) => data_get($counter, 'wash.total', 0))) }}</td></tr>
+    <tr><td>Wash Job-order / Non-job / Unexplained</td><td class="right">{{ number_format((int) collect($reading->machine_counters)->sum(fn ($counter) => data_get($counter, 'wash.system_cycles', 0))) }} / {{ number_format((int) collect($reading->machine_counters)->sum(fn ($counter) => data_get($counter, 'wash.non_job_total', 0))) }} / {{ number_format((int) collect($reading->machine_counters)->sum(fn ($counter) => data_get($counter, 'wash.unexplained_cycles', 0))) }}</td></tr>
 </table>
 
 <table style="margin-top:8px;">

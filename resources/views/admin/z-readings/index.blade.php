@@ -50,6 +50,7 @@
                         <th class="px-4 py-3">Reading</th>
                         <th class="px-4 py-3">Branch</th>
                         <th class="px-4 py-3">Prepared By</th>
+                        <th class="px-4 py-3">Machine Reconciliation</th>
                         <th class="px-4 py-3 text-right">Expected</th>
                         <th class="px-4 py-3 text-right">Actual</th>
                         <th class="px-4 py-3 text-right">Over / Short</th>
@@ -65,6 +66,18 @@
                             </td>
                             <td class="px-4 py-3">{{ $history->branch?->name }}</td>
                             <td class="px-4 py-3">{{ $history->preparer?->name ?? 'System' }}</td>
+                            <td class="px-4 py-3">
+                                @if(! $history->hasMachineReconciliation())
+                                    <span class="text-xs text-muted">Legacy reading</span>
+                                @elseif($history->unexplainedMachineCycles() > 0)
+                                    <span class="rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">{{ $history->unexplainedMachineCycles() }} unexplained</span>
+                                @else
+                                    <span class="rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">Matched</span>
+                                @endif
+                                @if($history->documentedNonJobCycles() > 0)
+                                    <p class="mt-1 text-[11px] text-muted">{{ $history->documentedNonJobCycles() }} documented non-job</p>
+                                @endif
+                            </td>
                             <td class="px-4 py-3 text-right">{{ $currency }} {{ number_format((float) $history->expected_total_amount, 2) }}</td>
                             <td class="px-4 py-3 text-right">{{ $currency }} {{ number_format((float) $history->actual_total_amount, 2) }}</td>
                             <td class="px-4 py-3 text-right font-semibold {{ (float) $history->over_short_amount < 0 ? 'text-red-600' : ((float) $history->over_short_amount > 0 ? 'text-emerald-600' : '') }}">
@@ -83,7 +96,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-4 py-10 text-center text-muted">No Z readings saved yet.</td>
+                            <td colspan="8" class="px-4 py-10 text-center text-muted">No Z readings saved yet.</td>
                         </tr>
                     @endforelse
                 </tbody>

@@ -6,9 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class Payment extends Model
 {
-    protected $fillable = ['branch_id', 'collected_branch_id', 'job_order_id', 'customer_id', 'received_by', 'payment_number', 'payment_type', 'reference_no', 'amount', 'remarks', 'settlement_status', 'paid_at'];
+    protected $fillable = ['branch_id', 'collected_branch_id', 'job_order_id', 'customer_id', 'received_by', 'payment_number', 'payment_type', 'reference_no', 'amount', 'tendered_amount', 'change_amount', 'remarks', 'settlement_status', 'paid_at'];
 
-    protected $casts = ['amount' => 'decimal:2', 'paid_at' => 'datetime'];
+    protected $casts = ['amount' => 'decimal:2', 'tendered_amount' => 'decimal:2', 'change_amount' => 'decimal:2', 'paid_at' => 'datetime'];
 
     public function branch() { return $this->belongsTo(Branch::class); }
     public function collectedBranch() { return $this->belongsTo(Branch::class, 'collected_branch_id'); }

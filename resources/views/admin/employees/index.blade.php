@@ -56,6 +56,7 @@
                         <th class="px-4 py-3">Username</th>
                         <th class="px-4 py-3">Phone</th>
                         <th class="px-4 py-3">Branch</th>
+                        <th class="px-4 py-3 text-right">Monthly Salary</th>
                         <th class="px-4 py-3">Status</th>
                         <th class="px-4 py-3 text-right">Actions</th>
                     </tr>
@@ -70,6 +71,7 @@
                             <td class="px-4 py-3">{{ $employee->username }}</td>
                             <td class="px-4 py-3">{{ $employee->phone ?: 'N/A' }}</td>
                             <td class="px-4 py-3">{{ $employee->branch?->name }}</td>
+                            <td class="px-4 py-3 text-right">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format($employee->configured_monthly_salary, 2) }}</td>
                             <td class="px-4 py-3"><span class="{{ \App\Support\StatusBadge::classes($employee->status) }}">{{ \App\Support\StatusBadge::label($employee->status) }}</span></td>
                             <td class="px-4 py-3 text-right">
                                 <button type="button" @click="editOpen = {{ $employee->id }}" title="Edit" aria-label="Edit employee" class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-smoke dark:border-gray-700 dark:hover:bg-gray-800">
@@ -85,7 +87,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="px-4 py-10 text-center text-muted">No employees found.</td></tr>
+                        <tr><td colspan="7" class="px-4 py-10 text-center text-muted">No employees found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

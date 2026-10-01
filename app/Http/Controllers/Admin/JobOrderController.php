@@ -35,7 +35,7 @@ class JobOrderController extends Controller
         $user = $request->user();
         [$dateFrom, $dateTo] = $this->dateRange($request);
 
-        $ordersQuery = JobOrder::with(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'creator', 'releaseLog.user', 'items', 'payments.receiver', 'payments.collectedBranch'])
+        $ordersQuery = JobOrder::with(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'creator', 'releaseLog.user', 'items', 'payments.receiver', 'payments.collectedBranch', 'pickupRequest'])
             ->when($user->role !== 'super_admin' && $user->role !== 'admin', fn ($q) => $q->where('branch_id', $user->branch_id))
             ->when($dateFrom, fn ($q) => $q->whereDate('created_at', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
@@ -80,7 +80,7 @@ class JobOrderController extends Controller
     {
         $this->authorizeJobOrder($request, $jobOrder);
 
-        $jobOrder->load(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'creator', 'releaseLog.user', 'items.service', 'payments.receiver', 'payments.collectedBranch', 'cycles.user']);
+        $jobOrder->load(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'creator', 'releaseLog.user', 'items.service', 'payments.receiver', 'payments.collectedBranch', 'cycles.user', 'pickupRequest']);
 
         return view('admin.job-orders.show', [
             'order' => $jobOrder,
@@ -92,7 +92,7 @@ class JobOrderController extends Controller
     {
         $this->authorizeJobOrderReceipt($request, $jobOrder);
 
-        $jobOrder->load(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'creator', 'releaseLog.user', 'items.service', 'payments.collectedBranch']);
+        $jobOrder->load(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'creator', 'releaseLog.user', 'items.service', 'payments.collectedBranch', 'pickupRequest']);
 
         return view('admin.job-orders.receipt', [
             'order' => $jobOrder,
@@ -504,14 +504,28 @@ class JobOrderController extends Controller
             // Fractional kilo pricing can produce centavos, but the amount due
             // is always a whole peso rounded upward.
             $total = (float) ceil(round($taxable + $tax, 2));
-            $paymentType = $validated['payment_type'] ?? 'cash';
-            $paid = $paymentType === 'unpaid'
-                ? 0
-                : min((float) ($validated['paid_amount'] ?? 0), $total);
+            $riderPayment = $pickupRequest?->riderPaymentPrefill();
+            $paymentType = $riderPayment && $riderPayment['state'] === 'collected'
+                ? $riderPayment['type']
+                : ($validated['payment_type'] ?? 'cash');
+            $amountReceived = $riderPayment && $riderPayment['state'] === 'collected'
+                ? (float) $riderPayment['paid']
+                : (float) ($validated['paid_amount'] ?? 0);
+            $paid = $paymentType === 'unpaid' ? 0 : min($amountReceived, $total);
 
             if (in_array($paymentType, ['cash', 'gcash', 'bank'], true) && $paid <= 0) {
                 $paid = $total;
             }
+
+            // Cash handed to the cashier is not always the same as revenue.
+            // Keep the full tender for accountability, apply no more than the
+            // order total, and record the remainder as change.
+            $cashTendered = $paymentType === 'cash'
+                ? round(max($amountReceived, $paid), 2)
+                : null;
+            $changeAmount = $paymentType === 'cash'
+                ? max(round((float) $cashTendered - $paid, 2), 0)
+                : 0.0;
 
             $order = JobOrder::create([
                 'branch_id' => $validated['branch_id'],
@@ -575,6 +589,11 @@ class JobOrderController extends Controller
                     'payment_type' => $paymentType,
                     'reference_no' => $validated['payment_reference_no'] ?? null,
                     'amount' => $paid,
+                    'tendered_amount' => $cashTendered,
+                    'change_amount' => $changeAmount,
+                    'remarks' => $pickupRequest && $paymentType === 'cash'
+                        ? 'Cash handed to cashier by rider for tag '.($pickupRequest->tag_code ?: $pickupRequest->reference_no)
+                        : null,
                     'settlement_status' => $collectedBranchId === (int) $order->branch_id ? 'local' : 'pending',
                     'paid_at' => now(),
                 ]);
@@ -595,6 +614,8 @@ class JobOrderController extends Controller
                 'job_order_number' => $order->job_order_number,
                 'total' => $order->total,
                 'is_rush' => $order->is_rush,
+                'cash_tendered' => $cashTendered,
+                'change_amount' => $changeAmount,
             ], $order->branch_id);
 
             // A pickup booked from the public site closes out the moment the

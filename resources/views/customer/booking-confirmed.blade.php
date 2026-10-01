@@ -240,6 +240,12 @@
                                 </p>
                             </div>
                         </div>
+                        @if($pickupRequest->changeDue() > 0)
+                            <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+                                <p class="font-bold">₱{{ number_format($pickupRequest->changeDue(), 2) }} change {{ $pickupRequest->change_returned_at ? 'was returned' : 'will be returned with your delivery' }}.</p>
+                                <p class="mt-0.5 text-xs">You gave ₱{{ number_format((float) $pickupRequest->collected_amount, 2) }} cash at pickup.</p>
+                            </div>
+                        @endif
                     @else
                         <p class="text-sm font-bold text-cc-deep">Estimated Total</p>
                         @if($pickupRequest->estimated_total)

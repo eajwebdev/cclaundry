@@ -525,7 +525,7 @@
                 <div class="overflow-hidden rounded-md border border-border dark:border-gray-800">
                     <table class="w-full text-left text-sm">
                         <thead class="bg-smoke text-xs uppercase text-muted dark:bg-gray-950">
-                            <tr><th class="px-3 py-2">Payment #</th><th class="px-3 py-2">Type</th><th class="px-3 py-2">Reference</th><th class="px-3 py-2">Received By</th><th class="px-3 py-2">Date</th><th class="px-3 py-2 text-right">Amount</th></tr>
+                            <tr><th class="px-3 py-2">Payment #</th><th class="px-3 py-2">Type</th><th class="px-3 py-2">Reference</th><th class="px-3 py-2">Received By</th><th class="px-3 py-2">Date</th><th class="px-3 py-2 text-right">Tendered</th><th class="px-3 py-2 text-right">Paid</th><th class="px-3 py-2 text-right">Change</th></tr>
                         </thead>
                         <tbody class="divide-y divide-border dark:divide-gray-800">
                             @forelse($order->payments->sortByDesc('paid_at') as $payment)
@@ -535,10 +535,12 @@
                                     <td class="px-3 py-2">{{ $payment->reference_no ?: 'N/A' }}</td>
                                     <td class="px-3 py-2">{{ $payment->receiver?->name ?? 'N/A' }}</td>
                                     <td class="px-3 py-2">{{ $payment->paid_at?->format('M d, Y h:i A') }}</td>
+                                    <td class="px-3 py-2 text-right">{{ $payment->tendered_amount !== null ? ($appSettings?->currency ?? 'PHP').' '.number_format((float) $payment->tendered_amount, 2) : '—' }}</td>
                                     <td class="px-3 py-2 text-right font-semibold">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $payment->amount, 2) }}</td>
+                                    <td class="px-3 py-2 text-right">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $payment->change_amount, 2) }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="6" class="px-3 py-8 text-center text-muted">No payments recorded.</td></tr>
+                                <tr><td colspan="8" class="px-3 py-8 text-center text-muted">No payments recorded.</td></tr>
                             @endforelse
                         </tbody>
                     </table>

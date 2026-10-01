@@ -21,6 +21,7 @@ use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\ZReading;
 use App\Models\AccountsPayable;
+use App\Models\AttendanceEmployee;
 use App\Support\StatusBadge;
 use App\Support\FinancialReconciliation;
 use Carbon\CarbonPeriod;
@@ -983,20 +984,65 @@ class DashboardController extends Controller
             $billsVsLastMonth = "No bills recorded";
         }
 
-        $staffUsers = User::query()
+        $staffEmployees = AttendanceEmployee::query()
+            ->with('user:id,monthly_salary,role')
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', 'active')
-            ->orderBy('id')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
             ->get();
 
+        $salaryExpenses = BranchExpense::query()
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->where('expense_type', 'payroll')
+            ->whereDate('expense_date', '>=', $monthStart)
+            ->whereDate('expense_date', '<=', $monthEnd)
+            ->get();
+
+        // Status follows the salary period, even when payroll was released a
+        // day early or late. "Paid this month" below still follows payment date.
+        $salaryPeriodPayments = BranchExpense::query()
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->where('expense_type', 'payroll')
+            ->whereNotNull('attendance_employee_id')
+            ->whereDate('salary_period_start', '<=', $monthEnd)
+            ->whereDate('salary_period_end', '>=', $monthStart)
+            ->get();
+
+        $firstPeriodStart = now()->startOfMonth();
+        $firstPeriodEnd = now()->startOfMonth()->addDays(14);
+        $secondPeriodStart = now()->startOfMonth()->addDays(15);
+        $secondPeriodEnd = now()->endOfMonth();
+        $currentDay = (int) now()->day;
+        $currentPeriodStart = $currentDay <= 15 ? $firstPeriodStart : $secondPeriodStart;
+        $currentPeriodEnd = $currentDay <= 15 ? $firstPeriodEnd : $secondPeriodEnd;
+        $currentPeriodLabel = $currentPeriodStart->format('M j').' - '.$currentPeriodEnd->format('M j');
+
+        $wasPaidForPeriod = static function ($expenses, int $employeeId, Carbon $periodStart, Carbon $periodEnd): bool {
+            return $expenses->contains(function (BranchExpense $expense) use ($employeeId, $periodStart, $periodEnd): bool {
+                if ((int) $expense->attendance_employee_id !== $employeeId) {
+                    return false;
+                }
+
+                if (! $expense->salary_period_start || ! $expense->salary_period_end) {
+                    return false;
+                }
+
+                return $expense->salary_period_start->lte($periodEnd)
+                    && $expense->salary_period_end->gte($periodStart);
+            });
+        };
+
         $employeesList = [];
+        $unpaidEmployees = [];
+        $unconfiguredEmployees = [];
         $wagesSum = 0;
         $employerShareSum = 0;
         $totalDays = 0;
-        $currentDay = (int) now()->day;
+        $pendingCurrentPeriod = 0;
 
-        foreach ($staffUsers as $staff) {
-            $salary = (float) $staff->monthly_salary;
+        foreach ($staffEmployees as $staff) {
+            $salary = $staff->configured_monthly_salary;
             $dailyRate = $salary > 0 ? round($salary / 26, 2) : 0;
             $days = $salary > 0 ? 26 : 0;
             $wages = round($dailyRate * $days, 2);
@@ -1007,35 +1053,60 @@ class DashboardController extends Controller
             $employerShareSum += $share;
             $totalDays += $days;
 
+            $firstPaid = $wasPaidForPeriod($salaryPeriodPayments, $staff->id, $firstPeriodStart, $firstPeriodEnd);
+            $secondPaid = $wasPaidForPeriod($salaryPeriodPayments, $staff->id, $secondPeriodStart, $secondPeriodEnd);
+            $currentPaid = $wasPaidForPeriod($salaryPeriodPayments, $staff->id, $currentPeriodStart, $currentPeriodEnd);
+            $paidAmount = (float) $salaryExpenses
+                ->where('attendance_employee_id', $staff->id)
+                ->sum('amount');
+
+            if ($salary <= 0) {
+                $unconfiguredEmployees[] = [
+                    'id' => $staff->id,
+                    'name' => $staff->name,
+                ];
+            } elseif (! $currentPaid) {
+                $pendingAmount = round($salary / 2, 2);
+                $pendingCurrentPeriod += $pendingAmount;
+                $unpaidEmployees[] = [
+                    'id' => $staff->id,
+                    'name' => $staff->name,
+                    'branch_id' => $staff->branch_id,
+                    'expected' => $this->money($currency, $pendingAmount),
+                ];
+            }
+
             $parts = explode(' ', trim($staff->name));
             $initials = strtoupper(substr($parts[0] ?? 'U', 0, 1) . substr($parts[1] ?? ($parts[0] ?? 'S'), 0, 1));
 
             $employeesList[] = [
                 'initials' => $initials,
                 'name' => $staff->name,
-                'role' => ucfirst(str_replace('_', ' ', $staff->role)),
+                'role' => ucfirst(str_replace('_', ' ', $staff->user?->role ?? 'employee')),
                 'rate' => $this->money($currency, $dailyRate),
                 'days' => $days,
                 'wages' => $this->money($currency, $wages),
                 'employer_share' => $this->money($currency, $share),
                 'total_cost' => $this->money($currency, $totalCost),
-                'pay_status_1' => $currentDay >= 15 ? '15th: Paid' : '15th: Due',
-                'pay_status_2' => $currentDay >= 30 ? '30th: Paid' : '30th: Due',
+                'paid_amount' => $this->money($currency, $paidAmount),
+                'pay_status_1' => $firstPaid ? '15th: Paid' : ($salary <= 0 ? '15th: Salary not set' : ($currentDay >= 15 ? '15th: Unpaid' : '15th: Upcoming')),
+                'pay_status_2' => $secondPaid ? 'Month-end: Paid' : ($salary <= 0 ? 'Month-end: Salary not set' : ($currentDay >= now()->daysInMonth ? 'Month-end: Unpaid' : 'Month-end: Upcoming')),
             ];
         }
 
         $totalPayrollCost = $wagesSum + $employerShareSum;
         $staffCount = count($employeesList);
 
-        $stillToPay = (float) AccountsPayable::query()
+        $vendorStillToPay = (float) AccountsPayable::query()
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', '!=', 'paid')
             ->sum('balance');
+        $stillToPay = $vendorStillToPay + $pendingCurrentPeriod;
 
         $upcomingNotice = [];
         if ($wagesSum > 0) {
             $payoutDay = now()->day <= 15 ? '15' : now()->endOfMonth()->day;
-            $upcomingNotice[] = "Payroll due " . now()->format('M') . " {$payoutDay}";
+            $upcomingNotice[] = count($unpaidEmployees).' employee salary payment'.(count($unpaidEmployees) === 1 ? '' : 's')." pending for ".now()->format('M')." {$payoutDay}";
         }
         $nextPayable = AccountsPayable::query()
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
@@ -1254,14 +1325,12 @@ class DashboardController extends Controller
 
         $billsInsight2 = 'Quarterly taxes and scheduled vendor payables will show here when recorded.';
 
-        $payrollPctOfSales = $monthlySales > 0 ? round(($totalPayrollCost / $monthlySales) * 100) : 0;
-
         return [
             'bills_this_month' => $this->money($currency, $billsTotal),
             'bills_vs_aug' => $billsVsLastMonth,
             'bills_vs_last_month' => $billsVsLastMonth,
-            'payroll_this_month' => $this->money($currency, $totalPayrollCost),
-            'payroll_sub' => "{$staffCount} staff · {$payrollPctOfSales}% of {$this->money($currency, $monthlySales)} sales",
+            'payroll_this_month' => $this->money($currency, (float) $salaryExpenses->sum('amount')),
+            'payroll_sub' => $this->money($currency, $wagesSum)." projected for {$staffCount} employees",
             'still_to_pay' => $this->money($currency, $stillToPay),
             'still_to_pay_sub' => $stillToPaySub,
             'left_for_shop' => $this->money($currency, $leftForShop),
@@ -1279,7 +1348,7 @@ class DashboardController extends Controller
             'paid_bills_count' => count($billsList) > 0 ? "{$paidCount} of " . count($billsList) . " paid" : "0 bills",
             'payroll_summary' => [
                 'total_cost' => $this->money($currency, $totalPayrollCost),
-                'breakdown' => $this->money($currency, $wagesSum) . ' wages + ' . $this->money($currency, $employerShareSum) . ' employer share',
+                'breakdown' => $this->money($currency, (float) $salaryExpenses->sum('amount')).' paid of '.$this->money($currency, $wagesSum).' projected wages',
                 'attendance_pct' => $attendancePct,
                 'attendance_sub' => "{$attendanceDays} of {$totalDays} work days",
                 'payroll_per_kg' => $this->money($currency, $payrollPerKg),
@@ -1288,6 +1357,13 @@ class DashboardController extends Controller
                 'next_payout_sub' => "Next wages in {$daysUntilPayout} days",
             ],
             'employees' => $employeesList,
+            'salary_period_label' => $currentPeriodLabel,
+            'unpaid_employees' => $unpaidEmployees,
+            'unpaid_employee_count' => count($unpaidEmployees),
+            'unconfigured_salary_employees' => $unconfiguredEmployees,
+            'unconfigured_salary_count' => count($unconfiguredEmployees),
+            'salary_paid_this_month' => $this->money($currency, (float) $salaryExpenses->sum('amount')),
+            'salary_pending_current_period' => $this->money($currency, $pendingCurrentPeriod),
             'total_employee_days' => $totalDays,
             'total_employee_wages' => $this->money($currency, $wagesSum),
             'total_employee_share' => $this->money($currency, $employerShareSum),

@@ -220,6 +220,13 @@
         <div class="flex justify-between border-t border-border pt-2 font-semibold"><span>Total</span><span>{{ $settings?->currency ?? 'PHP' }} {{ number_format((float) $order->total, 2) }}</span></div>
         <div class="flex justify-between"><span class="text-muted">Paid</span><span>{{ $settings?->currency ?? 'PHP' }} {{ number_format((float) $totalPaid, 2) }}</span></div>
         <div class="flex justify-between font-semibold"><span>Balance</span><span>{{ $settings?->currency ?? 'PHP' }} {{ number_format((float) $order->balance, 2) }}</span></div>
+        @if(($order->pickupRequest?->changeDue() ?? 0) > 0)
+            <div class="flex justify-between"><span class="text-muted">Cash handed to cashier by rider</span><span>{{ $settings?->currency ?? 'PHP' }} {{ number_format((float) $order->pickupRequest->collected_amount, 2) }}</span></div>
+            <div class="flex justify-between font-semibold text-amber-700 dark:text-amber-300">
+                <span>{{ $order->pickupRequest->change_returned_at ? 'Change returned on delivery' : 'Change recorded for return' }}</span>
+                <span>{{ $settings?->currency ?? 'PHP' }} {{ number_format($order->pickupRequest->changeDue(), 2) }}</span>
+            </div>
+        @endif
     </div>
 
     <div class="mt-4 border-t border-dashed border-border pt-3">
@@ -229,6 +236,9 @@
                 <span>{{ \App\Support\StatusBadge::label($payment->payment_type) }} - {{ $payment->paid_at?->format('M d, h:i A') }} - Collected at {{ $payment->collectedBranch?->name ?? $order->branch?->name }}{{ $payment->reference_no ? ' - Ref: '.$payment->reference_no : '' }}</span>
                 <span>{{ $settings?->currency ?? 'PHP' }} {{ number_format((float) $payment->amount, 2) }}</span>
             </div>
+            @if($payment->tendered_amount !== null && (float) $payment->tendered_amount !== (float) $payment->amount)
+                <p class="text-[11px] text-muted">Tendered {{ $settings?->currency ?? 'PHP' }} {{ number_format((float) $payment->tendered_amount, 2) }} · Change {{ $settings?->currency ?? 'PHP' }} {{ number_format((float) $payment->change_amount, 2) }}</p>
+            @endif
         @empty
             <p class="text-xs text-muted">No payment yet. Remaining balance: {{ $settings?->currency ?? 'PHP' }} {{ number_format((float) $order->balance, 2) }}</p>
         @endforelse

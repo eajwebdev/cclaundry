@@ -87,6 +87,12 @@
                             </p>
                         </div>
                     </div>
+                    @if($pickupRequest->changeDue() > 0)
+                        <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+                            <p class="font-bold">₱{{ number_format($pickupRequest->changeDue(), 2) }} change {{ $pickupRequest->change_returned_at ? 'was returned' : 'will be returned with your delivery' }}.</p>
+                            <p class="mt-0.5 text-xs">Cash received at pickup: ₱{{ number_format((float) $pickupRequest->collected_amount, 2) }}</p>
+                        </div>
+                    @endif
                 @endif
             </div>
 

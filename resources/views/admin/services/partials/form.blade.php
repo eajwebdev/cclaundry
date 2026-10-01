@@ -94,6 +94,17 @@
         </div>
 
         <div>
+            <label class="mb-1.5 block text-sm font-medium">Consumption Preset</label>
+            <select name="dosing_profile" class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+                <option value="">Fixed recipe quantities</option>
+                @foreach(\App\Support\LaundryDosingGuide::labels() as $profileKey => $profileLabel)
+                    <option value="{{ $profileKey }}" @selected($value('dosing_profile', $service->dosing_profile) === $profileKey)>{{ $profileLabel }}</option>
+                @endforeach
+            </select>
+            <p class="mt-1 text-xs text-muted">Uses the attached Cane & Cotton liquid dosing guide. It affects future inventory deductions only.</p>
+        </div>
+
+        <div>
             <label class="inline-flex h-9 items-center gap-2 text-sm text-muted">
                 <input type="checkbox" name="is_active" value="1" @checked($checked('is_active', $service->is_active)) class="rounded border-border text-primary">
                 Active service
@@ -147,10 +158,11 @@
                 <h3 class="text-sm font-semibold">Inventory Consumption</h3>
                 <a href="{{ route('admin.inventory.index', ['branch_id' => $service->branch_id ?: $selectedBranchId]) }}" target="_blank" class="text-xs font-medium text-primary hover:underline">View Inventory</a>
             </div>
-            <p class="text-xs text-muted">Quantity deducted from stock for every 1 service quantity sold. Leave zero when no stock is consumed.</p>
-            @if(\App\Support\InventoryConsumption::isRegularLaundry($service))
-                <p class="mt-1 text-xs font-medium text-primary">Regular Laundry uses the configured formula: Detergent 40 ml (+5 ml every 1 kg after 5 kg), Fabcon 20 ml (5 kg), 25 ml (6&ndash;7 kg), 30 ml (8 kg+), and 1 plastic bag.</p>
+            <p class="text-xs text-muted">Fixed recipes deduct this amount per sold quantity. With a Consumption Preset, attached detergent and softener rows use the guide instead.</p>
+            @if(\App\Support\InventoryConsumption::isRegularLaundry($service) && ! $service->dosing_profile)
+                <p class="mt-1 text-xs font-medium text-primary">Regular Laundry automatically uses the corrected 5&ndash;15 kg liquid guide for backward compatibility.</p>
             @endif
+            <p class="mt-1 text-xs text-muted">For feather/down or technical-microfiber duvets, do not attach fabric softener. The guide says softener can flatten the filling.</p>
         </div>
         {{-- The stock listed is this page's branch. A new service placed in
              another branch gets its recipe from that branch's page. --}}

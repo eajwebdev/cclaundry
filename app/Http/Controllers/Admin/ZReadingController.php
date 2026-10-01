@@ -19,6 +19,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ZReadingController extends Controller
 {
@@ -33,6 +34,15 @@ class ZReadingController extends Controller
         '5' => 'PHP 5',
         '1' => 'PHP 1',
         '0.25' => 'PHP 0.25',
+    ];
+
+    private const NON_JOB_CYCLE_REASONS = [
+        'tub_cleaning' => 'Tub cleaning',
+        'accidental_start' => 'Accidental start',
+        'testing_maintenance' => 'Testing / maintenance',
+        'rewash_quality_check' => 'Rewash / quality check',
+        'power_restart' => 'Power interruption / restart',
+        'other' => 'Other',
     ];
 
     public function index(Request $request)
@@ -110,6 +120,10 @@ class ZReadingController extends Controller
             (int) collect(array_keys($reading?->machine_counters ?? []))->max()
         );
         $machineCounters = $this->machineCountersForDate((int) $branch->id, $businessDate, $machineCount, $summary, $reading);
+        $oldMachineCounters = $request->old('machine_counters');
+        if (is_array($oldMachineCounters)) {
+            $machineCounters = $this->normalizedMachineCounters($oldMachineCounters, $this->machineCycleCounts($summary));
+        }
 
         return view('admin.z-readings.create', [
             'branch' => $branch,
@@ -121,6 +135,7 @@ class ZReadingController extends Controller
             'summary' => $summary,
             'machineCount' => $machineCount,
             'machineCounters' => $machineCounters,
+            'nonJobCycleReasons' => self::NON_JOB_CYCLE_REASONS,
         ]);
     }
 
@@ -141,6 +156,9 @@ class ZReadingController extends Controller
             'machine_counters.*.wash.ending' => ['nullable', 'integer', 'min:0', 'max:999999999'],
             'machine_counters.*.dry.beginning' => ['nullable', 'integer', 'min:0', 'max:999999999'],
             'machine_counters.*.dry.ending' => ['nullable', 'integer', 'min:0', 'max:999999999'],
+            'machine_counters.*.*.non_job_cycles' => ['nullable', 'array'],
+            'machine_counters.*.*.non_job_cycles.*' => ['nullable', 'integer', 'min:0', 'max:999999'],
+            'machine_counters.*.*.notes' => ['nullable', 'string', 'max:500'],
             'remarks' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -159,8 +177,13 @@ class ZReadingController extends Controller
             (int) collect($summary['machine_cycles'])->max('machine_number'),
             (int) collect(array_keys($validated['machine_counters'] ?? []))->max()
         );
+        $systemCycleCounts = $this->machineCycleCounts($summary);
+        $submittedMachineCounters = $validated['machine_counters']
+            ?? $this->machineCountersForDate($branchId, $businessDate, $machineCount, $summary);
+        $this->validateMachineCounterReconciliation($submittedMachineCounters, $systemCycleCounts);
         $machineCounters = $this->normalizedMachineCounters(
-            $validated['machine_counters'] ?? $this->machineCountersForDate($branchId, $businessDate, $machineCount, $summary)
+            $submittedMachineCounters,
+            $systemCycleCounts
         );
         $actualTotal = round($actualCash + $actualGcash + $actualBank, 2);
         $overShort = round($actualTotal - (float) $summary['expected_total_amount'], 2);
@@ -240,6 +263,11 @@ class ZReadingController extends Controller
             'transaction_count' => $details['transaction_count'],
             'first_job_order_number' => $details['first_job_order_number'],
             'last_job_order_number' => $details['last_job_order_number'],
+            'machine_counters' => $this->normalizedMachineCounters(
+                $zReading->machine_counters ?? [],
+                $this->machineCycleCounts($details),
+                true
+            ),
         ]);
 
         $pdf = Pdf::loadView('admin.z-readings.pdf', [
@@ -248,6 +276,7 @@ class ZReadingController extends Controller
             'reading' => $printReading,
             'settings' => SystemSetting::current(),
             'signatories' => $this->signatories((int) $zReading->branch_id),
+            'nonJobCycleReasons' => self::NON_JOB_CYCLE_REASONS,
         ])->setPaper('a4', 'landscape');
 
         return $pdf->stream($zReading->reading_number.'.pdf');
@@ -526,8 +555,10 @@ class ZReadingController extends Controller
 
     private function machineCountersForDate(int $branchId, string $businessDate, int $machineCount, array $summary, ?ZReading $reading = null): array
     {
+        $cycleCounts = $this->machineCycleCounts($summary);
+
         if ($reading?->machine_counters) {
-            return $reading->machine_counters;
+            return $this->normalizedMachineCounters($reading->machine_counters, $cycleCounts, true);
         }
 
         $previousReading = ZReading::query()
@@ -537,12 +568,6 @@ class ZReadingController extends Controller
             ->latest('id')
             ->first(['machine_counters']);
         $previousCounters = $previousReading?->machine_counters ?? [];
-
-        $cycleCounts = collect($summary['machine_cycles'] ?? [])
-            ->groupBy('machine_number')
-            ->map(fn ($rows) => collect($rows)->mapWithKeys(fn ($row) => [
-                $row['cycle_type'] => (int) $row['cycle_count'],
-            ])->all());
 
         return collect(range(1, $machineCount))
             ->mapWithKeys(function (int $machine) use ($previousCounters, $cycleCounts) {
@@ -557,6 +582,12 @@ class ZReadingController extends Controller
                         'beginning' => $beginning,
                         'ending' => $ending,
                         'total' => $total,
+                        'system_cycles' => $total,
+                        'non_job_cycles' => collect(self::NON_JOB_CYCLE_REASONS)->map(fn () => 0)->all(),
+                        'non_job_total' => 0,
+                        'unexplained_cycles' => 0,
+                        'notes' => null,
+                        'reconciliation_status' => 'matched',
                     ];
                 }
 
@@ -576,10 +607,10 @@ class ZReadingController extends Controller
         return round($total, 2);
     }
 
-    private function normalizedMachineCounters(array $counters): array
+    private function normalizedMachineCounters(array $counters, array $systemCycleCounts = [], bool $preserveStoredSystemCycles = false): array
     {
         return collect($counters)
-            ->mapWithKeys(function ($types, $machineNumber) {
+            ->mapWithKeys(function ($types, $machineNumber) use ($systemCycleCounts, $preserveStoredSystemCycles) {
                 $machineNumber = (int) $machineNumber;
                 if ($machineNumber < 1) {
                     return [];
@@ -589,19 +620,95 @@ class ZReadingController extends Controller
                 foreach (['wash', 'dry'] as $type) {
                     $beginning = data_get($types, "{$type}.beginning");
                     $ending = data_get($types, "{$type}.ending");
+                    $total = is_numeric($beginning) && is_numeric($ending)
+                        ? max(0, (int) $ending - (int) $beginning)
+                        : null;
+                    $storedSystemCycles = data_get($types, "{$type}.system_cycles");
+                    $systemCycles = $preserveStoredSystemCycles && is_numeric($storedSystemCycles)
+                        ? max(0, (int) $storedSystemCycles)
+                        : max(0, (int) data_get($systemCycleCounts, "{$machineNumber}.{$type}", 0));
+                    $reasonCounts = collect(self::NON_JOB_CYCLE_REASONS)
+                        ->mapWithKeys(fn ($label, $reason) => [
+                            $reason => max(0, (int) data_get($types, "{$type}.non_job_cycles.{$reason}", 0)),
+                        ])
+                        ->all();
+                    $nonJobTotal = array_sum($reasonCounts);
+                    $unexplained = $total === null ? null : $total - $systemCycles - $nonJobTotal;
+
                     $normalized[$type] = [
                         'beginning' => is_numeric($beginning) ? (int) $beginning : null,
                         'ending' => is_numeric($ending) ? (int) $ending : null,
+                        'total' => $total,
+                        'system_cycles' => $systemCycles,
+                        'non_job_cycles' => $reasonCounts,
+                        'non_job_total' => $nonJobTotal,
+                        'unexplained_cycles' => $unexplained,
+                        'notes' => filled(data_get($types, "{$type}.notes"))
+                            ? trim((string) data_get($types, "{$type}.notes"))
+                            : null,
+                        'reconciliation_status' => $unexplained === 0 ? 'matched' : 'mismatch',
                     ];
-                    $normalized[$type]['total'] = $normalized[$type]['beginning'] !== null && $normalized[$type]['ending'] !== null
-                        ? max(0, $normalized[$type]['ending'] - $normalized[$type]['beginning'])
-                        : null;
                 }
 
                 return [$machineNumber => $normalized];
             })
             ->sortKeys()
             ->all();
+    }
+
+    private function machineCycleCounts(array $summary): array
+    {
+        return collect($summary['machine_cycles'] ?? [])
+            ->groupBy('machine_number')
+            ->map(fn ($rows) => collect($rows)->mapWithKeys(fn ($row) => [
+                $row['cycle_type'] => (int) $row['cycle_count'],
+            ])->all())
+            ->all();
+    }
+
+    private function validateMachineCounterReconciliation(array $counters, array $systemCycleCounts): void
+    {
+        $errors = [];
+
+        foreach ($counters as $machineNumber => $types) {
+            $machineNumber = (int) $machineNumber;
+            if ($machineNumber < 1) {
+                continue;
+            }
+
+            foreach (['wash', 'dry'] as $type) {
+                $beginning = data_get($types, "{$type}.beginning");
+                $ending = data_get($types, "{$type}.ending");
+                if (! is_numeric($beginning) || ! is_numeric($ending)) {
+                    continue;
+                }
+
+                $key = "machine_counters.{$machineNumber}.{$type}";
+                if ((int) $ending < (int) $beginning) {
+                    $errors["{$key}.ending"] = 'The ending counter cannot be lower than the beginning counter.';
+                    continue;
+                }
+
+                $actualCycles = (int) $ending - (int) $beginning;
+                $systemCycles = max(0, (int) data_get($systemCycleCounts, "{$machineNumber}.{$type}", 0));
+                $availableDifference = max(0, $actualCycles - $systemCycles);
+                $reasonTotal = collect(array_keys(self::NON_JOB_CYCLE_REASONS))
+                    ->sum(fn ($reason) => max(0, (int) data_get($types, "{$type}.non_job_cycles.{$reason}", 0)));
+
+                if ($reasonTotal > $availableDifference) {
+                    $errors["{$key}.non_job_cycles"] = "Documented non-job cycles cannot exceed the {$availableDifference}-cycle counter difference.";
+                }
+
+                if ((int) data_get($types, "{$type}.non_job_cycles.other", 0) > 0
+                    && ! filled(data_get($types, "{$type}.notes"))) {
+                    $errors["{$key}.notes"] = 'Explain the cycles recorded as Other.';
+                }
+            }
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
     }
 
     private function nextReadingNumber(int $branchId, string $businessDate): string

@@ -39,6 +39,22 @@
             const values = this.machineCounters[machine]?.[type] || {};
             if (values.beginning === '' || values.ending === '' || values.beginning == null || values.ending == null) return 0;
             return Math.max(0, Number(values.ending) - Number(values.beginning));
+        },
+        systemCycles(machine, type) {
+            return Number(this.machineCounters[machine]?.[type]?.system_cycles || 0);
+        },
+        nonJobCycles(machine, type) {
+            const reasons = this.machineCounters[machine]?.[type]?.non_job_cycles || {};
+            return Object.values(reasons).reduce((total, count) => total + Math.max(0, Number(count || 0)), 0);
+        },
+        counterDifference(machine, type) {
+            return this.cycleTotal(machine, type) - this.systemCycles(machine, type);
+        },
+        unexplainedCycles(machine, type) {
+            return this.counterDifference(machine, type) - this.nonJobCycles(machine, type);
+        },
+        hasMachineMismatch() {
+            return Object.keys(this.machineCounters).some(machine => ['wash', 'dry'].some(type => this.unexplainedCycles(machine, type) !== 0));
         }
     }"
     class="space-y-4"
@@ -119,6 +135,13 @@
         <input type="hidden" name="branch_id" value="{{ $branch->id }}">
         <input type="hidden" name="business_date" value="{{ $businessDate }}">
 
+        @if($errors->any())
+            <div class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <p class="font-semibold">Please correct the Z Reading before saving.</p>
+                <p class="mt-1">{{ $errors->first() }}</p>
+            </div>
+        @endif
+
         <!-- Daily Operations Summary -->
         <div class="rounded-lg border border-border bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <div class="mb-3">
@@ -133,8 +156,8 @@
                     ['Previous Payments', $currency.' '.number_format((float) $summary['previous_payment_total'], 2)],
                     ['Unpaid', $currency.' '.number_format((float) $summary['daily_unpaid_amount'], 2)],
                     ['Expenses', $currency.' '.number_format((float) array_sum(array_column(data_get($summary, 'expense_breakdown.items', []), 'amount')), 2)],
-                    ['Wash Cycles', number_format((int) collect($summary['machine_cycles'])->where('cycle_type', 'wash')->sum('cycle_count'))],
-                    ['Dry Cycles', number_format((int) collect($summary['machine_cycles'])->where('cycle_type', 'dry')->sum('cycle_count'))],
+                    ['JO Wash Cycles', number_format((int) collect($summary['machine_cycles'])->where('cycle_type', 'wash')->sum('cycle_count'))],
+                    ['JO Dry Cycles', number_format((int) collect($summary['machine_cycles'])->where('cycle_type', 'dry')->sum('cycle_count'))],
                 ] as [$label, $value])
                     <div class="rounded-md bg-smoke p-2.5 dark:bg-gray-950">
                         <p class="text-[11px] font-medium uppercase tracking-wide text-muted">{{ $label }}</p>
@@ -184,7 +207,7 @@
                 <div class="rounded-lg border border-border bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div class="mb-3">
                         <h2 class="text-base font-semibold">Machine Counter Readings</h2>
-                        <p class="text-xs text-muted">Beginning comes from the previous Z Reading ending; ending is auto-computed from detected cycles for the selected date.</p>
+                        <p class="text-xs text-muted">Beginning comes from the previous Z Reading ending. Enter the physical ending counter; the system compares it with job-order cycles and documented non-job use.</p>
                     </div>
                     <div class="space-y-4">
                         @foreach(['dry' => 'Dry', 'wash' => 'Wash'] as $type => $label)
@@ -214,21 +237,83 @@
                                                                 aria-label="{{ $fieldLabel }} {{ $label }} {{ $machine }}"
                                                             >
                                                         @else
-                                                            <input type="hidden" name="machine_counters[{{ $machine }}][{{ $type }}][{{ $field }}]" x-model.number="machineCounters['{{ $machine }}']['{{ $type }}']['{{ $field }}']">
-                                                            <div class="mt-1 h-9 rounded-md border border-border bg-smoke px-2 py-2 text-right text-sm font-semibold dark:border-gray-800 dark:bg-gray-950" x-text="machineCounters['{{ $machine }}']['{{ $type }}']['{{ $field }}']"></div>
+                                                            <input
+                                                                name="machine_counters[{{ $machine }}][{{ $type }}][{{ $field }}]"
+                                                                x-model.number="machineCounters['{{ $machine }}']['{{ $type }}']['{{ $field }}']"
+                                                                type="number"
+                                                                min="0"
+                                                                step="1"
+                                                                inputmode="numeric"
+                                                                required
+                                                                class="mt-1 h-9 w-full rounded-md border border-border bg-white px-2 text-right text-sm font-semibold dark:border-gray-800 dark:bg-gray-900"
+                                                                aria-label="Actual {{ $fieldLabel }} {{ $label }} {{ $machine }}"
+                                                            >
                                                         @endif
                                                     </label>
                                                 @endforeach
                                             </div>
-                                            <div class="flex justify-between border-t border-border bg-blue-50 px-3 py-2 text-xs font-semibold dark:border-gray-800 dark:bg-blue-950/30">
-                                                <span>Total {{ $label }} Cycle</span>
-                                                <span x-text="cycleTotal('{{ $machine }}', '{{ $type }}')"></span>
+                                            <div class="space-y-1 border-t border-border bg-blue-50 px-3 py-2 text-xs dark:border-gray-800 dark:bg-blue-950/30">
+                                                <div class="flex justify-between font-semibold"><span>Counter cycles</span><span x-text="cycleTotal('{{ $machine }}', '{{ $type }}')"></span></div>
+                                                <div class="flex justify-between"><span>Job-order cycles</span><span x-text="systemCycles('{{ $machine }}', '{{ $type }}')"></span></div>
+                                                <div class="flex justify-between" :class="counterDifference('{{ $machine }}', '{{ $type }}') === 0 ? 'text-emerald-700' : 'text-amber-700 font-semibold'">
+                                                    <span>Difference</span>
+                                                    <span x-text="counterDifference('{{ $machine }}', '{{ $type }}')"></span>
+                                                </div>
                                             </div>
                                         </div>
                                     @endfor
                                 </div>
                             </div>
                         @endforeach
+
+                        <div class="rounded-lg border border-border bg-smoke p-3 dark:border-gray-800 dark:bg-gray-950">
+                            <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <h3 class="text-sm font-semibold">Non-job Machine Cycle Reconciliation</h3>
+                                    <p class="text-xs text-muted">Explain physical counter cycles that did not come from Cycle Monitoring.</p>
+                                </div>
+                                <span class="text-xs font-semibold" :class="hasMachineMismatch() ? 'text-amber-700' : 'text-emerald-700'" x-text="hasMachineMismatch() ? 'Needs reconciliation' : 'All counters matched'"></span>
+                            </div>
+
+                            <div class="mt-3 grid gap-3 lg:grid-cols-2">
+                                @foreach(['dry' => 'Dry', 'wash' => 'Wash'] as $type => $label)
+                                    @for($machine = $machineCount; $machine >= 1; $machine--)
+                                        <div x-cloak x-show="counterDifference('{{ $machine }}', '{{ $type }}') !== 0" class="rounded-md border border-amber-200 bg-white p-3 dark:border-amber-900/50 dark:bg-gray-900">
+                                            <div class="flex items-center justify-between gap-3">
+                                                <p class="text-xs font-bold">{{ $label }} {{ $machine }}</p>
+                                                <p class="text-[11px] text-muted">
+                                                    Difference <span class="font-bold" x-text="counterDifference('{{ $machine }}', '{{ $type }}')"></span>
+                                                    · Unexplained <span class="font-bold" :class="unexplainedCycles('{{ $machine }}', '{{ $type }}') === 0 ? 'text-emerald-700' : 'text-red-600'" x-text="unexplainedCycles('{{ $machine }}', '{{ $type }}')"></span>
+                                                </p>
+                                            </div>
+
+                                            <div x-show="counterDifference('{{ $machine }}', '{{ $type }}') > 0" class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                                @foreach($nonJobCycleReasons as $reason => $reasonLabel)
+                                                    <label class="text-[11px] font-medium text-muted">
+                                                        {{ $reasonLabel }}
+                                                        <input
+                                                            name="machine_counters[{{ $machine }}][{{ $type }}][non_job_cycles][{{ $reason }}]"
+                                                            x-model.number="machineCounters['{{ $machine }}']['{{ $type }}']['non_job_cycles']['{{ $reason }}']"
+                                                            type="number"
+                                                            min="0"
+                                                            step="1"
+                                                            class="mt-1 h-8 w-full rounded-md border border-border bg-white px-2 text-right text-xs font-semibold dark:border-gray-700 dark:bg-gray-950"
+                                                        >
+                                                    </label>
+                                                @endforeach
+                                            </div>
+
+                                            <p x-show="counterDifference('{{ $machine }}', '{{ $type }}') < 0" class="mt-2 rounded-md bg-red-50 px-2 py-1.5 text-[11px] text-red-700">The physical counter is lower than the detected job-order cycles. Check the ending counter, counter reset, or Cycle Monitoring records.</p>
+
+                                            <label class="mt-2 block text-[11px] font-medium text-muted">
+                                                Explanation / notes
+                                                <input name="machine_counters[{{ $machine }}][{{ $type }}][notes]" x-model="machineCounters['{{ $machine }}']['{{ $type }}']['notes']" maxlength="500" placeholder="Optional details; required when using Other" class="mt-1 h-8 w-full rounded-md border border-border bg-white px-2 text-xs dark:border-gray-700 dark:bg-gray-950">
+                                            </label>
+                                        </div>
+                                    @endfor
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

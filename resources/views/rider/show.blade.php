@@ -317,6 +317,26 @@
                                 </div>
                             </div>
                         @endunless
+
+                        @if($isCollected && $job->hasChangeDue())
+                            <div class="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-amber-950 dark:border-amber-900/60 dark:bg-amber-500/10 dark:text-amber-100">
+                                <p class="flex items-center gap-2 text-sm font-bold">
+                                    <span data-lucide="coins" class="h-5 w-5 text-amber-600 dark:text-amber-400"></span>
+                                    Return ₱{{ number_format($job->changeDue(), 2) }} change
+                                </p>
+                                <p class="mt-1 text-xs leading-relaxed text-amber-900/90 dark:text-amber-200/90">
+                                    The customer gave ₱{{ number_format((float) $job->collected_amount, 2) }} cash at pickup. The final job order is ₱{{ number_format((float) $job->jobOrder?->total, 2) }}.
+                                </p>
+                                @if(! $job->change_returned_at)
+                                    <label class="mt-3 flex cursor-pointer items-start gap-2 rounded-lg bg-white/70 p-2.5 text-xs font-semibold dark:bg-black/20">
+                                        <input type="checkbox" name="change_returned" value="1" required class="mt-0.5 h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500">
+                                        <span>I returned ₱{{ number_format($job->changeDue(), 2) }} change to the customer.</span>
+                                    </label>
+                                @else
+                                    <p class="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">Change returned {{ $job->change_returned_at->format('M j, g:i A') }}</p>
+                                @endif
+                            </div>
+                        @endif
                         <button type="submit"
                                 x-on:click.prevent="(() => {
                                     const form = $el.closest('form');
@@ -331,11 +351,16 @@
                                         if (! tag.reportValidity()) { tag.focus(); return; }
                                     }
 
+                                    const changeReturned = form.querySelector('[name=change_returned]');
+                                    if (changeReturned && ! changeReturned.reportValidity()) { changeReturned.focus(); return; }
+
                                     Swal.fire({
                                         title: @js($isCollected ? 'Mark as delivered?' : 'Mark as collected?'),
                                         text: tag
                                             ? 'Tag ' + tag.value.toUpperCase() + ' goes on this bag.'
-                                            : 'Confirm the customer has their laundry back.',
+                                            : @js($isCollected && $job->hasChangeDue()
+                                                ? 'Return PHP '.number_format($job->changeDue(), 2).' change, then confirm the customer has their laundry back.'
+                                                : 'Confirm the customer has their laundry back.'),
                                         icon: 'question',
                                         showCancelButton: true,
                                         confirmButtonColor: '#A07148',
@@ -346,7 +371,11 @@
                                         // Through the outbox rather than a plain post: at
                                         // somebody's gate the signal is exactly what fails,
                                         // and the tag the rider typed must not go with it.
-                                        const field = (name) => form.querySelector('[name=' + name + ']')?.value ?? null;
+                                        const field = (name) => {
+                                            const input = form.querySelector('[name=' + name + ']');
+                                            if (! input) return null;
+                                            return input.type === 'checkbox' ? (input.checked ? input.value : null) : input.value;
+                                        };
 
                                         // A refusal (the tag is on another load, say)
                                         // keeps the rider here with what they typed.
@@ -360,6 +389,7 @@
                                                 tag_code: field('tag_code'),
                                                 collected_amount: field('collected_amount'),
                                                 collected_payment_method: field('collected_payment_method'),
+                                                change_returned: field('change_returned'),
                                             },
                                         });
                                     });
@@ -466,6 +496,12 @@
                                     <dt>Collected</dt>
                                     <dd class="font-semibold">₱{{ number_format((float) $job->collected_amount, 2) }}
                                         ({{ ucfirst($job->collected_payment_method ?? 'cash') }})</dd>
+                                </div>
+                            @endif
+                            @if($job->hasChangeDue())
+                                <div class="flex justify-between gap-3">
+                                    <dt>{{ $job->change_returned_at ? 'Change returned' : 'Change due' }}</dt>
+                                    <dd class="font-semibold {{ $job->change_returned_at ? 'text-emerald-700' : 'text-amber-700' }}">₱{{ number_format($job->changeDue(), 2) }}</dd>
                                 </div>
                             @endif
                             @if($job->cancellation_reason)

@@ -37,6 +37,11 @@
             <input type="password" name="password" autocomplete="new-password" placeholder="{{ $method === 'POST' ? 'Default: password123' : 'Leave blank to keep current password' }}" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
         </label>
 
+        <label class="text-sm font-medium">Monthly Salary
+            <input type="number" name="monthly_salary" value="{{ old('monthly_salary', $employee->monthly_salary ?? 0) }}" min="0" step="0.01" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+            <span class="mt-1 block text-xs font-normal text-muted">Used to suggest each half-month salary payment.</span>
+        </label>
+
         <label class="inline-flex h-9 items-center gap-2 text-sm text-muted md:col-span-2">
             <input type="checkbox" name="is_active" value="1" @checked(old('is_active', $employee->status !== 'inactive')) class="rounded border-border text-primary">
             Active employee

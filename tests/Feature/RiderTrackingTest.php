@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\JobOrder;
+use App\Models\LaundryService;
 use App\Models\PickupRequest;
 use App\Models\RiderLocationPing;
 use App\Models\SystemSetting;
@@ -337,6 +338,110 @@ class RiderTrackingTest extends TestCase
 
         // A method with no figure is not guessed into the books.
         $this->assertSame('unpaid', $prefill(['collected_payment_method' => 'cash', 'collected_amount' => null])['type']);
+    }
+
+    public function test_cash_collected_above_the_final_total_is_returned_as_change_on_delivery(): void
+    {
+        $this->completeSystemSettings();
+        $this->activeTrial();
+
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $booking = $this->booking($branch, [
+            'rider_id' => $rider->id,
+            'status' => 'picked_up',
+            'tag_code' => 'CC-CASH-200',
+            'collected_amount' => 200,
+            'collected_payment_method' => 'cash',
+        ]);
+        $service = LaundryService::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Laundry Service',
+            'pricing_type' => 'load',
+            'price' => 195,
+            'is_active' => true,
+        ]);
+        $cashier = User::factory()->create([
+            'role' => 'cashier',
+            'branch_id' => $branch->id,
+            'status' => 'active',
+            'access' => ['job_orders'],
+        ]);
+
+        $this->actingAs($cashier)
+            ->get(route('admin.job-orders.create', [
+                'branch_id' => $branch->id,
+                'pickup_request_id' => $booking->id,
+            ]))
+            ->assertOk()
+            ->assertSee('Cash handed over by rider')
+            ->assertSee('Cash tendered by rider')
+            ->assertSee('Applied as paid amount')
+            ->assertSee('Change recorded for return')
+            ->assertSee('Record Payment & Order', false);
+
+        // Even if the submitted paid field is changed, the rider's recorded
+        // collection is authoritative for a converted booking.
+        $this->actingAs($cashier)->post(route('admin.job-orders.store'), [
+            'branch_id' => $branch->id,
+            'customer_id' => $booking->customer_id,
+            'pickup_request_id' => $booking->id,
+            'items' => [[
+                'laundry_service_id' => $service->id,
+                'description' => $service->name,
+                'quantity' => 1,
+                'unit_price' => 195,
+            ]],
+            'payment_type' => 'unpaid',
+            'paid_amount' => 0,
+            'transaction_type' => 'delivery',
+            'send_sms' => 0,
+        ])->assertRedirect(route('admin.job-orders.index'));
+
+        $order = JobOrder::query()->firstOrFail();
+        $booking->refresh()->load('jobOrder');
+
+        $this->assertSame('195.00', (string) $order->paid_amount);
+        $this->assertSame('0.00', (string) $order->balance);
+        $this->assertSame(5.0, $booking->changeDue());
+        $this->assertDatabaseHas('payments', [
+            'job_order_id' => $order->id,
+            'payment_type' => 'cash',
+            'amount' => 195,
+            'tendered_amount' => 200,
+            'change_amount' => 5,
+        ]);
+
+        $this->actingAs($cashier)
+            ->get(route('admin.job-orders.show', $order))
+            ->assertOk()
+            ->assertSee('Cash tendered PHP 200.00')
+            ->assertSee('Change PHP 5.00')
+            ->assertSee('PHP 5.00');
+
+        $order->update(['status' => 'ready_for_delivery']);
+
+        $this->actingAs($rider)
+            ->get(route('rider.jobs.show', $booking))
+            ->assertOk()
+            ->assertSee('Return ₱5.00 change', false);
+
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.status', $booking), ['status' => 'completed'])
+            ->assertStatus(422)
+            ->assertJsonPath('ok', false);
+        $this->assertSame('picked_up', $booking->refresh()->status);
+
+        $this->actingAs($rider)
+            ->patchJson(route('rider.jobs.status', $booking), [
+                'status' => 'completed',
+                'change_returned' => 1,
+            ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Delivered and PHP 5.00 change returned. Nice work.');
+
+        $this->assertNotNull($booking->fresh()->change_returned_at);
+        $this->assertSame('completed', $order->fresh()->status);
     }
 
     public function test_the_job_order_screen_shows_what_the_rider_collected(): void

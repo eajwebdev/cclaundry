@@ -17,8 +17,13 @@
         'selectedCustomerId' => (string) old('customer_id', $selectedCustomerId ?? ''),
         'processingBranchId' => (string) old('processing_branch_id', $isEditing ? ($jobOrder->processing_branch_id ?: $jobOrder->branch_id) : ''),
         'discount' => (float) old('discount', $isEditing ? $jobOrder->discount : 0),
-        'paid' => (float) ($isEditing ? $jobOrder->payments->sum('amount') : old('paid_amount', $riderPayment['paid'] ?? 0)),
-        'paymentType' => old('payment_type', $isEditing ? 'unpaid' : ($riderPayment['type'] ?? 'unpaid')),
+        'paid' => (float) ($isEditing
+            ? $jobOrder->payments->sum('amount')
+            : (($riderPayment['state'] ?? null) === 'collected' ? $riderPayment['paid'] : old('paid_amount', 0))),
+        'paymentType' => ($riderPayment['state'] ?? null) === 'collected'
+            ? $riderPayment['type']
+            : old('payment_type', $isEditing ? 'unpaid' : 'unpaid'),
+        'riderCashCollected' => ! $isEditing && ($riderPayment['state'] ?? null) === 'collected' && ($riderPayment['method'] ?? null) === 'cash',
         'notes' => (string) old('notes', $isEditing ? ($jobOrder->notes ?? '') : ($bookedRequest->notes ?? '')),
     ];
 @endphp
@@ -484,8 +489,8 @@
                     </div>
                     
                     <div x-show="!isEditing" class="flex items-center justify-between gap-3">
-                        <span class="text-muted">Paid</span>
-                        <input name="paid_amount" x-model.number="paid" type="number" min="0" step="1" class="h-9 w-28 rounded-lg border border-border px-3 text-right dark:border-gray-800 dark:bg-gray-950">
+                        <span class="text-muted" x-text="riderCashCollected ? 'Cash handed over by rider' : (paymentType === 'cash' ? 'Cash received' : 'Paid')"></span>
+                        <input name="paid_amount" x-model.number="paid" type="number" min="0" step="1" :readonly="riderCashCollected" :class="riderCashCollected && 'bg-smoke font-semibold dark:bg-gray-800'" class="h-9 w-28 rounded-lg border border-border px-3 text-right dark:border-gray-800 dark:bg-gray-950">
                     </div>
                     <div x-show="isEditing" class="flex justify-between">
                         <span class="text-muted">Existing payments</span>
@@ -496,9 +501,16 @@
                         <span>Balance</span>
                         <span>{{ $appSettings?->currency ?? 'PHP' }} <span x-text="wholeMoney(balance)"></span></span>
                     </div>
+
+                    <div x-cloak x-show="riderCashCollected && changeOnDelivery > 0" class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:border-amber-900/60 dark:bg-amber-500/10 dark:text-amber-200">
+                        <div class="flex justify-between text-xs"><span>Cash tendered by rider</span><span class="font-semibold">{{ $appSettings?->currency ?? 'PHP' }} <span x-text="money(paid)"></span></span></div>
+                        <div class="mt-1 flex justify-between text-xs"><span>Applied as paid amount</span><span class="font-semibold">{{ $appSettings?->currency ?? 'PHP' }} <span x-text="money(appliedPayment)"></span></span></div>
+                        <div class="mt-1 flex justify-between font-bold"><span>Change recorded for return</span><span>{{ $appSettings?->currency ?? 'PHP' }} <span x-text="money(changeOnDelivery)"></span></span></div>
+                        <p class="mt-2 text-[11px] leading-relaxed">Confirming the order records this rider-to-cashier cash handover. The change stays attached to the tagged job order for delivery.</p>
+                    </div>
                     
                     <!-- Payment Type - Radio Card Style -->
-                    <div x-show="!isEditing" class="space-y-2 pt-2">
+                    <div x-show="!isEditing && !riderCashCollected" class="space-y-2 pt-2">
                         <label class="text-xs font-medium text-muted">Payment Method</label>
                         <div class="grid grid-cols-2 gap-2">
                             <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-border p-2.5 transition hover:border-primary/50 dark:border-gray-800" :class="paymentType === 'unpaid' ? 'border-primary bg-primary/5' : ''">
@@ -536,6 +548,11 @@
                         </div>
                     </div>
 
+                    <div x-cloak x-show="!isEditing && riderCashCollected" class="flex items-center justify-between rounded-lg border border-border bg-smoke px-3 py-2 text-xs dark:border-gray-800 dark:bg-gray-950">
+                        <span class="text-muted">Payment method recorded by rider</span>
+                        <span class="font-semibold">Cash</span>
+                    </div>
+
                     <!-- Reference Number Field (shown for GCash) -->
                     <div x-show="!isEditing && paymentType === 'gcash'" x-transition.duration.200ms>
                         <input name="payment_reference_no" placeholder="Enter reference number..." class="h-9 w-full rounded-lg border border-border bg-white px-3 dark:border-gray-800 dark:bg-gray-950">
@@ -553,7 +570,7 @@
 
                 <div class="mt-5 grid grid-cols-2 gap-3">
                     <button type="button" @click="showPaymentPanel = false" class="h-10 rounded-lg border border-border font-medium hover:bg-smoke dark:border-gray-800 dark:hover:bg-gray-950">Cancel</button>
-                    <button type="submit" class="h-10 rounded-lg bg-primary font-semibold text-white hover:opacity-90" x-text="isEditing ? 'Save Changes' : 'Confirm Order'"></button>
+                    <button type="submit" class="h-10 rounded-lg bg-primary font-semibold text-white hover:opacity-90" x-text="isEditing ? 'Save Changes' : (riderCashCollected ? 'Record Payment & Order' : 'Confirm Order')"></button>
                 </div>
             </div>
         </div>
@@ -734,6 +751,7 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         paymentType: initialState.paymentType || 'unpaid',
         discount: Number(initialState.discount || 0),
         paid: Number(initialState.paid || 0),
+        riderCashCollected: Boolean(initialState.riderCashCollected),
         notes: initialState.notes || '',
         notesModalOpen: false,
         showPaymentPanel: false,
@@ -1150,6 +1168,12 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         },
         get balance() { 
             return Math.max(this.total - Number(this.paid || 0), 0); 
+        },
+        get appliedPayment() {
+            return Math.min(Math.max(Number(this.paid || 0), 0), this.total);
+        },
+        get changeOnDelivery() {
+            return this.riderCashCollected ? Math.max(Number(this.paid || 0) - this.total, 0) : 0;
         },
         money(value) { 
             return Number(value || 0).toFixed(2); 

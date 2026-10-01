@@ -240,6 +240,12 @@
                                             ₱{{ number_format((float) $job->collected_amount, 2) }} collected
                                         </span>
                                     @endif
+                                    @if($isDelivering && $job->hasChangeDue())
+                                        <span class="inline-flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-300">
+                                            <span data-lucide="coins" class="h-3.5 w-3.5"></span>
+                                            Return ₱{{ number_format($job->changeDue(), 2) }} change
+                                        </span>
+                                    @endif
                                 </div>
 
                                 @if($isDelivering)
@@ -358,6 +364,12 @@
                                 <span class="inline-flex items-center gap-1.5">
                                     <span data-lucide="wallet" class="h-3 w-3"></span>
                                     ₱{{ number_format((float) $job->collected_amount, 2) }}
+                                </span>
+                            @endif
+                            @if($job->hasChangeDue())
+                                <span class="inline-flex items-center gap-1.5 {{ $job->change_returned_at ? 'text-emerald-700' : 'font-semibold text-amber-700' }}">
+                                    <span data-lucide="coins" class="h-3 w-3"></span>
+                                    ₱{{ number_format($job->changeDue(), 2) }} change {{ $job->change_returned_at ? 'returned' : 'due' }}
                                 </span>
                             @endif
                         </p>

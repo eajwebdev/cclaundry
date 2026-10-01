@@ -16,7 +16,7 @@ class EmployeeController extends Controller
         $user = $request->user();
 
         $employees = AttendanceEmployee::query()
-            ->with('branch')
+            ->with(['branch', 'user:id,monthly_salary'])
             ->when(! $user->isAdmin(), fn ($query) => $query->where('branch_id', $user->branch_id))
             ->when($request->filled('branch_id') && $user->isAdmin(), fn ($query) => $query->where('branch_id', $request->branch_id))
             ->when($request->filled('search'), function ($query) use ($request) {
@@ -100,6 +100,7 @@ class EmployeeController extends Controller
             'last_name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'username' => ['required', 'string', 'max:100', Rule::unique('attendance_employees', 'username')->ignore($employee?->id)],
+            'monthly_salary' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99'],
             'is_active' => ['nullable', 'boolean'],
         ];
 

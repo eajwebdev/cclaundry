@@ -6,12 +6,36 @@
 @php
     $currency = $appSettings?->currency ?? 'PHP';
     $dateRangeValue = request('date_range') ?: ($dateFrom && $dateTo ? $dateFrom.' to '.$dateTo : '');
+    $defaultBranchId = (string) old('branch_id', request('branch_id', auth()->user()->branch_id ?: ($branches->first()?->id ?? '')));
+    $salaryPeriodStart = today()->day <= 15 ? today()->startOfMonth()->toDateString() : today()->startOfMonth()->addDays(15)->toDateString();
+    $salaryPeriodEnd = today()->day <= 15 ? today()->startOfMonth()->addDays(14)->toDateString() : today()->endOfMonth()->toDateString();
 @endphp
 
 <div
     x-data="{
-        createOpen: false,
+        createOpen: @js($errors->any()),
         dateRange: @js($dateRangeValue),
+        expenseCategory: @js(old('category', 'supplies')),
+        expenseBranchId: @js($defaultBranchId),
+        salaryEmployeeId: @js((string) old('attendance_employee_id', '')),
+        expenseAmount: @js(old('amount', '')),
+        expenseTitle: @js(old('title', '')),
+        employees: @js($employees->map(fn ($employee) => [
+            'id' => (string) $employee->id,
+            'branch_id' => (string) $employee->branch_id,
+            'name' => $employee->name,
+            'branch' => $employee->branch?->name,
+            'monthly_salary' => $employee->configured_monthly_salary,
+        ])->values()),
+        get salaryEmployees() {
+            return this.employees.filter(employee => !this.expenseBranchId || employee.branch_id === String(this.expenseBranchId));
+        },
+        salaryEmployeeChanged() {
+            const employee = this.employees.find(item => item.id === String(this.salaryEmployeeId));
+            if (!employee) return;
+            if (!Number(this.expenseAmount || 0)) this.expenseAmount = (Number(employee.monthly_salary || 0) / 2).toFixed(2);
+            if (!this.expenseTitle) this.expenseTitle = `Salary - ${employee.name}`;
+        },
         init() {
             this.$nextTick(() => {
                 if (!window.flatpickr) return;
@@ -36,13 +60,19 @@
             <p class="text-sm text-muted">Record business costs paid from store funds, or by the owner for later reimbursement.</p>
         </div>
 
-        <button type="button" @click="createOpen = true" class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:opacity-90">
-            <span data-lucide="plus" class="h-4 w-4"></span>
-            Record Expense
-        </button>
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ route('admin.expenses.index', array_filter(['expense_type' => 'payroll', 'branch_id' => request('branch_id'), 'date_range' => $dateRangeValue])) }}" class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:bg-smoke dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800">
+                <span data-lucide="users" class="h-4 w-4"></span>
+                Salary Only
+            </a>
+            <button type="button" @click="createOpen = true" class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:opacity-90">
+                <span data-lucide="plus" class="h-4 w-4"></span>
+                Record Expense
+            </button>
+        </div>
     </div>
 
-    <div class="grid gap-3 md:grid-cols-3">
+    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <p class="text-xs text-muted">Total Expenses</p>
             <p class="mt-1 text-lg font-semibold">{{ $currency }} {{ number_format((float) ($summary->total_expenses ?? 0), 2) }}</p>
@@ -55,9 +85,13 @@
             <p class="text-xs text-muted">Owner-Paid (For Reimbursement)</p>
             <p class="mt-1 text-lg font-semibold">{{ $currency }} {{ number_format((float) ($summary->owner_expenses ?? 0), 2) }}</p>
         </div>
+        <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <p class="text-xs text-muted">Salary Expenses</p>
+            <p class="mt-1 text-lg font-semibold">{{ $currency }} {{ number_format((float) ($summary->salary_expenses ?? 0), 2) }}</p>
+        </div>
     </div>
 
-    <form method="GET" action="{{ route('admin.expenses.index') }}" class="grid gap-2 rounded-lg border border-border bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
+    <form method="GET" action="{{ route('admin.expenses.index') }}" class="grid gap-2 rounded-lg border border-border bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900 lg:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto]">
         @if($canChooseBranch)
             <select name="branch_id" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
                 <option value="">All branches</option>
@@ -87,6 +121,13 @@
             @endforeach
         </select>
 
+        <select name="employee_id" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+            <option value="">All employees</option>
+            @foreach($employees as $employee)
+                <option value="{{ $employee->id }}" @selected(request('employee_id') == $employee->id)>{{ $employee->name }}{{ $canChooseBranch ? ' - '.$employee->branch?->name : '' }}</option>
+            @endforeach
+        </select>
+
         <button type="submit" class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:opacity-90">
             <span data-lucide="search" class="h-4 w-4"></span>
             Filter
@@ -101,6 +142,7 @@
                         <th class="px-4 py-3">Expense</th>
                         <th class="px-4 py-3">Branch</th>
                         <th class="px-4 py-3">Paid From</th>
+                        <th class="px-4 py-3">Employee / Period</th>
                         <th class="px-4 py-3">Reference</th>
                         <th class="px-4 py-3 text-right">Amount</th>
                         <th class="px-4 py-3 text-right">Actions</th>
@@ -120,6 +162,14 @@
                                     <p class="text-xs text-muted">{{ $expense->accountsPayable->payable_number }}</p>
                                 @endif
                             </td>
+                            <td class="px-4 py-3">
+                                @if($expense->employee)
+                                    <p class="font-medium">{{ $expense->employee->name }}</p>
+                                    <p class="text-xs text-muted">{{ $expense->salary_period_start?->format('M j') }}-{{ $expense->salary_period_end?->format('M j, Y') }}</p>
+                                @else
+                                    <span class="text-muted">N/A</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3">{{ $expense->reference_no ?: 'N/A' }}</td>
                             <td class="px-4 py-3 text-right font-semibold">{{ $currency }} {{ number_format((float) $expense->amount, 2) }}</td>
                             <td class="px-4 py-3">
@@ -133,7 +183,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="px-4 py-10 text-center text-muted">No expenses found.</td></tr>
+                        <tr><td colspan="7" class="px-4 py-10 text-center text-muted">No expenses found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -152,7 +202,7 @@
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     @if($canChooseBranch)
                         <label class="text-sm font-medium">Branch
-                            <select name="branch_id" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+                            <select name="branch_id" x-model="expenseBranchId" @change="salaryEmployeeId = ''" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
                                 @foreach($branches as $branch)
                                     <option value="{{ $branch->id }}" @selected(request('branch_id') == $branch->id)>{{ $branch->name }}</option>
                                 @endforeach
@@ -163,14 +213,27 @@
                     @endif
                     <label class="text-sm font-medium">Expense Date<input type="date" name="expense_date" value="{{ today()->toDateString() }}" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
                     <label class="text-sm font-medium">Category
-                        <select name="category" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+                        <select name="category" x-model="expenseCategory" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
                             @foreach($categories as $category)
                                 <option value="{{ $category }}">{{ \App\Support\StatusBadge::label($category) }}</option>
                             @endforeach
                         </select>
                     </label>
-                    <label class="text-sm font-medium">Amount<input type="number" min="0.01" step="0.01" name="amount" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
-                    <label class="text-sm font-medium md:col-span-2">Title<input name="title" required placeholder="Detergent stock, gas, utilities..." class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
+                    <label class="text-sm font-medium">Amount<input type="number" min="0.01" step="0.01" name="amount" x-model="expenseAmount" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
+                    <div x-cloak x-show="expenseCategory === 'payroll'" class="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
+                        <label class="text-sm font-medium">Employee
+                            <select name="attendance_employee_id" x-model="salaryEmployeeId" @change="salaryEmployeeChanged()" :required="expenseCategory === 'payroll'" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+                                <option value="">Select employee</option>
+                                <template x-for="employee in salaryEmployees" :key="employee.id">
+                                    <option :value="employee.id" x-text="employee.name"></option>
+                                </template>
+                            </select>
+                        </label>
+                        <label class="text-sm font-medium">Pay Period Start<input type="date" name="salary_period_start" value="{{ old('salary_period_start', $salaryPeriodStart) }}" :required="expenseCategory === 'payroll'" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
+                        <label class="text-sm font-medium">Pay Period End<input type="date" name="salary_period_end" value="{{ old('salary_period_end', $salaryPeriodEnd) }}" :required="expenseCategory === 'payroll'" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
+                        <p class="text-xs text-muted md:col-span-3">Selecting an employee suggests half of the configured monthly salary. You can adjust the amount before saving.</p>
+                    </div>
+                    <label class="text-sm font-medium md:col-span-2">Title<input name="title" x-model="expenseTitle" required :placeholder="expenseCategory === 'payroll' ? 'Salary - Employee name' : 'Detergent stock, gas, utilities...'" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
                     <label class="text-sm font-medium">Payment Method<input name="payment_method" placeholder="Cash, GCash, or Bank" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
                     <label class="text-sm font-medium">Paid From
                         <select name="paid_from" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">

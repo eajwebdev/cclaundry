@@ -19,46 +19,50 @@ class InventoryConsumption
         ServiceInventoryUsage $usage,
         float $serviceQuantity
     ): float {
-        if (! self::isRegularLaundry($service)) {
+        $profile = LaundryDosingGuide::profileFor($service);
+
+        if (! $profile) {
             return round((float) $usage->quantity * $serviceQuantity, 4);
         }
 
         $inventory = $usage->inventory;
         $sku = strtoupper(trim((string) $inventory?->sku));
         $name = mb_strtolower(trim((string) $inventory?->name));
-        $kilos = max($serviceQuantity, (float) ($service->minimum_kilos ?? 5), 5);
+        $quantity = $service->pricing_type === 'kilo'
+            ? max($serviceQuantity, (float) ($service->minimum_kilos ?? 0))
+            : $serviceQuantity;
 
-        // Detergent (Mrs Bloom / Detergent Powder / any detergent):
-        // 40 ml at 5 kg baseline, plus 5 ml per additional kilo.
-        // Fractional weights receive proportional dosage (6.5 kg = 47.5 ml).
         if (self::isDetergent($sku, $name)) {
-            $milliliters = 40 + (5 * max(0, $kilos - 5));
+            $chemical = self::isMrsBloomDetergent($sku, $name)
+                ? LaundryDosingGuide::MRS_BLOOM_DETERGENT
+                : LaundryDosingGuide::STANDARD_DETERGENT;
+            $milliliters = LaundryDosingGuide::milliliters($profile, $chemical, $quantity, (string) $service->pricing_type);
 
             return self::millilitersInInventoryUnit($milliliters, (string) $inventory?->unit);
         }
 
-        // Fabric Conditioner (Fab con yen yen / conditioner / fabcon):
-        // 20 ml for 5 kg, 25 ml for 6-7 kg, 30 ml for 8 kg and above.
         if (self::isFabricConditioner($sku, $name)) {
-            $milliliters = match (true) {
-                $kilos <= 5 => 20,
-                $kilos <= 7 => 25,
-                default => 30,
-            };
+            $milliliters = LaundryDosingGuide::milliliters(
+                $profile,
+                LaundryDosingGuide::FABRIC_SOFTENER,
+                $quantity,
+                (string) $service->pricing_type
+            );
 
             return self::millilitersInInventoryUnit($milliliters, (string) $inventory?->unit);
         }
 
         // Plastic Bag (Plastic packaging / laundry bag / plastic bag):
-        // 1 plastic bag for loads up to 8 kg (or service load capacity).
-        // Does not multiply by kilos so 5 kg - 8 kg consumes 1 bag.
+        // Keep Regular Laundry's established 8 kg packaging rule. Other guide
+        // profiles use their own maximum load from the dosing table.
         if (self::isPlasticBag($sku, $name)) {
-            $kilosPerBag = (float) ($service->kilos_per_load ?: 8);
-            if ($kilosPerBag <= 0) {
-                $kilosPerBag = 8;
+            if (self::isRegularLaundry($service)) {
+                $kilosPerBag = (float) ($service->kilos_per_load ?: 8);
+                $loads = (int) ceil(round($quantity / max($kilosPerBag, 1), 6));
+            } else {
+                $loads = LaundryDosingGuide::loadCount($profile, $quantity, (string) $service->pricing_type);
             }
 
-            $loads = (int) ceil(round($kilos / $kilosPerBag, 6));
             $bagsPerLoad = (float) $usage->quantity > 0 ? (float) $usage->quantity : 1.0;
 
             return round(max(1, $loads) * $bagsPerLoad, 4);
@@ -88,6 +92,17 @@ class InventoryConsumption
             || str_contains($name, 'mrs. bloom')
             || str_contains($name, 'mrs-bloom')
             || str_contains($name, 'bloom');
+    }
+
+    public static function isMrsBloomDetergent(?string $sku, ?string $name): bool
+    {
+        $sku = strtoupper(trim((string) $sku));
+        $name = mb_strtolower(trim((string) $name));
+
+        return str_contains($sku, 'BLOOM')
+            || str_contains($name, 'mrs bloom')
+            || str_contains($name, 'mrs. bloom')
+            || str_contains($name, 'mrs-bloom');
     }
 
     public static function isFabricConditioner(?string $sku, ?string $name): bool

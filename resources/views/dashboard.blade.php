@@ -771,7 +771,7 @@
                     <div class="mt-1 text-xs text-[#7A726A]" x-text="data.monthly_costs.payroll_sub"></div>
                 </div>
                 <div class="mt-4 text-xs text-[#8C827A] border-t border-[#F2ECE3] pt-2">
-                    Base wages + employer share
+                    Recorded salary expenses
                 </div>
             </div>
 
@@ -903,6 +903,43 @@
                 <span class="text-xs text-[#8C827A]">Paid twice a month · 15th and 30th</span>
             </div>
 
+            <template x-if="data.monthly_costs.unpaid_employee_count > 0">
+                <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-950">
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p class="text-xs font-bold" x-text="`${data.monthly_costs.unpaid_employee_count} employee${data.monthly_costs.unpaid_employee_count === 1 ? '' : 's'} not paid yet for ${data.monthly_costs.salary_period_label}`"></p>
+                            <p class="mt-0.5 text-[10px] text-amber-800" x-text="`${data.monthly_costs.salary_pending_current_period} expected for the current pay period`"></p>
+                        </div>
+                        @if(auth()->user()->hasMenuAccess('expenses'))
+                            <a href="{{ route('admin.expenses.index', array_filter(['expense_type' => 'payroll', 'branch_id' => $selectedBranchId])) }}" class="inline-flex h-8 items-center justify-center rounded-md bg-amber-700 px-3 text-xs font-semibold text-white hover:bg-amber-800">Review salary expenses</a>
+                        @endif
+                    </div>
+                    <div class="mt-2 flex flex-wrap gap-1.5">
+                        <template x-for="employee in data.monthly_costs.unpaid_employees" :key="employee.id">
+                            <span class="rounded-md border border-amber-200 bg-white px-2 py-1 text-[10px] font-semibold" x-text="`${employee.name} · ${employee.expected}`"></span>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            <template x-if="data.monthly_costs.unconfigured_salary_count > 0">
+                <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                    <p class="font-semibold" x-text="`${data.monthly_costs.unconfigured_salary_count} active employee${data.monthly_costs.unconfigured_salary_count === 1 ? '' : 's'} need a monthly salary setting.`"></p>
+                    <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                        <template x-for="employee in data.monthly_costs.unconfigured_salary_employees" :key="employee.id">
+                            <span class="rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px]" x-text="employee.name"></span>
+                        </template>
+                        @if(auth()->user()->hasMenuAccess('employees'))
+                            <a href="{{ route('admin.employees.index') }}" class="ml-auto font-semibold text-[#82573A] hover:underline">Set salaries</a>
+                        @endif
+                    </div>
+                </div>
+            </template>
+
+            <template x-if="data.monthly_costs.unpaid_employee_count === 0 && data.monthly_costs.unconfigured_salary_count === 0">
+                <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800" x-text="`All active employees are recorded as paid for ${data.monthly_costs.salary_period_label}.`"></div>
+            </template>
+
             {{-- 4 Mini Payroll Stats --}}
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
                 <div class="rounded-lg bg-[#FAF8F5] p-3 border border-[#EAE5DC]">
@@ -936,6 +973,7 @@
                             <th class="py-2.5 font-semibold">Daily Rate</th>
                             <th class="py-2.5 font-semibold">Days</th>
                             <th class="py-2.5 font-semibold">Wages</th>
+                            <th class="py-2.5 font-semibold">Paid This Month</th>
                             <th class="py-2.5 font-semibold">Employer Share</th>
                             <th class="py-2.5 font-semibold">Total Cost</th>
                             <th class="py-2.5 font-semibold text-right">Pay Status</th>
@@ -956,6 +994,7 @@
                                 <td class="py-2.5 text-[#5C554E]" x-text="emp.rate"></td>
                                 <td class="py-2.5 text-[#5C554E]" x-text="emp.days"></td>
                                 <td class="py-2.5 font-medium text-[#1E2024]" x-text="emp.wages"></td>
+                                <td class="py-2.5 font-medium text-[#1E2024]" x-text="emp.paid_amount"></td>
                                 <td class="py-2.5 text-[#7A726A]" x-text="emp.employer_share"></td>
                                 <td class="py-2.5 font-bold text-[#1E2024]" x-text="emp.total_cost"></td>
                                 <td class="py-2.5 text-right whitespace-nowrap">
@@ -974,7 +1013,7 @@
                         </template>
                         <template x-if="!data.monthly_costs.employees || data.monthly_costs.employees.length === 0">
                             <tr>
-                                <td colspan="7" class="py-6 text-center text-[#8C827A] italic text-xs">No active staff members found in system</td>
+                                <td colspan="8" class="py-6 text-center text-[#8C827A] italic text-xs">No active employees found in the Employees module</td>
                             </tr>
                         </template>
                     </tbody>
@@ -984,6 +1023,7 @@
                             <td class="py-2.5 text-[#7A726A]">—</td>
                             <td class="py-2.5 text-[#5C554E]" x-text="data.monthly_costs.total_employee_days"></td>
                             <td class="py-2.5" x-text="data.monthly_costs.total_employee_wages"></td>
+                            <td class="py-2.5" x-text="data.monthly_costs.salary_paid_this_month"></td>
                             <td class="py-2.5 text-[#7A726A]" x-text="data.monthly_costs.total_employee_share"></td>
                             <td class="py-2.5 font-bold" x-text="data.monthly_costs.total_employee_cost"></td>
                             <td class="py-2.5 text-right text-[10px] text-[#8C827A] font-normal">Employer share = SSS, PhilHealth, Pag-IBIG (estimate)</td>

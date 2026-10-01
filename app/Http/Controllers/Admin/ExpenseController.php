@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AccountsPayable;
+use App\Models\AttendanceEmployee;
 use App\Models\Branch;
 use App\Models\BranchExpense;
 use App\Support\Activity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ExpenseController extends Controller
 {
@@ -40,14 +42,24 @@ class ExpenseController extends Controller
             ->orderBy('name')
             ->get();
 
+        $employees = AttendanceEmployee::query()
+            ->with(['branch:id,name', 'user:id,monthly_salary'])
+            ->where('status', 'active')
+            ->when(! $canChooseBranch, fn ($query) => $query->where('branch_id', $user->branch_id))
+            ->when($canChooseBranch && $request->filled('branch_id'), fn ($query) => $query->where('branch_id', $request->branch_id))
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
+
         $baseQuery = BranchExpense::query()
-            ->with(['branch', 'creator', 'accountsPayable'])
+            ->with(['branch', 'creator', 'accountsPayable', 'employee'])
             ->when(! $canChooseBranch, fn ($query) => $query->where('branch_id', $user->branch_id))
             ->when($canChooseBranch && $request->filled('branch_id'), fn ($query) => $query->where('branch_id', $request->branch_id))
             ->when($dateFrom, fn ($query) => $query->whereDate('expense_date', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('expense_date', '<=', $dateTo))
             ->when($request->filled('paid_from'), fn ($query) => $query->where('paid_from', $request->paid_from))
             ->when(in_array($request->expense_type, self::CATEGORIES, true), fn ($query) => $query->where('expense_type', $request->expense_type))
+            ->when($request->filled('employee_id'), fn ($query) => $query->where('attendance_employee_id', $request->integer('employee_id')))
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->search;
 
@@ -55,11 +67,14 @@ class ExpenseController extends Controller
                     ->where('title', 'like', "%{$search}%")
                     ->orWhere('category', 'like', "%{$search}%")
                     ->orWhere('reference_no', 'like', "%{$search}%")
-                    ->orWhere('remarks', 'like', "%{$search}%"));
+                    ->orWhere('remarks', 'like', "%{$search}%")
+                    ->orWhereHas('employee', fn ($employee) => $employee
+                        ->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")));
             });
 
         $summary = (clone $baseQuery)
-            ->selectRaw("COALESCE(SUM(amount), 0) as total_expenses, COALESCE(SUM(CASE WHEN paid_from = 'store_cash' THEN amount ELSE 0 END), 0) as store_cash_expenses, COALESCE(SUM(CASE WHEN paid_from = 'owner' THEN amount ELSE 0 END), 0) as owner_expenses")
+            ->selectRaw("COALESCE(SUM(amount), 0) as total_expenses, COALESCE(SUM(CASE WHEN paid_from = 'store_cash' THEN amount ELSE 0 END), 0) as store_cash_expenses, COALESCE(SUM(CASE WHEN paid_from = 'owner' THEN amount ELSE 0 END), 0) as owner_expenses, COALESCE(SUM(CASE WHEN expense_type = 'payroll' THEN amount ELSE 0 END), 0) as salary_expenses")
             ->first();
 
         $expenses = $baseQuery
@@ -76,6 +91,7 @@ class ExpenseController extends Controller
             'expenses' => $expenses,
             'summary' => $summary,
             'categories' => self::CATEGORIES,
+            'employees' => $employees,
         ]);
     }
 
@@ -95,12 +111,27 @@ class ExpenseController extends Controller
             'expense_type' => $normalizedCategory,
         ]);
 
+        $expenseBranchId = $user->canManageAllBranches()
+            ? $request->integer('branch_id')
+            : (int) $user->branch_id;
+        $salaryExpense = $normalizedCategory === 'payroll';
+
         $validated = $request->validate([
             'branch_id' => [$user->canManageAllBranches() ? 'required' : 'nullable', 'exists:branches,id'],
             'category' => ['required', Rule::in(self::CATEGORIES)],
             'title' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'expense_date' => ['required', 'date'],
+            'attendance_employee_id' => [
+                Rule::requiredIf($salaryExpense),
+                'nullable',
+                Rule::exists('attendance_employees', 'id')->where(fn ($query) => $query
+                    ->where('branch_id', $expenseBranchId)
+                    ->where('status', 'active')
+                    ->whereNull('deleted_at')),
+            ],
+            'salary_period_start' => [Rule::requiredIf($salaryExpense), 'nullable', 'date'],
+            'salary_period_end' => [Rule::requiredIf($salaryExpense), 'nullable', 'date', 'after_or_equal:salary_period_start'],
             'payment_method' => ['nullable', 'string', 'max:100'],
             'paid_from' => ['nullable', Rule::in(['store_cash', 'owner'])],
             'expense_type' => ['nullable', Rule::in(self::CATEGORIES)],
@@ -115,7 +146,29 @@ class ExpenseController extends Controller
         $validated['expense_type'] = $validated['category'];
         $validated['paid_from'] = $validated['paid_from'] ?? 'store_cash';
 
+        if (! $salaryExpense) {
+            $validated['attendance_employee_id'] = null;
+            $validated['salary_period_start'] = null;
+            $validated['salary_period_end'] = null;
+        }
+
         DB::transaction(function () use ($request, $validated, $user): void {
+            if ($validated['expense_type'] === 'payroll') {
+                $duplicate = BranchExpense::query()
+                    ->where('expense_type', 'payroll')
+                    ->where('attendance_employee_id', $validated['attendance_employee_id'])
+                    ->whereDate('salary_period_start', $validated['salary_period_start'])
+                    ->whereDate('salary_period_end', $validated['salary_period_end'])
+                    ->lockForUpdate()
+                    ->exists();
+
+                if ($duplicate) {
+                    throw ValidationException::withMessages([
+                        'attendance_employee_id' => 'A salary payment for this employee and pay period is already recorded.',
+                    ]);
+                }
+            }
+
             $expense = BranchExpense::create($validated + ['created_by' => $user->id]);
 
             if ($expense->paid_from === 'owner') {
@@ -142,6 +195,9 @@ class ExpenseController extends Controller
                 'title' => $expense->title,
                 'amount' => $expense->amount,
                 'funding_source' => $expense->paid_from,
+                'employee_id' => $expense->attendance_employee_id,
+                'salary_period_start' => $expense->salary_period_start?->toDateString(),
+                'salary_period_end' => $expense->salary_period_end?->toDateString(),
             ], $expense->branch_id);
         });
 

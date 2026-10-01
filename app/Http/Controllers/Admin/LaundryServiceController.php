@@ -9,6 +9,7 @@ use App\Models\LaundryService;
 use App\Models\LaundryServiceCategory;
 use App\Models\ServicePreset;
 use App\Support\Activity;
+use App\Support\LaundryDosingGuide;
 use App\Support\ServiceCategories;
 use Closure;
 use Illuminate\Support\Facades\DB;
@@ -253,6 +254,7 @@ class LaundryServiceController extends Controller
             'minimum_kilos'       => ['nullable', 'numeric', 'min:0', 'max:9999'],
             // Load-priced services only: what one load holds. Blank is 10 kg.
             'kilos_per_load'      => ['nullable', 'numeric', 'min:1', 'max:100'],
+            'dosing_profile'      => ['nullable', Rule::in(array_keys(LaundryDosingGuide::labels()))],
             'price_unit_label'    => ['nullable', 'string', 'max:40'],
             'is_active'           => ['nullable', 'boolean'],
             'show_on_landing'     => ['nullable', 'boolean'],
