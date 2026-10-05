@@ -67,8 +67,8 @@
 
             <select name="pricing_type" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
                 <option value="">All types</option>
-                @foreach(['kilo', 'load', 'piece', 'custom'] as $type)
-                    <option value="{{ $type }}" @selected(request('pricing_type') === $type)>{{ ucfirst($type) }}</option>
+                @foreach(\App\Models\LaundryService::PRICING_TYPES as $type => $typeLabel)
+                    <option value="{{ $type }}" @selected(request('pricing_type') === $type)>{{ $typeLabel }}</option>
                 @endforeach
             </select>
 
@@ -205,7 +205,7 @@
                             <td class="px-4 py-3">{{ $service->branch?->name ?? 'N/A' }}</td>
                             <td class="px-4 py-3">{{ $service->serviceCategory?->name ?? 'None' }}</td>
                             <td class="px-4 py-3">
-                                {{ ucfirst($service->pricing_type) }}
+                                {{ \App\Models\LaundryService::pricingTypeLabel($service->pricing_type) }}
                                 @if($service->pricing_type === 'load')
                                     <span class="block text-xs text-muted">Max {{ rtrim(rtrim(number_format($service->kilosPerLoad(), 2), '0'), '.') }} kg per load</span>
                                 @elseif($service->pricing_type === 'kilo' && $service->minimum_kilos !== null)

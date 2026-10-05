@@ -106,7 +106,7 @@
                                 <span class="text-xs font-normal text-red-600">(inactive)</span>
                             @endunless
                         </span>
-                        <span class="text-xs text-muted">{{ ucfirst($serviceOption->pricing_type) }} · {{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $serviceOption->price, 2) }}</span>
+                        <span class="text-xs text-muted">{{ \App\Models\LaundryService::pricingTypeLabel($serviceOption->pricing_type) }} · {{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $serviceOption->price, 2) }}</span>
                     </span>
                     <input
                         name="items[{{ $serviceOption->id }}]"

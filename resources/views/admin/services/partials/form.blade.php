@@ -36,8 +36,8 @@
         <div>
             <label class="mb-1.5 block text-sm font-medium">Pricing Type</label>
             <select name="pricing_type" x-model="pricingType" class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
-                @foreach(['kilo', 'load', 'piece', 'custom'] as $type)
-                    <option value="{{ $type }}" @selected($value('pricing_type', $service->pricing_type) === $type)>{{ ucfirst($type) }}</option>
+                @foreach(\App\Models\LaundryService::PRICING_TYPES as $type => $typeLabel)
+                    <option value="{{ $type }}" @selected($value('pricing_type', $service->pricing_type) === $type)>{{ $typeLabel }}</option>
                 @endforeach
             </select>
         </div>

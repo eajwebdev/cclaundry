@@ -98,6 +98,93 @@ class ExpenseController extends Controller
     public function store(Request $request)
     {
         $user = $request->user();
+        $validated = $this->validatedExpense($request);
+
+        DB::transaction(function () use ($request, $validated, $user): void {
+            $this->guardDuplicateSalary($validated);
+
+            $expense = BranchExpense::create($validated + ['created_by' => $user->id]);
+
+            if ($expense->paid_from === 'owner') {
+                $this->createOwnerPayable($expense, $user->id);
+            }
+
+            Activity::log($request, 'expense_recorded', $expense, [
+                'title' => $expense->title,
+                'amount' => $expense->amount,
+                'funding_source' => $expense->paid_from,
+                'employee_id' => $expense->attendance_employee_id,
+                'salary_period_start' => $expense->salary_period_start?->toDateString(),
+                'salary_period_end' => $expense->salary_period_end?->toDateString(),
+            ], $expense->branch_id);
+        });
+
+        return back()->with('success', 'Expense recorded successfully.');
+    }
+
+    public function update(Request $request, BranchExpense $expense)
+    {
+        $user = $request->user();
+        abort_unless($user->isAdmin(), 403);
+
+        $validated = $this->validatedExpense($request, $expense);
+
+        DB::transaction(function () use ($request, $validated, $expense, $user): void {
+            $this->guardDuplicateSalary($validated, $expense->id);
+
+            $expense->loadMissing('accountsPayable.payments');
+            $payable = $expense->accountsPayable;
+            $paidBack = round((float) ($payable?->paid_amount ?? 0), 2);
+            $tracked = ['title', 'amount', 'category', 'paid_from', 'branch_id', 'expense_date', 'attendance_employee_id', 'salary_period_start', 'salary_period_end'];
+            $before = $expense->only($tracked);
+
+            if ($payable && $payable->payments->isNotEmpty()) {
+                if ($validated['paid_from'] !== 'owner') {
+                    throw ValidationException::withMessages([
+                        'paid_from' => 'This expense already has owner repayments, so it must stay owner-funded.',
+                    ]);
+                }
+
+                if ((float) $validated['amount'] < $paidBack) {
+                    throw ValidationException::withMessages([
+                        'amount' => 'Amount cannot be lower than the '.number_format($paidBack, 2).' already repaid to the owner.',
+                    ]);
+                }
+            }
+
+            $expense->update($validated);
+
+            if ($expense->paid_from === 'owner' && $payable) {
+                $balance = max(round((float) $expense->amount - $paidBack, 2), 0);
+                $payable->update([
+                    'branch_id' => $expense->branch_id,
+                    'funding_method' => $this->payableFundingMethod($expense->payment_method),
+                    'reference_no' => $expense->reference_no,
+                    'description' => 'Reimbursement for '.$expense->title,
+                    'original_amount' => $expense->amount,
+                    'balance' => $balance,
+                    'status' => $balance <= 0 ? 'paid' : ($paidBack > 0 ? 'partial' : 'unpaid'),
+                    'funded_at' => $expense->expense_date->toDateString(),
+                ]);
+            } elseif ($expense->paid_from === 'owner') {
+                $this->createOwnerPayable($expense, $user->id);
+            } elseif ($payable) {
+                $expense->update(['accounts_payable_id' => null]);
+                $payable->delete();
+            }
+
+            Activity::log($request, 'expense_updated', $expense, [
+                'before' => $before,
+                'after' => $expense->fresh()->only($tracked),
+            ], $expense->branch_id);
+        });
+
+        return back()->with('success', 'Expense updated successfully.');
+    }
+
+    private function validatedExpense(Request $request, ?BranchExpense $existing = null): array
+    {
+        $user = $request->user();
         $normalizedCategory = str((string) $request->input('category'))->snake()->toString();
         $normalizedCategory = match ($normalizedCategory) {
             'stocks', 'stock', 'inventory' => 'inventory_purchase',
@@ -115,6 +202,7 @@ class ExpenseController extends Controller
             ? $request->integer('branch_id')
             : (int) $user->branch_id;
         $salaryExpense = $normalizedCategory === 'payroll';
+        $currentEmployeeId = $existing?->attendance_employee_id;
 
         $validated = $request->validate([
             'branch_id' => [$user->canManageAllBranches() ? 'required' : 'nullable', 'exists:branches,id'],
@@ -125,10 +213,12 @@ class ExpenseController extends Controller
             'attendance_employee_id' => [
                 Rule::requiredIf($salaryExpense),
                 'nullable',
+                // On edit, keep accepting the originally paid employee even if they have since been deactivated.
                 Rule::exists('attendance_employees', 'id')->where(fn ($query) => $query
                     ->where('branch_id', $expenseBranchId)
-                    ->where('status', 'active')
-                    ->whereNull('deleted_at')),
+                    ->where(fn ($query) => $query
+                        ->where(fn ($query) => $query->where('status', 'active')->whereNull('deleted_at'))
+                        ->when($currentEmployeeId, fn ($query) => $query->orWhere('id', $currentEmployeeId)))),
             ],
             'salary_period_start' => [Rule::requiredIf($salaryExpense), 'nullable', 'date'],
             'salary_period_end' => [Rule::requiredIf($salaryExpense), 'nullable', 'date', 'after_or_equal:salary_period_start'],
@@ -152,56 +242,50 @@ class ExpenseController extends Controller
             $validated['salary_period_end'] = null;
         }
 
-        DB::transaction(function () use ($request, $validated, $user): void {
-            if ($validated['expense_type'] === 'payroll') {
-                $duplicate = BranchExpense::query()
-                    ->where('expense_type', 'payroll')
-                    ->where('attendance_employee_id', $validated['attendance_employee_id'])
-                    ->whereDate('salary_period_start', $validated['salary_period_start'])
-                    ->whereDate('salary_period_end', $validated['salary_period_end'])
-                    ->lockForUpdate()
-                    ->exists();
+        return $validated;
+    }
 
-                if ($duplicate) {
-                    throw ValidationException::withMessages([
-                        'attendance_employee_id' => 'A salary payment for this employee and pay period is already recorded.',
-                    ]);
-                }
-            }
+    private function guardDuplicateSalary(array $validated, ?int $ignoreId = null): void
+    {
+        if ($validated['expense_type'] !== 'payroll') {
+            return;
+        }
 
-            $expense = BranchExpense::create($validated + ['created_by' => $user->id]);
+        $duplicate = BranchExpense::query()
+            ->where('expense_type', 'payroll')
+            ->where('attendance_employee_id', $validated['attendance_employee_id'])
+            ->whereDate('salary_period_start', $validated['salary_period_start'])
+            ->whereDate('salary_period_end', $validated['salary_period_end'])
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
+            ->lockForUpdate()
+            ->exists();
 
-            if ($expense->paid_from === 'owner') {
-                $payable = AccountsPayable::query()->create([
-                    'branch_id' => $expense->branch_id,
-                    'created_by' => $user->id,
-                    'payable_number' => AccountsPayable::nextNumber(),
-                    'creditor_name' => 'Owner',
-                    'source_type' => 'owner_paid_expense',
-                    'source_id' => $expense->id,
-                    'funding_method' => $this->payableFundingMethod($expense->payment_method),
-                    'reference_no' => $expense->reference_no,
-                    'description' => 'Reimbursement for '.$expense->title,
-                    'original_amount' => $expense->amount,
-                    'paid_amount' => 0,
-                    'balance' => $expense->amount,
-                    'status' => 'unpaid',
-                    'funded_at' => $expense->expense_date->toDateString(),
-                ]);
-                $expense->update(['accounts_payable_id' => $payable->id]);
-            }
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'attendance_employee_id' => 'A salary payment for this employee and pay period is already recorded.',
+            ]);
+        }
+    }
 
-            Activity::log($request, 'expense_recorded', $expense, [
-                'title' => $expense->title,
-                'amount' => $expense->amount,
-                'funding_source' => $expense->paid_from,
-                'employee_id' => $expense->attendance_employee_id,
-                'salary_period_start' => $expense->salary_period_start?->toDateString(),
-                'salary_period_end' => $expense->salary_period_end?->toDateString(),
-            ], $expense->branch_id);
-        });
-
-        return back()->with('success', 'Expense recorded successfully.');
+    private function createOwnerPayable(BranchExpense $expense, int $userId): void
+    {
+        $payable = AccountsPayable::query()->create([
+            'branch_id' => $expense->branch_id,
+            'created_by' => $userId,
+            'payable_number' => AccountsPayable::nextNumber(),
+            'creditor_name' => 'Owner',
+            'source_type' => 'owner_paid_expense',
+            'source_id' => $expense->id,
+            'funding_method' => $this->payableFundingMethod($expense->payment_method),
+            'reference_no' => $expense->reference_no,
+            'description' => 'Reimbursement for '.$expense->title,
+            'original_amount' => $expense->amount,
+            'paid_amount' => 0,
+            'balance' => $expense->amount,
+            'status' => 'unpaid',
+            'funded_at' => $expense->expense_date->toDateString(),
+        ]);
+        $expense->update(['accounts_payable_id' => $payable->id]);
     }
 
     private function payableFundingMethod(?string $paymentMethod): string

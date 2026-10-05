@@ -211,6 +211,8 @@ class Booking
         return match ($pricingType) {
             'kilo', 'load' => 'kg',
             'piece' => 'pc',
+            'ml' => 'ml',
+            'liter' => 'L',
             default => 'qty',
         };
     }

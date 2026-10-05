@@ -93,7 +93,7 @@ class InventoryReliabilityTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.job-orders.create', ['branch_id' => $branch->id]))
             ->assertOk()
-            ->assertSee("item.pricing_type === 'kilo' ? 0.1 : 1", false);
+            ->assertSee("['kilo', 'liter'].includes(item.pricing_type) ? 0.1 : 1", false);
     }
 
     public function test_dashboard_returns_ten_latest_low_stock_items_and_header_alarm(): void

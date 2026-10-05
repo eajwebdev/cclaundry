@@ -51,7 +51,7 @@ class DashboardController extends Controller
             'selectedBranchId' => $this->branchId($request),
             'settings' => SystemSetting::current(),
             'activeTab' => $request->query('tab', 'today'),
-            'currentPeriod' => $request->query('period', 'today'),
+            'currentPeriod' => $this->currentPeriod($request),
         ]);
     }
 
@@ -428,7 +428,7 @@ class DashboardController extends Controller
             'supplies' => $this->buildSuppliesData($request, $branchId, $dateFrom, $dateTo, $currency),
             'monthly_costs' => $this->buildMonthlyCostsData($request, $branchId, $dateFrom, $dateTo, $currency),
             'active_tab' => $request->query('tab', 'today'),
-            'current_period' => $request->query('period', 'today'),
+            'current_period' => $this->currentPeriod($request),
         ];
     }
 
@@ -631,6 +631,7 @@ class DashboardController extends Controller
             'header' => [
                 'branch_name' => $branchName,
                 'date_formatted' => Carbon::parse($dateTo)->format('l, F j'),
+                'range_label' => $this->rangeLabel($dateFrom, $dateTo),
                 'time_formatted' => now()->format('g:i A'),
             ],
             'sales_today' => $this->money($currency, $salesOwned),
@@ -1037,7 +1038,6 @@ class DashboardController extends Controller
         $unpaidEmployees = [];
         $unconfiguredEmployees = [];
         $wagesSum = 0;
-        $employerShareSum = 0;
         $totalDays = 0;
         $pendingCurrentPeriod = 0;
 
@@ -1046,11 +1046,9 @@ class DashboardController extends Controller
             $dailyRate = $salary > 0 ? round($salary / 26, 2) : 0;
             $days = $salary > 0 ? 26 : 0;
             $wages = round($dailyRate * $days, 2);
-            $share = $wages > 0 ? round($wages * 0.145, 2) : 0;
-            $totalCost = $wages + $share;
+            $totalCost = $wages;
 
             $wagesSum += $wages;
-            $employerShareSum += $share;
             $totalDays += $days;
 
             $firstPaid = $wasPaidForPeriod($salaryPeriodPayments, $staff->id, $firstPeriodStart, $firstPeriodEnd);
@@ -1086,7 +1084,6 @@ class DashboardController extends Controller
                 'rate' => $this->money($currency, $dailyRate),
                 'days' => $days,
                 'wages' => $this->money($currency, $wages),
-                'employer_share' => $this->money($currency, $share),
                 'total_cost' => $this->money($currency, $totalCost),
                 'paid_amount' => $this->money($currency, $paidAmount),
                 'pay_status_1' => $firstPaid ? '15th: Paid' : ($salary <= 0 ? '15th: Salary not set' : ($currentDay >= 15 ? '15th: Unpaid' : '15th: Upcoming')),
@@ -1094,7 +1091,7 @@ class DashboardController extends Controller
             ];
         }
 
-        $totalPayrollCost = $wagesSum + $employerShareSum;
+        $totalPayrollCost = $wagesSum;
         $staffCount = count($employeesList);
 
         $vendorStillToPay = (float) AccountsPayable::query()
@@ -1366,7 +1363,6 @@ class DashboardController extends Controller
             'salary_pending_current_period' => $this->money($currency, $pendingCurrentPeriod),
             'total_employee_days' => $totalDays,
             'total_employee_wages' => $this->money($currency, $wagesSum),
-            'total_employee_share' => $this->money($currency, $employerShareSum),
             'total_employee_cost' => $this->money($currency, $totalPayrollCost),
             'waterfall' => [
                 'sales' => $this->money($currency, $monthlySales),
@@ -1854,10 +1850,34 @@ class DashboardController extends Controller
             $from = $this->parseDate($parts[0] ?? null);
             $to = $this->parseDate($parts[1] ?? $parts[0] ?? null);
 
-            return [$from, $to];
+            return $from <= $to ? [$from, $to] : [$to, $from];
         }
 
         return [today()->toDateString(), today()->toDateString()];
+    }
+
+    /** Which period button is lit: a picked date range shows as "custom". */
+    private function currentPeriod(Request $request): string
+    {
+        if ($request->filled('period')) {
+            return (string) $request->query('period');
+        }
+
+        return $request->filled('date_range') ? 'custom' : 'today';
+    }
+
+    private function rangeLabel(string $dateFrom, string $dateTo): string
+    {
+        $from = Carbon::parse($dateFrom);
+        $to = Carbon::parse($dateTo);
+
+        if ($from->isSameDay($to)) {
+            return $to->format('l, F j');
+        }
+
+        return $from->isSameYear($to)
+            ? $from->format('M j').' – '.$to->format('M j, Y')
+            : $from->format('M j, Y').' – '.$to->format('M j, Y');
     }
 
     private function dateRangeValue(Request $request): string

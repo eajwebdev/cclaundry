@@ -65,6 +65,21 @@
                             class="px-3 py-1 rounded-md transition-all"
                         >This month</button>
                     </div>
+
+                    <label
+                        class="flex h-8 items-center gap-1.5 rounded-md border bg-white px-2.5 text-xs shadow-2xs"
+                        :class="currentPeriod === 'custom' ? 'border-[#82573A] text-[#1E2024] font-semibold' : 'border-[#DCD6CC] text-[#7A726A] font-medium'"
+                    >
+                        <span data-lucide="calendar" class="h-3.5 w-3.5 shrink-0"></span>
+                        <input
+                            x-init="initRangePicker($el)"
+                            :value="currentPeriod === 'custom' ? dateRange : ''"
+                            placeholder="Date range"
+                            aria-label="Custom date range"
+                            readonly
+                            class="w-44 cursor-pointer bg-transparent outline-none placeholder:text-[#7A726A]"
+                        >
+                    </label>
                 </div>
             </template>
 
@@ -974,7 +989,6 @@
                             <th class="py-2.5 font-semibold">Days</th>
                             <th class="py-2.5 font-semibold">Wages</th>
                             <th class="py-2.5 font-semibold">Paid This Month</th>
-                            <th class="py-2.5 font-semibold">Employer Share</th>
                             <th class="py-2.5 font-semibold">Total Cost</th>
                             <th class="py-2.5 font-semibold text-right">Pay Status</th>
                         </tr>
@@ -995,7 +1009,6 @@
                                 <td class="py-2.5 text-[#5C554E]" x-text="emp.days"></td>
                                 <td class="py-2.5 font-medium text-[#1E2024]" x-text="emp.wages"></td>
                                 <td class="py-2.5 font-medium text-[#1E2024]" x-text="emp.paid_amount"></td>
-                                <td class="py-2.5 text-[#7A726A]" x-text="emp.employer_share"></td>
                                 <td class="py-2.5 font-bold text-[#1E2024]" x-text="emp.total_cost"></td>
                                 <td class="py-2.5 text-right whitespace-nowrap">
                                     <span
@@ -1013,7 +1026,7 @@
                         </template>
                         <template x-if="!data.monthly_costs.employees || data.monthly_costs.employees.length === 0">
                             <tr>
-                                <td colspan="8" class="py-6 text-center text-[#8C827A] italic text-xs">No active employees found in the Employees module</td>
+                                <td colspan="7" class="py-6 text-center text-[#8C827A] italic text-xs">No active employees found in the Employees module</td>
                             </tr>
                         </template>
                     </tbody>
@@ -1024,9 +1037,8 @@
                             <td class="py-2.5 text-[#5C554E]" x-text="data.monthly_costs.total_employee_days"></td>
                             <td class="py-2.5" x-text="data.monthly_costs.total_employee_wages"></td>
                             <td class="py-2.5" x-text="data.monthly_costs.salary_paid_this_month"></td>
-                            <td class="py-2.5 text-[#7A726A]" x-text="data.monthly_costs.total_employee_share"></td>
                             <td class="py-2.5 font-bold" x-text="data.monthly_costs.total_employee_cost"></td>
-                            <td class="py-2.5 text-right text-[10px] text-[#8C827A] font-normal">Employer share = SSS, PhilHealth, Pag-IBIG (estimate)</td>
+                            <td class="py-2.5"></td>
                         </tr>
                     </tfoot>
                 </table>
@@ -1152,7 +1164,7 @@ function dashboardPage(fetchUrl, initialData, initialRange, initialTab = 'today'
         get headerTitle() {
             if (this.activeTab === 'supplies') return 'Supplies & inventory';
             if (this.activeTab === 'costs') return 'Monthly costs';
-            return 'Today at the shop';
+            return this.currentPeriod === 'today' ? 'Today at the shop' : 'At the shop';
         },
 
         get headerSubtitle() {
@@ -1167,7 +1179,8 @@ function dashboardPage(fetchUrl, initialData, initialRange, initialTab = 'today'
             if (this.activeTab === 'costs') {
                 return `${monthYear} · payroll, bills, extra purchases, and what's left for the shop`;
             }
-            return `${date} · ${branch} · updated ${updated}`;
+            const range = this.currentPeriod === 'today' ? date : (this.data.today?.header?.range_label || date);
+            return `${range} · ${branch} · updated ${updated}`;
         },
 
         get cashDifferenceText() {
@@ -1191,6 +1204,29 @@ function dashboardPage(fetchUrl, initialData, initialRange, initialTab = 'today'
             const url = new URL(window.location);
             url.searchParams.set('tab', tab);
             window.history.replaceState({}, '', url);
+        },
+
+        initRangePicker(input) {
+            if (!window.flatpickr) return;
+            window.flatpickr(input, {
+                mode: 'range',
+                dateFormat: 'Y-m-d',
+                maxDate: 'today',
+                defaultDate: this.currentPeriod === 'custom' && this.dateRange ? this.dateRange.split(' to ') : null,
+                onClose: (dates, value) => {
+                    if (!dates.length) return;
+                    const range = dates.length === 1 ? `${value} to ${value}` : value;
+                    if (this.currentPeriod === 'custom' && range === this.dateRange) return;
+                    this.applyRange(range);
+                },
+            });
+        },
+
+        applyRange(range) {
+            const url = new URL(window.location);
+            url.searchParams.delete('period');
+            url.searchParams.set('date_range', range);
+            window.location.href = url.toString();
         },
 
         changePeriod(period) {

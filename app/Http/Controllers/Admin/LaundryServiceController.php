@@ -19,7 +19,7 @@ use Illuminate\Validation\Rule;
 
 class LaundryServiceController extends Controller
 {
-    private const PRICING_TYPES = ['kilo', 'load', 'piece', 'custom'];
+    private const PRICING_TYPES = ['kilo', 'load', 'piece', 'ml', 'liter', 'custom'];
     private const STATUS_FILTERS = ['active', 'inactive'];
 
     public function index(Request $request)
@@ -248,7 +248,7 @@ class LaundryServiceController extends Controller
             ],
             'report_category'     => ['nullable', 'string', Rule::in(ServiceCategories::keys())],
             'service_category_id' => ['nullable', $this->categoryRule($branchId)],
-            'pricing_type'        => ['required', Rule::in(['kilo', 'load', 'piece', 'custom'])],
+            'pricing_type'        => ['required', Rule::in(self::PRICING_TYPES)],
             'price'               => ['required', 'numeric', 'min:0'],
             // Only weighed services have one; anything else ignores it.
             'minimum_kilos'       => ['nullable', 'numeric', 'min:0', 'max:9999'],

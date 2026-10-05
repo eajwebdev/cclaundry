@@ -56,6 +56,55 @@ class DashboardProductionTest extends TestCase
         }
     }
 
+    public function test_dashboard_filters_by_a_custom_date_range(): void
+    {
+        $this->settings();
+
+        $branch = Branch::query()->create(['name' => 'Main Branch', 'code' => 'MAIN', 'is_active' => true]);
+        $customer = Customer::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Range Customer',
+            'billing_type' => 'regular',
+            'is_active' => true,
+        ]);
+        $admin = User::factory()->create(['role' => 'super_admin', 'access' => ['dashboard']]);
+
+        $inRange = $this->order($branch, $customer, 'JO-RANGE-IN', 400, today()->subDays(10)->setTime(9, 0));
+        $this->payment($branch, $customer, $inRange, 'PAY-RANGE-IN', 400, today()->subDays(10)->setTime(9, 10));
+        $outside = $this->order($branch, $customer, 'JO-RANGE-OUT', 700, today()->subDays(30)->setTime(9, 0));
+        $this->payment($branch, $customer, $outside, 'PAY-RANGE-OUT', 700, today()->subDays(30)->setTime(9, 10));
+
+        // Picked end-first on purpose: the range is put back in order.
+        $range = today()->subDays(5)->toDateString().' to '.today()->subDays(12)->toDateString();
+        $payload = $this->actingAs($admin)
+            ->getJson(route('dashboard.data', ['date_range' => $range]))
+            ->assertOk()
+            ->json();
+
+        $this->assertSame('PHP 400.00', $payload['stats']['sales']);
+        $this->assertSame('custom', $payload['current_period']);
+        $this->assertStringContainsString(today()->subDays(12)->format('M j'), $payload['today']['header']['range_label']);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['date_range' => $range]))
+            ->assertOk()
+            ->assertSee('aria-label="Custom date range"', false);
+    }
+
+    public function test_payroll_table_no_longer_shows_employer_share(): void
+    {
+        $this->settings();
+        $admin = User::factory()->create(['role' => 'super_admin', 'access' => ['dashboard']]);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['tab' => 'costs']))
+            ->assertOk()
+            ->assertDontSee('Employer Share');
+
+        $costs = $this->actingAs($admin)->getJson(route('dashboard.data'))->json('monthly_costs');
+        $this->assertArrayNotHasKey('total_employee_share', $costs);
+    }
+
     private function settings(): void
     {
         SystemSetting::query()->create([

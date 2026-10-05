@@ -217,6 +217,8 @@ class PickupRequest extends Model
             'kilo' => 'per kilo',
             'load' => 'per load',
             'piece' => 'per piece',
+            'ml' => 'per ml',
+            'liter' => 'per liter',
             default => 'fixed price',
         };
     }

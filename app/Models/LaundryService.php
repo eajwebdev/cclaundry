@@ -23,6 +23,21 @@ class LaundryService extends Model
         'landing_sort_order' => 'integer',
     ];
 
+    /** Every way a service can be priced, with the name staff see for it. */
+    public const PRICING_TYPES = [
+        'kilo' => 'Kilo',
+        'load' => 'Load',
+        'piece' => 'Piece',
+        'ml' => 'ML',
+        'liter' => 'Liters',
+        'custom' => 'Custom',
+    ];
+
+    public static function pricingTypeLabel(?string $type): string
+    {
+        return self::PRICING_TYPES[$type] ?? ucfirst((string) $type);
+    }
+
     /** Icons a service can wear on the landing page (keys from resources/js/app.js). */
     public const LANDING_ICONS = [
         'laundry' => 'Washing machine',
@@ -89,6 +104,8 @@ class LaundryService extends Model
             'kilo' => 'per kilo',
             'load' => 'per load',
             'piece' => 'per piece',
+            'ml' => 'per ml',
+            'liter' => 'per liter',
             default => 'fixed price',
         };
     }
@@ -104,6 +121,8 @@ class LaundryService extends Model
             'kilo' => 'kg',
             'load' => 'load',
             'piece' => 'pc',
+            'ml' => 'ml',
+            'liter' => 'L',
             default => '',
         };
     }

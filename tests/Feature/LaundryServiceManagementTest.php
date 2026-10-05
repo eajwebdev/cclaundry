@@ -117,6 +117,34 @@ class LaundryServiceManagementTest extends TestCase
         $this->assertSame('85.00', $wash->price);
     }
 
+    public function test_services_can_be_priced_per_ml_or_per_liter(): void
+    {
+        foreach (['ml' => 'Fabric Conditioner Refill', 'liter' => 'Liquid Detergent Refill'] as $type => $name) {
+            $this->actingAs($this->admin)
+                ->post(route('admin.services.store'), [
+                    'branch_id' => $this->branch->id,
+                    'name' => $name,
+                    'pricing_type' => $type,
+                    'price' => 2.5,
+                ])
+                ->assertSessionHasNoErrors();
+        }
+
+        $ml = LaundryService::query()->where('pricing_type', 'ml')->firstOrFail();
+        $liter = LaundryService::query()->where('pricing_type', 'liter')->firstOrFail();
+        $this->assertSame('per ml', $ml->priceUnitLabel());
+        $this->assertSame('L', $liter->priceUnitShort());
+        $this->assertSame('L', Booking::unitFor('liter'));
+        $this->assertSame(5.0, Booking::lineTotal('liter', 2.5, 2));
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.services.index', ['branch_id' => $this->branch->id, 'pricing_type' => 'liter']))
+            ->assertOk()
+            ->assertSee('Liquid Detergent Refill')
+            ->assertSee('<option value="ml"', false)
+            ->assertSee('Liters');
+    }
+
     public function test_a_load_service_keeps_its_load_size_and_other_types_drop_it(): void
     {
         $this->actingAs($this->admin)
