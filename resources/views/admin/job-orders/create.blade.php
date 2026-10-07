@@ -9,11 +9,37 @@
     $riderPayment = (! $isEditing && ($bookedRequest ?? null)) ? $bookedRequest->riderPaymentPrefill() : null;
 
     $pageTitle = $isEditing ? 'Edit Job Order' : (in_array(auth()->user()->role, ['branch_manager', 'cashier'], true) ? 'Cashier POS' : 'New Job Order');
+
+    // A save the server refused comes back with the cart as it was submitted,
+    // so the lines the cashier just added (add-ons especially) are not lost.
+    $bookedLines = collect($bookedItems ?? []);
+    $submittedItems = collect(old('items', []))
+        ->filter(fn ($item) => is_array($item) && (! empty($item['laundry_service_id']) || ! empty($item['service_preset_id'])))
+        ->map(function ($item) use ($services, $servicePresets, $bookedLines) {
+            $isPreset = ! empty($item['service_preset_id']);
+            $id = (int) ($isPreset ? $item['service_preset_id'] : $item['laundry_service_id']);
+            $type = $isPreset ? 'preset' : 'service';
+            $preset = $isPreset ? collect($servicePresets)->firstWhere('id', $id) : null;
+            $booked = $bookedLines->first(fn ($line) => $line['type'] === $type && (int) $line['id'] === $id);
+
+            return array_filter([
+                'id' => $id,
+                'type' => $type,
+                'name' => (string) ($item['description'] ?? ''),
+                'pricing_type' => $isPreset ? null : $services->firstWhere('id', $id)?->pricing_type,
+                'summary' => $preset ? collect($preset['items'])->map(fn ($component) => $component['name'])->implode(', ') : null,
+                'quantity' => (float) ($item['quantity'] ?? 0),
+                'price' => (float) ($item['unit_price'] ?? 0),
+                'booked' => $booked['booked'] ?? null,
+            ], fn ($value) => $value !== null);
+        })
+        ->values();
+
     $initialState = [
         'isEditing' => $isEditing,
         // A new order opened from an online booking starts as what the customer
         // said they were sending, for the cashier to check against the scale.
-        'initialItems' => $isEditing ? $initialItems : ($bookedItems ?? []),
+        'initialItems' => $submittedItems->isNotEmpty() ? $submittedItems : ($isEditing ? $initialItems : ($bookedItems ?? [])),
         'selectedCustomerId' => (string) old('customer_id', $selectedCustomerId ?? ''),
         'processingBranchId' => (string) old('processing_branch_id', $isEditing ? ($jobOrder->processing_branch_id ?: $jobOrder->branch_id) : ''),
         'discount' => (float) old('discount', $isEditing ? $jobOrder->discount : 0),
@@ -335,6 +361,26 @@
 
                 <!-- Cart Items -->
                 <div class="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-2.5 sm:p-3">
+                    {{-- Why the last save was refused, e.g. an add-on whose stock
+                         ran out. Without this the page just reloads and the
+                         order looks like it saved nothing. --}}
+                    @php
+                        $cartErrors = collect($errors->getMessages())->except('pickup_request_id')->flatten()->unique();
+                    @endphp
+                    @if($cartErrors->isNotEmpty())
+                        <div class="rounded-lg border border-red-300 bg-red-50 p-3 dark:border-red-500/30 dark:bg-red-500/10" role="alert">
+                            <p class="flex items-center gap-1.5 text-xs font-semibold text-red-700 dark:text-red-400">
+                                <span data-lucide="circle-alert" class="h-3.5 w-3.5"></span>
+                                {{ $isEditing ? 'Changes were not saved' : 'Order was not saved' }}
+                            </p>
+                            <ul class="mt-1 space-y-0.5 text-[11px] leading-relaxed text-red-700 dark:text-red-300">
+                                @foreach($cartErrors as $message)
+                                    <li>{{ $message }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
                     @if(! $isEditing && ($bookedRequest ?? null))
                         {{-- The customer declared these amounts when they booked.
                              Weighing the bag is what settles them. --}}
