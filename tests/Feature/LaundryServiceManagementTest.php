@@ -202,7 +202,7 @@ class LaundryServiceManagementTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('admin.services.index', ['branch_id' => $this->branch->id]))
             ->assertOk()
-            ->assertSee('Bedding — King comforter (10–15 kg)');
+            ->assertSee('Bedding — King comforter (3–4.5 kg each · 2 pcs · Titan only, max 12 kg)');
 
         $this->actingAs($this->admin)
             ->put(route('admin.services.update', $service), [

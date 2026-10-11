@@ -270,6 +270,7 @@ Route::middleware(['auth', 'not.rider', 'settings.completed', 'system.maintenanc
         Route::middleware('menu.access:pickup_requests')->group(function () {
             Route::get('/pickup-requests', [PickupRequestController::class, 'index'])->name('pickup-requests.index');
             Route::get('/pickup-requests/feed', [PickupRequestController::class, 'feed'])->name('pickup-requests.feed');
+            Route::post('/pickup-requests/bulk', [PickupRequestController::class, 'bulk'])->name('pickup-requests.bulk');
             Route::patch('/pickup-requests/{pickupRequest}/status', [PickupRequestController::class, 'updateStatus'])->name('pickup-requests.status');
             Route::get('/pickup-requests/{pickupRequest}/convert', [PickupRequestController::class, 'convert'])->name('pickup-requests.convert');
         });
@@ -343,6 +344,7 @@ Route::middleware(['auth', 'not.rider', 'settings.completed', 'system.maintenanc
             Route::post('/expenses', [ExpenseController::class, 'store'])->name('expenses.store');
             Route::put('/expenses/{expense}', [ExpenseController::class, 'update'])->name('expenses.update');
             Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
+            Route::get('/expenses/{expense}/receipt', [ExpenseController::class, 'receipt'])->name('expenses.receipt');
         });
 
         Route::middleware('menu.access:accounts_payable')->group(function () {

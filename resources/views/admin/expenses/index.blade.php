@@ -46,6 +46,59 @@
         paidFrom: @js(old('paid_from', 'store_cash')),
         referenceNo: @js(old('reference_no', '')),
         remarks: @js(old('remarks', '')),
+        receiptUrl: null,
+        receiptPreview: null,
+        receiptSizeKb: null,
+        receiptBusy: false,
+        removeReceipt: false,
+        resetReceipt(currentUrl = null) {
+            this.receiptUrl = currentUrl;
+            this.receiptPreview = null;
+            this.receiptSizeKb = null;
+            this.removeReceipt = false;
+            if (this.$refs.receiptInput) this.$refs.receiptInput.value = '';
+        },
+        // Shrink the photo in the browser before upload (the server also
+        // compresses it to under 200 KB, so this only speeds up uploading).
+        async pickReceipt(event) {
+            const input = event.target;
+            const file = input.files[0];
+            this.removeReceipt = false;
+            this.receiptPreview = null;
+            this.receiptSizeKb = null;
+            if (!file) return;
+
+            this.receiptBusy = true;
+            try {
+                const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+                const scale = Math.min(1, 1400 / Math.max(bitmap.width, bitmap.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(bitmap.width * scale);
+                canvas.height = Math.round(bitmap.height * scale);
+                const context = canvas.getContext('2d');
+                context.fillStyle = '#ffffff';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+                let blob = null;
+                for (const quality of [0.72, 0.6, 0.5, 0.4]) {
+                    blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+                    if (blob && blob.size <= 200 * 1024) break;
+                }
+
+                if (blob && blob.size < file.size) {
+                    const files = new DataTransfer();
+                    files.items.add(new File([blob], 'receipt.jpg', { type: 'image/jpeg' }));
+                    input.files = files.files;
+                }
+            } catch (error) {
+                // This browser cannot shrink the photo; the server still will.
+            }
+
+            this.receiptSizeKb = Math.max(1, Math.round(input.files[0].size / 1024));
+            this.receiptPreview = URL.createObjectURL(input.files[0]);
+            this.receiptBusy = false;
+        },
         fill(values) {
             this.expenseBranchId = String(values.branch_id ?? '');
             this.expenseDate = values.expense_date ?? '';
@@ -59,6 +112,7 @@
             this.paidFrom = values.paid_from || 'store_cash';
             this.referenceNo = values.reference_no ?? '';
             this.remarks = values.remarks ?? '';
+            this.resetReceipt(values.receipt_url ?? null);
         },
         openCreate() {
             this.editId = null;
@@ -210,6 +264,12 @@
                             <td class="px-4 py-3">
                                 <p class="font-medium">{{ $expense->title }}</p>
                                 <p class="text-xs text-muted">{{ $expense->expense_date?->format('M d, Y') }} - {{ \App\Support\StatusBadge::label($expense->category) }}</p>
+                                @if($expense->receipt_path)
+                                    <a href="{{ route('admin.expenses.receipt', $expense) }}" target="_blank" rel="noopener" class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                                        <span data-lucide="receipt" class="h-3.5 w-3.5"></span>
+                                        View receipt
+                                    </a>
+                                @endif
                             </td>
                             <td class="px-4 py-3">{{ $expense->branch?->name }}</td>
                             <td class="px-4 py-3">
@@ -249,6 +309,7 @@
                                                 'paid_from' => $expense->paid_from,
                                                 'reference_no' => $expense->reference_no,
                                                 'remarks' => $expense->remarks,
+                                                'receipt_url' => $expense->receipt_path ? route('admin.expenses.receipt', $expense) : null,
                                                 'employee' => $expense->employee ? [
                                                     'id' => (string) $expense->employee->id,
                                                     'branch_id' => (string) $expense->employee->branch_id,
@@ -287,7 +348,7 @@
                 <h2 class="inline-flex items-center gap-2 text-lg font-semibold"><span data-lucide="expense" class="h-4 w-4 text-primary"></span><span x-text="editId ? 'Edit Expense' : 'Record Expense'">Record Expense</span></h2>
                 <button type="button" @click="createOpen = false" class="rounded-md p-2 hover:bg-smoke dark:hover:bg-gray-800"><span data-lucide="x" class="h-4 w-4"></span></button>
             </div>
-            <form method="POST" :action="formAction" action="{{ route('admin.expenses.store') }}" class="space-y-4">
+            <form method="POST" :action="formAction" action="{{ route('admin.expenses.store') }}" enctype="multipart/form-data" class="space-y-4">
                 @csrf
                 <template x-if="editId">
                     <div>
@@ -347,9 +408,37 @@
                     </label>
                     <label class="text-sm font-medium md:col-span-2">Reference<input name="reference_no" x-model="referenceNo" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
                     <label class="text-sm font-medium md:col-span-2">Remarks<textarea name="remarks" x-model="remarks" rows="3" class="mt-1.5 w-full rounded-md border border-border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"></textarea></label>
+                    <div class="md:col-span-2">
+                        <p class="text-sm font-medium">Receipt / Bill Photo <span class="font-normal text-muted">(optional)</span></p>
+                        <div class="mt-1.5 flex flex-wrap items-start gap-3">
+                            <label class="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:bg-smoke dark:border-gray-700 dark:bg-gray-950 dark:hover:bg-gray-800">
+                                <span data-lucide="receipt" class="h-4 w-4"></span>
+                                <span x-text="receiptPreview || (receiptUrl && !removeReceipt) ? 'Change photo' : 'Add photo'">Add photo</span>
+                                <input x-ref="receiptInput" type="file" name="receipt" accept="image/jpeg,image/png,image/webp,image/*" @change="pickReceipt($event)" class="sr-only">
+                            </label>
+                            <template x-if="receiptPreview">
+                                <div class="flex items-center gap-2">
+                                    <img :src="receiptPreview" alt="New receipt photo" class="h-16 w-16 rounded-md border border-border object-cover dark:border-gray-700">
+                                    <span class="text-xs text-muted" x-text="`New photo · about ${receiptSizeKb} KB`"></span>
+                                </div>
+                            </template>
+                            <template x-if="!receiptPreview && receiptUrl">
+                                <div class="flex items-center gap-2">
+                                    <a :href="receiptUrl" target="_blank" rel="noopener" :class="removeReceipt ? 'opacity-40' : ''">
+                                        <img :src="receiptUrl" alt="Current receipt photo" class="h-16 w-16 rounded-md border border-border object-cover dark:border-gray-700">
+                                    </a>
+                                    <label class="inline-flex items-center gap-1.5 text-xs text-muted">
+                                        <input type="checkbox" name="remove_receipt" value="1" x-model="removeReceipt" class="rounded border-border text-primary">
+                                        Remove photo
+                                    </label>
+                                </div>
+                            </template>
+                        </div>
+                        <p class="mt-1 text-xs text-muted">Take a picture of the receipt or bill. It is saved as a small photo (under 200 KB) that only staff can open.</p>
+                    </div>
                 </div>
                 <div class="flex justify-end">
-                    <button class="h-9 rounded-md bg-primary px-4 text-sm font-medium text-white hover:opacity-90" x-text="editId ? 'Update Expense' : 'Save Expense'">Save Expense</button>
+                    <button :disabled="receiptBusy" class="h-9 rounded-md bg-primary px-4 text-sm font-medium text-white hover:opacity-90 disabled:cursor-wait disabled:opacity-60" x-text="receiptBusy ? 'Preparing photo…' : (editId ? 'Update Expense' : 'Save Expense')">Save Expense</button>
                 </div>
             </form>
         </div>

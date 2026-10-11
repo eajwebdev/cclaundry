@@ -5,15 +5,25 @@ namespace App\Support;
 use App\Models\LaundryService;
 
 /**
- * Cane & Cotton's liquid dosing guide, expressed in milliliters.
+ * Cane & Cotton's Liquid, Bedding and Machine Load guides, in milliliters.
+ *
+ * Rule of thumb from the guide: 25 mL Mrs. Bloom detergent + 15 mL Yen Yen
+ * softener for 5 kg, then +5 mL of each every 2 kilos. Yen Yen is always
+ * 10 mL less than detergent. Loads under 5 kg still get the 5 kg dose, and a
+ * load over the machine limit is split into equal loads.
  *
  * The guide is configuration only: choosing a profile never changes stock by
  * itself. Inventory is consumed only when a job order is created/accepted by
- * production, through InventoryConsumption.
+ * production, through InventoryConsumption, and restoring stock always uses
+ * the recorded movements, so past orders never change when this guide does.
  */
 class LaundryDosingGuide
 {
     public const REGULAR = 'regular_liquid';
+
+    public const TOWELS = 'towels_microfibre';
+
+    public const VERY_DIRTY = 'very_dirty';
 
     public const BED_SHEETS = 'bed_sheets';
 
@@ -25,25 +35,32 @@ class LaundryDosingGuide
 
     public const DUVET_INSERT = 'duvet_insert';
 
+    public const DUVET_INSERT_DOWN = 'duvet_insert_down';
+
     public const DUVET_COVER = 'duvet_cover';
 
-    public const STANDARD_DETERGENT = 'standard_detergent';
-
-    public const MRS_BLOOM_DETERGENT = 'mrs_bloom_detergent';
+    public const DETERGENT = 'detergent';
 
     public const FABRIC_SOFTENER = 'fabric_softener';
+
+    public const MINIMUM_DOSE_KILOS = 5;
+
+    public const VERY_DIRTY_EXTRA_KILOS = 3;
 
     /** @return array<string, string> */
     public static function labels(): array
     {
         return [
-            self::REGULAR => 'Liquid guide — regular laundry (5–15 kg)',
-            self::BED_SHEETS => 'Bedding — bed sheets (5–7 kg)',
-            self::SINGLE_TWIN_COMFORTER => 'Bedding — Single/Twin comforter (5–7 kg)',
-            self::DOUBLE_QUEEN_COMFORTER => 'Bedding — Double/Queen comforter (7–10 kg)',
-            self::KING_COMFORTER => 'Bedding — King comforter (10–15 kg)',
-            self::DUVET_INSERT => 'Bedding — duvet insert (7–15 kg)',
-            self::DUVET_COVER => 'Bedding — duvet cover (5–8 kg)',
+            self::REGULAR => 'Liquid guide — clothes, sheets, uniforms (Giant 5–10 kg · Titan 11–15 kg)',
+            self::TOWELS => 'Towels & microfibre — no softener (Giant 5–8 kg · Titan 9–12 kg)',
+            self::VERY_DIRTY => 'Very dirty / heavy-duty — dose for +3 kg (sportswear, grease, mud)',
+            self::BED_SHEETS => 'Bedding — bed sheet set (1.5–2 kg each · 5 sets · Giant max 10 kg)',
+            self::SINGLE_TWIN_COMFORTER => 'Bedding — Single/Twin comforter (1.5–2.5 kg each · 3 pcs · Giant max 8 kg)',
+            self::DOUBLE_QUEEN_COMFORTER => 'Bedding — Double/Queen comforter (2.5–3.5 kg each · 2 pcs · Giant max 8 kg)',
+            self::KING_COMFORTER => 'Bedding — King comforter (3–4.5 kg each · 2 pcs · Titan only, max 12 kg)',
+            self::DUVET_INSERT => 'Bedding — duvet insert (1.5–4 kg each · 3 pcs · Titan, max 12 kg)',
+            self::DUVET_INSERT_DOWN => 'Bedding — feather/down or microfibre duvet, no softener (Titan, max 12 kg)',
+            self::DUVET_COVER => 'Bedding — duvet cover (0.7–1.5 kg each · 6 pcs · Giant max 10 kg)',
         ];
     }
 
@@ -62,123 +79,154 @@ class LaundryDosingGuide
         return InventoryConsumption::isRegularLaundry($service) ? self::REGULAR : null;
     }
 
-    /** @return array{min: float, max: float, standard: array<float, float>, bloom: array<float, float>, softener: array<float, float>}|null */
+    /**
+     * giant_max: heaviest load a Giant takes; heavier loads go to the Titan.
+     * max: heaviest single load (Titan limit); heavier lines are split.
+     * piece_kg / max_pieces: bedding item weight (upper, dry) and pieces per load.
+     *
+     * @return array{giant_max: float, max: float, titan_only: bool, softener: bool, extra_kg: float, piece_kg: ?float, max_pieces: ?int}|null
+     */
     public static function profile(?string $profile): ?array
     {
+        $definition = fn (float $giantMax, float $max, bool $titanOnly = false, bool $softener = true, float $extraKg = 0, ?float $pieceKg = null, ?int $maxPieces = null) => [
+            'giant_max' => $giantMax,
+            'max' => $max,
+            'titan_only' => $titanOnly,
+            'softener' => $softener,
+            'extra_kg' => $extraKg,
+            'piece_kg' => $pieceKg,
+            'max_pieces' => $maxPieces,
+        ];
+
         return match ($profile) {
-            self::REGULAR => [
-                'min' => 5.0,
-                'max' => 15.0,
-                'standard' => [5.0 => 40.0, 6.0 => 45.0, 7.0 => 50.0, 8.0 => 60.0, 9.0 => 65.0, 10.0 => 70.0, 11.0 => 75.0, 12.0 => 85.0, 13.0 => 90.0, 14.0 => 95.0, 15.0 => 105.0],
-                'bloom' => [5.0 => 20.0, 6.0 => 22.0, 7.0 => 25.0, 8.0 => 30.0, 9.0 => 32.0, 10.0 => 35.0, 11.0 => 37.0, 12.0 => 42.0, 13.0 => 45.0, 14.0 => 47.0, 15.0 => 50.0],
-                'softener' => [5.0 => 20.0, 6.0 => 25.0, 7.0 => 25.0, 8.0 => 30.0, 9.0 => 30.0, 10.0 => 35.0, 11.0 => 35.0, 12.0 => 40.0, 13.0 => 45.0, 14.0 => 45.0, 15.0 => 50.0],
-            ],
-            self::BED_SHEETS => self::rangeProfile(5, 7, 40, 55, 20, 25, 20, 25),
-            self::SINGLE_TWIN_COMFORTER => self::rangeProfile(5, 7, 50, 60, 25, 30, 20, 25),
-            self::DOUBLE_QUEEN_COMFORTER => self::rangeProfile(7, 10, 65, 75, 30, 35, 30, 35),
-            self::KING_COMFORTER => self::rangeProfile(10, 15, 80, 105, 40, 50, 40, 50),
-            self::DUVET_INSERT => self::rangeProfile(7, 15, 65, 105, 30, 50, 30, 50),
-            self::DUVET_COVER => self::rangeProfile(5, 8, 40, 60, 20, 30, 20, 30),
+            self::REGULAR => $definition(10, 15),
+            self::TOWELS => $definition(8, 12, softener: false),
+            self::VERY_DIRTY => $definition(10, 15, extraKg: self::VERY_DIRTY_EXTRA_KILOS),
+            self::BED_SHEETS => $definition(10, 12, pieceKg: 2, maxPieces: 5),
+            self::SINGLE_TWIN_COMFORTER => $definition(8, 12, pieceKg: 2.5, maxPieces: 3),
+            self::DOUBLE_QUEEN_COMFORTER => $definition(8, 12, pieceKg: 3.5, maxPieces: 2),
+            self::KING_COMFORTER => $definition(0, 12, titanOnly: true, pieceKg: 4.5, maxPieces: 2),
+            self::DUVET_INSERT => $definition(0, 12, titanOnly: true, pieceKg: 4, maxPieces: 3),
+            self::DUVET_INSERT_DOWN => $definition(0, 12, titanOnly: true, softener: false, pieceKg: 4, maxPieces: 3),
+            self::DUVET_COVER => $definition(10, 12, pieceKg: 1.5, maxPieces: 6),
             default => null,
         };
     }
 
-    public static function milliliters(string $profile, string $chemical, float $quantity, string $pricingType): float
+    /** Mrs. Bloom detergent for one load: 25 mL at 5 kg, +5 mL every 2 kilos. */
+    public static function detergentForWeight(float $kilos): float
+    {
+        $wholeKilos = max(self::MINIMUM_DOSE_KILOS, (int) ceil(round($kilos, 4)));
+
+        return (float) (25 + (5 * intdiv($wholeKilos - 4, 2)));
+    }
+
+    /** Yen Yen softener for one load: always 10 mL less than detergent. */
+    public static function softenerForWeight(float $kilos): float
+    {
+        return self::detergentForWeight($kilos) - 10;
+    }
+
+    /**
+     * Split one order line into machine loads with the dose for each.
+     *
+     * @return list<array{kilos: float, machine: string, detergent_ml: float, softener_ml: float}>
+     */
+    public static function loads(string $profile, float $quantity, string $pricingType, ?float $kilosPerLoad = null): array
     {
         $definition = self::profile($profile);
         if (! $definition || $quantity <= 0) {
-            return 0.0;
+            return [];
         }
 
-        $schedule = match ($chemical) {
-            self::STANDARD_DETERGENT => $definition['standard'],
-            self::MRS_BLOOM_DETERGENT => $definition['bloom'],
-            self::FABRIC_SOFTENER => $definition['softener'],
-            default => [],
+        if ($pricingType === 'kilo') {
+            $count = max(1, (int) ceil(round($quantity / $definition['max'], 6)));
+            $loadKilos = $quantity / $count;
+        } elseif ($pricingType === 'piece' && $definition['piece_kg']) {
+            // Bedding sold per piece: estimate the weight from the guide and
+            // respect both the weight limit and the pieces-per-load limit.
+            $weight = $quantity * $definition['piece_kg'];
+            $count = max(
+                1,
+                (int) ceil(round($weight / $definition['max'], 6)),
+                (int) ceil(round($quantity / $definition['max_pieces'], 6))
+            );
+            $loadKilos = $weight / $count;
+        } else {
+            // Load/custom quantities already count machine loads at the POS.
+            $count = max(1, (int) ceil(round($quantity, 6)));
+            $loadKilos = min($definition['max'], $kilosPerLoad && $kilosPerLoad > 0 ? $kilosPerLoad : $definition['max']);
+        }
+
+        $doseKilos = $loadKilos + $definition['extra_kg'];
+        $load = [
+            'kilos' => round($loadKilos, 2),
+            'machine' => self::machineFor($profile, $loadKilos),
+            'detergent_ml' => self::detergentForWeight($doseKilos),
+            'softener_ml' => $definition['softener'] ? self::softenerForWeight($doseKilos) : 0.0,
+        ];
+
+        return array_fill(0, $count, $load);
+    }
+
+    /** Kilo lines are dosed at no less than the service's minimum kilos. */
+    public static function doseQuantity(LaundryService $service, float $quantity): float
+    {
+        return $service->pricing_type === 'kilo'
+            ? max($quantity, (float) ($service->minimum_kilos ?? 0))
+            : $quantity;
+    }
+
+    /**
+     * The machine loads and doses for one job-order line, or [] when the
+     * service has no dosing profile.
+     *
+     * @return list<array{kilos: float, machine: string, detergent_ml: float, softener_ml: float}>
+     */
+    public static function loadsForService(LaundryService $service, float $quantity): array
+    {
+        $profile = self::profileFor($service);
+
+        if (! $profile) {
+            return [];
+        }
+
+        return self::loads(
+            $profile,
+            self::doseQuantity($service, $quantity),
+            (string) $service->pricing_type,
+            (float) $service->kilos_per_load ?: null
+        );
+    }
+
+    public static function machineFor(string $profile, float $loadKilos): string
+    {
+        $definition = self::profile($profile);
+
+        if (! $definition || $definition['titan_only'] || round($loadKilos, 4) > $definition['giant_max']) {
+            return MachineClass::TITAN;
+        }
+
+        return MachineClass::GIANT;
+    }
+
+    public static function milliliters(string $profile, string $chemical, float $quantity, string $pricingType, ?float $kilosPerLoad = null): float
+    {
+        $key = match ($chemical) {
+            self::DETERGENT => 'detergent_ml',
+            self::FABRIC_SOFTENER => 'softener_ml',
+            default => null,
         };
 
-        if ($schedule === []) {
+        if (! $key) {
             return 0.0;
         }
 
-        // Load/piece/custom quantities already represent a count at the POS.
-        // Use the guide's upper dose for each complete item/load.
-        if ($pricingType !== 'kilo') {
-            return round(self::doseForWeight($schedule, $definition['max']) * $quantity, 4);
-        }
-
-        // A kilo-priced line can exceed one machine. Dose complete maximum-size
-        // loads first, then the remainder at no less than the guide minimum.
-        $remaining = $quantity;
-        $total = 0.0;
-        while ($remaining > $definition['max']) {
-            $total += self::doseForWeight($schedule, $definition['max']);
-            $remaining -= $definition['max'];
-        }
-
-        if ($remaining > 0) {
-            $total += self::doseForWeight($schedule, max($remaining, $definition['min']));
-        }
-
-        return round($total, 4);
+        return round(array_sum(array_column(self::loads($profile, $quantity, $pricingType, $kilosPerLoad), $key)), 4);
     }
 
-    public static function loadCount(string $profile, float $quantity, string $pricingType): int
+    public static function loadCount(string $profile, float $quantity, string $pricingType, ?float $kilosPerLoad = null): int
     {
-        $definition = self::profile($profile);
-        if (! $definition || $quantity <= 0) {
-            return 0;
-        }
-
-        return $pricingType === 'kilo'
-            ? max(1, (int) ceil(round($quantity / $definition['max'], 6)))
-            : max(1, (int) ceil($quantity));
-    }
-
-    /** @return array{min: float, max: float, standard: array<float, float>, bloom: array<float, float>, softener: array<float, float>} */
-    private static function rangeProfile(
-        float $min,
-        float $max,
-        float $standardMin,
-        float $standardMax,
-        float $bloomMin,
-        float $bloomMax,
-        float $softenerMin,
-        float $softenerMax
-    ): array {
-        return [
-            'min' => $min,
-            'max' => $max,
-            'standard' => [$min => $standardMin, $max => $standardMax],
-            'bloom' => [$min => $bloomMin, $max => $bloomMax],
-            'softener' => [$min => $softenerMin, $max => $softenerMax],
-        ];
-    }
-
-    /** @param array<float, float> $schedule */
-    private static function doseForWeight(array $schedule, float $weight): float
-    {
-        ksort($schedule, SORT_NUMERIC);
-        $weights = array_map('floatval', array_keys($schedule));
-        $weight = max($weights[0], min($weight, $weights[array_key_last($weights)]));
-
-        foreach ($weights as $index => $upperWeight) {
-            if ($weight > $upperWeight) {
-                continue;
-            }
-
-            if ($index === 0 || $weight === $upperWeight) {
-                return (float) $schedule[$upperWeight];
-            }
-
-            $lowerWeight = $weights[$index - 1];
-            $lowerDose = (float) $schedule[$lowerWeight];
-            $upperDose = (float) $schedule[$upperWeight];
-            $progress = ($weight - $lowerWeight) / ($upperWeight - $lowerWeight);
-
-            return $lowerDose + (($upperDose - $lowerDose) * $progress);
-        }
-
-        return (float) end($schedule);
+        return count(self::loads($profile, $quantity, $pricingType, $kilosPerLoad));
     }
 }

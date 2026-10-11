@@ -625,12 +625,12 @@ class BookingSubmissionTest extends TestCase
             ])
             ->assertRedirect(route('admin.job-orders.index'));
 
-        // Duvet cover at 8 kg consumes 60 ml: 1.000 L becomes 0.940 L.
-        $this->assertSame('0.9400', $detergent->fresh()->quantity);
+        // Duvet cover at 8 kg consumes 35 ml (Bedding Dosing Guide): 1.000 L becomes 0.965 L.
+        $this->assertSame('0.9650', $detergent->fresh()->quantity);
         $this->assertDatabaseHas('inventory_movements', [
             'inventory_id' => $detergent->id,
             'movement_type' => 'out',
-            'quantity' => 0.06,
+            'quantity' => 0.035,
         ]);
         $this->assertNotNull($booking->fresh()->job_order_id);
     }

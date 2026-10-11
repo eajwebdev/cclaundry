@@ -20,6 +20,7 @@ class BranchExpense extends Model
         'paid_from',
         'reference_no',
         'remarks',
+        'receipt_path',
         'source',
         'source_id',
         'accounts_payable_id',

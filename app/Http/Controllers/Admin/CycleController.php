@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\CycleRecord;
 use App\Models\JobOrder;
 use App\Support\Activity;
+use App\Support\MachineClass;
 use App\Support\SmsNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -46,7 +47,7 @@ class CycleController extends Controller
             ->where('is_active', true)
             ->when(! $canChooseBranch, fn ($query) => $query->whereKey($user->branch_id))
             ->orderBy('id')
-            ->get(['id', 'name', 'machine_count']);
+            ->get(['id', 'name', 'machine_count', 'titan_machine_numbers']);
         $requestedBranchId = $request->integer('branch_id');
         $selectedBranchId = $canChooseBranch
             ? ($branches->contains('id', $requestedBranchId) ? $requestedBranchId : $branches->first()?->id)
@@ -141,8 +142,11 @@ class CycleController extends Controller
                 'cycles as active_cycles_count' => fn ($query) => $query->whereNull('ended_at'),
             ])
             ->with([
-                'branch:id,name,machine_count',
-                'processingBranch:id,name,machine_count',
+                'branch:id,name,machine_count,titan_machine_numbers',
+                'processingBranch:id,name,machine_count,titan_machine_numbers',
+                'items' => fn ($query) => $query
+                    ->select(['id', 'job_order_id', 'laundry_service_id', 'description', 'quantity'])
+                    ->with('service:id,name,pricing_type,dosing_profile,kilos_per_load,minimum_kilos'),
                 'customer' => fn ($query) => $query
                     ->select(['id', 'name'])
                     ->withCount('jobOrders'),
@@ -162,7 +166,8 @@ class CycleController extends Controller
                     ->limit(self::CYCLE_HISTORY_LIMIT)
                     ->with('user:id,name'),
             ])
-            ->latest()
+            ->orderBy('created_at')
+            ->orderBy('id')
             ->paginate(12)
             ->withQueryString();
 
@@ -249,7 +254,7 @@ class CycleController extends Controller
                     $cycle->ended_at,
                 ])->all(),
             ])->all(),
-            $machineOverviewBranches->map(fn (Branch $branch) => [$branch->id, $branch->machine_count])->all(),
+            $machineOverviewBranches->map(fn (Branch $branch) => [$branch->id, $branch->machine_count, MachineClass::titanNumbers($branch)])->all(),
             $activeMachinesByBranch,
             $machineActivityByBranch,
         ]));

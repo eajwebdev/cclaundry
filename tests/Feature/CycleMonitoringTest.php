@@ -9,10 +9,12 @@ use App\Models\Customer;
 use App\Models\CycleRecord;
 use App\Models\JobOrder;
 use App\Models\Inventory;
+use App\Models\LaundryService;
 use App\Models\Payment;
 use App\Models\SystemSetting;
 use App\Models\SystemTrialSetting;
 use App\Models\User;
+use App\Support\LaundryDosingGuide;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -142,6 +144,157 @@ class CycleMonitoringTest extends TestCase
                 '<p class="truncate font-semibold">Highlighted Customer</p>',
                 '<p class="truncate text-sm text-muted">JO-CUSTOMER-HEADING</p>',
             ], false);
+    }
+
+    public function test_cycle_monitoring_lists_orders_first_added_first_regardless_of_status(): void
+    {
+        $this->completeSystemSettings();
+        $this->activeTrial();
+
+        $branch = $this->createBranch();
+        $customer = $this->createCustomer($branch);
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'access' => ['cycles'],
+        ]);
+        $first = $this->createJobOrder($branch, $customer, 'JO-FIRST-ADDED');
+        $second = $this->createJobOrder($branch, $customer, 'JO-SECOND-ADDED');
+        $third = $this->createJobOrder($branch, $customer, 'JO-THIRD-ADDED');
+        $first->forceFill(['created_at' => now()->subHours(3)])->save();
+        $second->forceFill(['created_at' => now()->subHours(2)])->save();
+        $third->forceFill(['created_at' => now()->subHour()])->save();
+        $third->update(['status' => 'washing']);
+        $first->update(['status' => 'folding']);
+
+        $this->actingAs($admin)
+            ->get(route('admin.cycles.index'))
+            ->assertOk()
+            ->assertSeeInOrder(['JO-FIRST-ADDED', 'JO-SECOND-ADDED', 'JO-THIRD-ADDED']);
+    }
+
+    public function test_cycle_monitoring_labels_giant_and_titan_machines_from_branch_settings(): void
+    {
+        $this->completeSystemSettings();
+        $this->activeTrial();
+
+        $branch = $this->createBranch(['machine_count' => 3, 'titan_machine_numbers' => [3]]);
+        $customer = $this->createCustomer($branch);
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'branch_id' => $branch->id,
+            'access' => ['cycles'],
+        ]);
+        $this->createJobOrder($branch, $customer, 'JO-MACHINE-SIZE');
+
+        $response = $this->actingAs($admin)
+            ->get(route('admin.cycles.index'))
+            ->assertOk();
+
+        // Machines are listed from the highest number down: #3 is the Titan.
+        $response->assertSeeInOrder([
+            'Wash #3', 'title="Titan · rated 15 kg"',
+            'Wash #2', 'title="Giant · rated 10 kg"',
+            'Wash #1', 'title="Giant · rated 10 kg"',
+        ], false);
+    }
+
+    public function test_branch_without_titan_setting_shows_every_machine_as_giant(): void
+    {
+        $this->completeSystemSettings();
+        $this->activeTrial();
+
+        $branch = $this->createBranch(['machine_count' => 2]);
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'branch_id' => $branch->id,
+            'access' => ['cycles'],
+        ]);
+        $this->createJobOrder($branch, $this->createCustomer($branch), 'JO-ALL-GIANT');
+
+        $this->actingAs($admin)
+            ->get(route('admin.cycles.index'))
+            ->assertOk()
+            ->assertSee('title="Giant · rated 10 kg"', false)
+            ->assertDontSee('title="Titan · rated 15 kg"', false);
+    }
+
+    public function test_cycle_monitoring_shows_the_dose_and_machine_for_each_load(): void
+    {
+        $this->completeSystemSettings();
+        $this->activeTrial();
+
+        $branch = $this->createBranch(['machine_count' => 5, 'titan_machine_numbers' => [5]]);
+        $customer = $this->createCustomer($branch);
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'branch_id' => $branch->id,
+            'access' => ['cycles'],
+        ]);
+        $order = $this->createJobOrder($branch, $customer, 'JO-DOSING');
+        $regular = LaundryService::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Regular Laundry',
+            'pricing_type' => 'kilo',
+            'price' => 35,
+            'minimum_kilos' => 5,
+            'is_active' => true,
+        ]);
+        $towels = LaundryService::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Towel Wash',
+            'pricing_type' => 'kilo',
+            'price' => 40,
+            'dosing_profile' => LaundryDosingGuide::TOWELS,
+            'is_active' => true,
+        ]);
+        $order->items()->create(['laundry_service_id' => $regular->id, 'description' => 'Regular Laundry', 'quantity' => 12, 'unit_price' => 35, 'total' => 420]);
+        $order->items()->create(['laundry_service_id' => $towels->id, 'description' => 'Towel Wash', 'quantity' => 6, 'unit_price' => 40, 'total' => 240]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.cycles.index'))
+            ->assertOk()
+            ->assertSeeInOrder(['Dosing per load', 'Regular Laundry', '1 × 12 kg', 'Titan', '45 mL Mrs. Bloom', '+ 35 mL Yen Yen'])
+            ->assertSeeInOrder(['Towel Wash', '1 × 6 kg', 'Giant', '30 mL Mrs. Bloom', 'No Yen Yen']);
+    }
+
+    public function test_titan_machines_are_saved_from_the_branch_form_and_kept_by_older_forms(): void
+    {
+        $this->completeSystemSettings();
+        $this->activeTrial();
+
+        $branch = $this->createBranch(['machine_count' => 5]);
+        $superAdmin = User::factory()->create(['role' => 'super_admin']);
+        $payload = [
+            'name' => 'Main Branch',
+            'code' => 'MAIN',
+            'branch_type' => 'full_service',
+            'machine_count' => 5,
+            'is_active' => 1,
+        ];
+
+        $this->actingAs($superAdmin)
+            ->put(route('admin.branches.update', $branch), $payload + [
+                'titan_machines_present' => 1,
+                'titan_machines' => [5, 9],
+            ])
+            ->assertSessionHasNoErrors();
+
+        // Machine 9 does not exist at a 5-machine branch, so only #5 is kept.
+        $this->assertSame([5], $branch->fresh()->titan_machine_numbers);
+
+        // A form without the Titan picker leaves the saved sizes alone.
+        $this->actingAs($superAdmin)
+            ->put(route('admin.branches.update', $branch), $payload)
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame([5], $branch->fresh()->titan_machine_numbers);
+
+        // Unticking every machine makes them all Giants again.
+        $this->actingAs($superAdmin)
+            ->put(route('admin.branches.update', $branch), $payload + ['titan_machines_present' => 1])
+            ->assertSessionHasNoErrors();
+
+        $this->assertNull($branch->fresh()->titan_machine_numbers);
     }
 
     public function test_cycle_monitoring_page_shows_ready_for_pickup_but_not_release_actions(): void
@@ -805,19 +958,20 @@ class CycleMonitoringTest extends TestCase
             'access' => ['cycles'],
         ]);
 
-        $latestOrder = null;
+        $firstOrder = null;
         for ($orderNumber = 1; $orderNumber <= 50; $orderNumber++) {
-            $latestOrder = $this->createJobOrder(
+            $order = $this->createJobOrder(
                 $branch,
                 $customer,
                 'JO-SCALE-'.str_pad((string) $orderNumber, 3, '0', STR_PAD_LEFT)
             );
-            $latestOrder->forceFill(['created_at' => now()->addSeconds($orderNumber)])->save();
+            $order->forceFill(['created_at' => now()->addSeconds($orderNumber)])->save();
+            $firstOrder ??= $order;
         }
 
         for ($cycleNumber = 1; $cycleNumber <= 8; $cycleNumber++) {
             CycleRecord::query()->create([
-                'job_order_id' => $latestOrder->id,
+                'job_order_id' => $firstOrder->id,
                 'user_id' => $admin->id,
                 'cycle_type' => 'fold',
                 'cycle_number' => $cycleNumber,
@@ -833,7 +987,7 @@ class CycleMonitoringTest extends TestCase
             ->get(route('admin.cycles.index'))
             ->assertOk()
             ->assertSee('Showing latest 5 of 8 cycle records.')
-            ->assertSee('flex snap-x snap-mandatory flex-nowrap gap-2 overflow-x-auto pb-2', false)
+            ->assertSee('flex snap-x snap-mandatory flex-nowrap gap-1.5 overflow-x-auto pb-1.5 sm:gap-2 sm:pb-2', false)
             ->assertSee($admin->name);
 
         $orders = $response->viewData('orders');

@@ -410,17 +410,18 @@ class ServiceInventoryIntegrationTest extends TestCase
             ])
             ->assertRedirect(route('admin.job-orders.index'));
 
-        $this->assertSame('0.9500', $detergent->fresh()->quantity);
-        $this->assertSame('0.9750', $fabcon->fresh()->quantity);
+        // 7 kg on the Liquid Dosing Guide: 30 mL detergent + 20 mL Yen Yen.
+        $this->assertSame('0.9700', $detergent->fresh()->quantity);
+        $this->assertSame('0.9800', $fabcon->fresh()->quantity);
         $this->assertDatabaseHas('inventory_movements', [
             'inventory_id' => $detergent->id,
             'movement_type' => 'out',
-            'quantity' => 0.05,
+            'quantity' => 0.03,
         ]);
         $this->assertDatabaseHas('inventory_movements', [
             'inventory_id' => $fabcon->id,
             'movement_type' => 'out',
-            'quantity' => 0.025,
+            'quantity' => 0.02,
         ]);
     }
 

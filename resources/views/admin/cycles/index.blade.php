@@ -147,6 +147,7 @@
                     @php($machineTotal = (int) $machineBranch->machine_count)
                     @php($branchActiveMachines = $activeMachinesByBranch[$machineBranch->id] ?? [])
                     @php($branchMachineActivity = $machineActivityByBranch[$machineBranch->id] ?? [])
+                    @php($branchTitanMachines = \App\Support\MachineClass::titanNumbers($machineBranch))
                     <article>
                         <div class="mb-2 flex items-center justify-between gap-2">
                             <div>
@@ -174,6 +175,8 @@
                                                         <span class="truncate text-[11px] font-semibold sm:text-xs xl:text-sm">{{ $machineType === 'wash' ? 'Wash' : 'Dry' }} #{{ $machine }}</span>
                                                         <span class="h-2 w-2 shrink-0 rounded-full sm:h-2 sm:w-2 xl:h-2.5 xl:w-2.5 {{ $isAvailable ? 'bg-emerald-500' : 'machine-status-dot-running bg-red-500' }}" title="{{ $isAvailable ? 'Available' : 'In use' }}"></span>
                                                     </div>
+                                                    @php($isTitanMachine = in_array($machine, $branchTitanMachines, true))
+                                                    <p class="px-1 text-center text-[8px] font-bold uppercase tracking-wide sm:text-[9px] xl:text-[10px] {{ $isTitanMachine ? 'text-amber-700 dark:text-amber-300' : 'text-sky-700 dark:text-sky-300' }}" title="{{ $isTitanMachine ? 'Titan · rated 15 kg' : 'Giant · rated 10 kg' }}">{{ $isTitanMachine ? 'Titan' : 'Giant' }}</p>
                                                     <div class="flex items-center justify-center py-1 sm:py-1.5 xl:py-2">
                                                         <img
                                                             src="{{ asset($isAvailable ? 'available.png' : 'unavailable.png') }}"
@@ -273,6 +276,8 @@
                     </span>
                 </div>
 
+                @include('admin.cycles.partials.dosing', ['order' => $order])
+
                 {{--
                 Branch routing summary is temporarily hidden until multi-branch operations are in use.
                 <div class="mb-3 grid gap-2 text-xs text-muted sm:grid-cols-4">
@@ -308,13 +313,17 @@
                                 <input type="hidden" name="cycle_type" value="{{ $type }}">
                                 <div class="flex flex-col gap-1 rounded-md border border-border bg-white p-1 sm:gap-1.5 sm:p-1.5 dark:border-gray-800 dark:bg-gray-950">
                                     @php($branchMachines = (int) ($processingBranch?->machine_count ?? 0))
+                                    @php($pickerTitanMachines = \App\Support\MachineClass::titanNumbers($processingBranch))
                                     @if($branchMachines > 0)
                                         <div class="grid gap-1 sm:gap-1.5" style="grid-template-columns: repeat({{ $branchMachines }}, minmax(0, 1fr));">
                                             @for($machine = $branchMachines; $machine >= 1; $machine--)
                                                 @php($usingMachine = data_get($activeMachines, $type.'.'.$machine))
                                                 <label class="inline-flex min-h-[2.25rem] w-full touch-manipulation items-center justify-center gap-0.5 rounded-lg border border-border px-1 py-1 text-xs font-semibold sm:min-h-[2.4rem] sm:gap-1 sm:text-xs xl:min-h-[2.75rem] xl:gap-1.5 xl:px-2 xl:text-sm {{ $usingMachine ? 'bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 opacity-60 cursor-not-allowed' : 'hover:bg-smoke dark:hover:bg-gray-900 cursor-pointer' }} dark:border-gray-700">
                                                     <input type="checkbox" name="machine_numbers[]" value="{{ $machine }}" {{ $usingMachine ? 'disabled' : '' }} class="h-3.5 w-3.5 shrink-0 rounded border-border text-primary sm:h-3.5 sm:w-3.5 xl:h-4.5 xl:w-4.5">
-                                                    <span class="shrink-0 text-[11px] sm:text-xs xl:text-sm">#{{ $machine }}</span>
+                                                    <span class="flex shrink-0 flex-col items-center leading-none">
+                                                        <span class="text-[11px] sm:text-xs xl:text-sm">#{{ $machine }}</span>
+                                                        <span class="mt-0.5 text-[8px] font-bold uppercase sm:text-[9px] {{ in_array($machine, $pickerTitanMachines, true) ? 'text-amber-700 dark:text-amber-300' : 'text-muted' }}">{{ in_array($machine, $pickerTitanMachines, true) ? 'Titan' : 'Giant' }}</span>
+                                                    </span>
                                                 </label>
                                             @endfor
                                         </div>

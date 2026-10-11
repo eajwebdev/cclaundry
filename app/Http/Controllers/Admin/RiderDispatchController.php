@@ -122,18 +122,7 @@ class RiderDispatchController extends Controller
             }
         }
 
-        $pickupRequest->update([
-            'rider_id' => $riderId,
-            'assigned_at' => $riderId ? now() : null,
-            // Assigning a rider to a still-pending booking confirms it: someone
-            // is now actually going.
-            'status' => $riderId && $pickupRequest->status === 'pending'
-                ? 'confirmed'
-                : $pickupRequest->status,
-            'confirmed_at' => $riderId && $pickupRequest->status === 'pending'
-                ? now()
-                : $pickupRequest->confirmed_at,
-        ]);
+        $pickupRequest->assignRider($riderId);
 
         Activity::log($request, $riderId ? 'pickup_request_rider_assigned' : 'pickup_request_rider_unassigned', $pickupRequest, [
             'reference_no' => $pickupRequest->reference_no,

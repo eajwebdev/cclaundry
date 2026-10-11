@@ -105,6 +105,22 @@ class PickupRequest extends Model
     }
 
     /**
+     * Sends a rider (or takes them off). Assigning a rider to a still-pending
+     * booking confirms it: someone is now actually going.
+     */
+    public function assignRider(?int $riderId): void
+    {
+        $confirming = $riderId && $this->status === 'pending';
+
+        $this->update([
+            'rider_id' => $riderId,
+            'assigned_at' => $riderId ? now() : null,
+            'status' => $confirming ? 'confirmed' : $this->status,
+            'confirmed_at' => $confirming ? now() : $this->confirmed_at,
+        ]);
+    }
+
+    /**
      * The leg the rider is currently driving: out to the customer to collect,
      * or back to them with the finished laundry.
      */

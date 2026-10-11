@@ -220,9 +220,11 @@
                     </div>
 
                     <div class="lg:col-span-2">
-                        <label class="block text-sm font-medium mb-2">Washing Machines</label>
-                        <input type="number" min="0" max="100" name="machine_count" value="{{ old('machine_count', $branch->machine_count ?? 0) }}" placeholder="5" class="w-full h-9 rounded-md border border-border dark:border-gray-700 bg-white dark:bg-gray-950 px-3 text-sm">
-                        <p class="mt-1 text-xs text-muted">Cycle Monitoring will show this many machine choices and prevent assigning an active machine twice.</p>
+                        @include('admin.branches.partials.machine-fields', [
+                            'machineCount' => old('machine_count', $branch->machine_count ?? 0),
+                            'titanNumbers' => \App\Support\MachineClass::titanNumbers($branch),
+                            'help' => 'Cycle Monitoring will show this many machine choices and prevent assigning an active machine twice.',
+                        ])
                     </div>
 
                     <div class="lg:col-span-2">

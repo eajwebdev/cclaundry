@@ -127,6 +127,28 @@ class BookingOperationsSettingsTest extends TestCase
         ], Booking::slots($this->branch->id));
     }
 
+    public function test_settings_save_which_washers_are_titans(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'access' => ['settings']]);
+
+        $this->actingAs($admin)
+            ->put(route('admin.settings.update'), $this->settingsPayload([
+                'machine_count' => 5,
+                'titan_machines_present' => 1,
+                'titan_machines' => [5],
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame([5], $this->branch->fresh()->titan_machine_numbers);
+
+        // Saving without the picker (an older form) keeps the Titan setting.
+        $this->actingAs($admin)
+            ->put(route('admin.settings.update'), $this->settingsPayload(['machine_count' => 5]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame([5], $this->branch->fresh()->titan_machine_numbers);
+    }
+
     public function test_staff_set_a_branchs_pickup_windows_and_bookings_follow_them(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'access' => ['settings']]);

@@ -26,67 +26,64 @@
 
         {{-- Top Right Controls --}}
         <div class="flex flex-wrap items-center gap-3">
-            {{-- TAB 1: Branch & Period Filters --}}
-            <template x-if="activeTab === 'today'">
-                <div class="flex flex-wrap items-center gap-3">
-                    @if($canChooseBranch)
-                        <div class="flex items-center gap-1.5 text-xs text-[#7A726A]">
-                            <span>Branch</span>
-                            <select
-                                name="branch_id"
-                                @change="changeBranch($event.target.value)"
-                                class="h-8 rounded-md border border-[#DCD6CC] bg-white px-2.5 text-xs font-medium text-[#1E2024] outline-none shadow-2xs"
-                            >
-                                <option value="">All branches</option>
-                                @foreach($branches as $branch)
-                                    <option value="{{ $branch->id }}" @selected((int) $selectedBranchId === (int) $branch->id)>{{ $branch->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    @endif
-
-                    <div class="inline-flex items-center rounded-lg bg-[#EAE5DC] p-0.5 text-xs border border-[#DDD7CE]">
-                        <button
-                            type="button"
-                            @click="changePeriod('today')"
-                            :class="currentPeriod === 'today' ? 'bg-white text-[#1E2024] font-semibold shadow-xs' : 'text-[#7A726A] hover:text-[#1E2024] font-medium'"
-                            class="px-3 py-1 rounded-md transition-all"
-                        >Today</button>
-                        <button
-                            type="button"
-                            @click="changePeriod('this_week')"
-                            :class="currentPeriod === 'this_week' ? 'bg-white text-[#1E2024] font-semibold shadow-xs' : 'text-[#7A726A] hover:text-[#1E2024] font-medium'"
-                            class="px-3 py-1 rounded-md transition-all"
-                        >This week</button>
-                        <button
-                            type="button"
-                            @click="changePeriod('this_month')"
-                            :class="currentPeriod === 'this_month' ? 'bg-white text-[#1E2024] font-semibold shadow-xs' : 'text-[#7A726A] hover:text-[#1E2024] font-medium'"
-                            class="px-3 py-1 rounded-md transition-all"
-                        >This month</button>
-                    </div>
-
-                    <label
-                        class="flex h-8 items-center gap-1.5 rounded-md border bg-white px-2.5 text-xs shadow-2xs"
-                        :class="currentPeriod === 'custom' ? 'border-[#82573A] text-[#1E2024] font-semibold' : 'border-[#DCD6CC] text-[#7A726A] font-medium'"
-                    >
-                        <span data-lucide="calendar" class="h-3.5 w-3.5 shrink-0"></span>
-                        <input
-                            x-init="initRangePicker($el)"
-                            :value="currentPeriod === 'custom' ? dateRange : ''"
-                            placeholder="Date range"
-                            aria-label="Custom date range"
-                            readonly
-                            class="w-44 cursor-pointer bg-transparent outline-none placeholder:text-[#7A726A]"
+            {{-- Branch & Period Filters: one period for every tab --}}
+            <div class="flex flex-wrap items-center gap-3">
+                @if($canChooseBranch)
+                    <div class="flex items-center gap-1.5 text-xs text-[#7A726A]">
+                        <span>Branch</span>
+                        <select
+                            name="branch_id"
+                            @change="changeBranch($event.target.value)"
+                            class="h-8 rounded-md border border-[#DCD6CC] bg-white px-2.5 text-xs font-medium text-[#1E2024] outline-none shadow-2xs"
                         >
-                    </label>
+                            <option value="">All branches</option>
+                            @foreach($branches as $branch)
+                                <option value="{{ $branch->id }}" @selected((int) $selectedBranchId === (int) $branch->id)>{{ $branch->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
+
+                <div class="inline-flex items-center rounded-lg bg-[#EAE5DC] p-0.5 text-xs border border-[#DDD7CE]">
+                    <button
+                        type="button"
+                        @click="changePeriod('today')"
+                        :class="litPeriod === 'today' ? 'bg-white text-[#1E2024] font-semibold shadow-xs' : 'text-[#7A726A] hover:text-[#1E2024] font-medium'"
+                        class="px-3 py-1 rounded-md transition-all"
+                    >Today</button>
+                    <button
+                        type="button"
+                        @click="changePeriod('this_week')"
+                        :class="litPeriod === 'this_week' ? 'bg-white text-[#1E2024] font-semibold shadow-xs' : 'text-[#7A726A] hover:text-[#1E2024] font-medium'"
+                        class="px-3 py-1 rounded-md transition-all"
+                    >This week</button>
+                    <button
+                        type="button"
+                        @click="changePeriod('this_month')"
+                        :class="litPeriod === 'this_month' ? 'bg-white text-[#1E2024] font-semibold shadow-xs' : 'text-[#7A726A] hover:text-[#1E2024] font-medium'"
+                        class="px-3 py-1 rounded-md transition-all"
+                    >This month</button>
                 </div>
-            </template>
+
+                <label
+                    class="flex h-8 items-center gap-1.5 rounded-md border bg-white px-2.5 text-xs shadow-2xs"
+                    :class="currentPeriod === 'custom' ? 'border-[#82573A] text-[#1E2024] font-semibold' : 'border-[#DCD6CC] text-[#7A726A] font-medium'"
+                >
+                    <span data-lucide="calendar" class="h-3.5 w-3.5 shrink-0"></span>
+                    <input
+                        x-init="initRangePicker($el)"
+                        :value="currentPeriod === 'custom' ? dateRange : ''"
+                        placeholder="Date range"
+                        aria-label="Custom date range"
+                        readonly
+                        class="w-44 cursor-pointer bg-transparent outline-none placeholder:text-[#7A726A]"
+                    >
+                </label>
+            </div>
 
             {{-- TAB 2: Supplies Controls --}}
             <template x-if="activeTab === 'supplies'">
                 <div class="flex items-center gap-3">
-                    <div class="h-8 rounded-md border border-[#DCD6CC] bg-white px-3 flex items-center text-xs font-medium text-[#1E2024] shadow-2xs" x-text="`${currentMonthYear} ▾`"></div>
                     @if(auth()->user()->hasMenuAccess('inventory'))
                         <a href="{{ route('admin.inventory.index') }}" class="inline-flex items-center gap-1 rounded-md bg-[#82573A] hover:bg-[#6E482E] text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors">
                             + Record stock in
@@ -98,7 +95,6 @@
             {{-- TAB 3: Monthly Costs Controls --}}
             <template x-if="activeTab === 'costs'">
                 <div class="flex items-center gap-3">
-                    <div class="h-8 rounded-md border border-[#DCD6CC] bg-white px-3 flex items-center text-xs font-medium text-[#1E2024] shadow-2xs" x-text="`${currentMonthYear} ▾`"></div>
                     <a href="{{ route('admin.expenses.index') }}" class="inline-flex items-center gap-1 rounded-md bg-[#82573A] hover:bg-[#6E482E] text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors">
                         + Record a bill or purchase
                     </a>
@@ -489,7 +485,7 @@
             {{-- Card 2: Supplies used this month --}}
             <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs flex flex-col justify-between">
                 <div>
-                    <span class="text-xs font-normal text-[#7A726A]">Supplies used this month</span>
+                    <span class="text-xs font-normal text-[#7A726A]" x-text="`Supplies used ${periodPhrase}`"></span>
                     <div
                         class="mt-2 text-3xl sm:text-[34px] font-bold text-[#1E2024] leading-tight"
                         style="font-family: 'Playfair Display', Georgia, serif;"
@@ -498,7 +494,7 @@
                     <div class="mt-1 text-xs text-[#7A726A]" x-text="data.supplies.restocked_note"></div>
                 </div>
                 <div class="mt-4 text-xs text-[#8C827A] border-t border-[#F2ECE3] pt-2">
-                    Net monthly material consumption
+                    Net material consumption
                 </div>
             </div>
 
@@ -553,7 +549,7 @@
                         <tr class="text-[#8C827A] text-[10px] uppercase font-bold tracking-wider border-b border-[#F2ECE3]">
                             <th class="py-2.5 font-semibold">Item</th>
                             <th class="py-2.5 font-semibold">On Hand</th>
-                            <th class="py-2.5 font-semibold" x-text="'Used in ' + currentMonthName"></th>
+                            <th class="py-2.5 font-semibold" x-text="'Used ' + periodPhrase"></th>
                             <th class="py-2.5 font-semibold">Daily Use</th>
                             <th class="py-2.5 font-semibold text-center">Days Left</th>
                             <th class="py-2.5 font-semibold text-right">Status</th>
@@ -615,7 +611,7 @@
             <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs lg:col-span-6 flex flex-col justify-between">
                 <div>
                     <div class="flex items-center justify-between pb-3 border-b border-[#F2ECE3]">
-                        <h2 class="text-sm font-bold text-[#1E2024]">Stock movement by week</h2>
+                        <h2 class="text-sm font-bold text-[#1E2024]" x-text="`Stock movement · ${currentMonthYear}`"></h2>
                         <div class="flex items-center gap-3 text-[11px] text-[#7A726A]">
                             <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-xs bg-[#0F766E]"></span> Restocked (in)</span>
                             <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-xs bg-[#D97706]"></span> Used (out)</span>
@@ -676,7 +672,7 @@
                 <div>
                     <div class="flex items-center justify-between pb-3 border-b border-[#F2ECE3]">
                         <h2 class="text-sm font-bold text-[#1E2024]">Add-ons sold</h2>
-                        <span class="text-xs font-semibold text-[#7A726A]" x-text="`${data.supplies.addon_sales_total} in ${currentMonthName}`"></span>
+                        <span class="text-xs font-semibold text-[#7A726A]" x-text="`${data.supplies.addon_sales_total} ${periodPhrase}`"></span>
                     </div>
 
                     <div class="space-y-3 mt-3">
@@ -698,7 +694,7 @@
                             </div>
                         </template>
                         <template x-if="!data.supplies.addons_sold || data.supplies.addons_sold.length === 0">
-                            <div class="py-6 text-center text-[#8C827A] italic text-xs">No add-ons sold yet this month</div>
+                            <div class="py-6 text-center text-[#8C827A] italic text-xs"><span x-text="`No add-ons sold ${periodPhrase}`"></span></div>
                         </template>
                     </div>
                 </div>
@@ -761,7 +757,7 @@
             {{-- Card 1: Bills this month --}}
             <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs flex flex-col justify-between">
                 <div>
-                    <span class="text-xs font-normal text-[#7A726A]">Bills this month</span>
+                    <span class="text-xs font-normal text-[#7A726A]" x-text="`Bills ${periodPhrase}`"></span>
                     <div
                         class="mt-2 text-3xl sm:text-[34px] font-bold text-[#1E2024] leading-tight"
                         style="font-family: 'Playfair Display', Georgia, serif;"
@@ -777,7 +773,7 @@
             {{-- Card 2: Payroll this month --}}
             <div class="rounded-xl border border-[#E5DFD6] bg-white p-5 shadow-xs flex flex-col justify-between">
                 <div>
-                    <span class="text-xs font-normal text-[#7A726A]">Payroll this month</span>
+                    <span class="text-xs font-normal text-[#7A726A]" x-text="`Payroll ${periodPhrase}`"></span>
                     <div
                         class="mt-2 text-3xl sm:text-[34px] font-bold text-[#1E2024] leading-tight"
                         style="font-family: 'Playfair Display', Georgia, serif;"
@@ -899,7 +895,7 @@
                             </div>
                         </template>
                         <template x-if="!data.monthly_costs.bills_list || data.monthly_costs.bills_list.length === 0">
-                            <div class="py-6 text-center text-[#8C827A] italic text-xs">No bills or accounts payable recorded for this month</div>
+                            <div class="py-6 text-center text-[#8C827A] italic text-xs"><span x-text="`No bills or accounts payable recorded ${periodPhrase}`"></span></div>
                         </template>
                     </div>
                 </div>
@@ -988,7 +984,7 @@
                             <th class="py-2.5 font-semibold">Daily Rate</th>
                             <th class="py-2.5 font-semibold">Days</th>
                             <th class="py-2.5 font-semibold">Wages</th>
-                            <th class="py-2.5 font-semibold">Paid This Month</th>
+                            <th class="py-2.5 font-semibold" x-text="`Paid ${periodPhrase}`"></th>
                             <th class="py-2.5 font-semibold">Total Cost</th>
                             <th class="py-2.5 font-semibold text-right">Pay Status</th>
                         </tr>
@@ -1115,7 +1111,7 @@
                             </div>
                         </template>
                         <template x-if="!data.monthly_costs.other_purchases.breakdown || data.monthly_costs.other_purchases.breakdown.length === 0">
-                            <div class="py-4 text-center text-[#8C827A] italic text-xs">No other purchases recorded this month</div>
+                            <div class="py-4 text-center text-[#8C827A] italic text-xs"><span x-text="`No other purchases recorded ${periodPhrase}`"></span></div>
                         </template>
                     </div>
 
@@ -1159,6 +1155,19 @@ function dashboardPage(fetchUrl, initialData, initialRange, initialTab = 'today'
 
         get currentMonthYear() {
             return this.data.current_month_year || new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        },
+
+        // "this month", "today", "this week", "in this period" — the
+        // Supplies and Monthly costs period, for card titles.
+        get periodPhrase() {
+            return this.data.tab_period?.phrase || 'this month';
+        },
+
+        // With no period chosen, Today shows today and the other tabs show
+        // this month, so light the button that matches what is on screen.
+        get litPeriod() {
+            if (this.data.period_chosen || this.activeTab === 'today') return this.currentPeriod;
+            return 'this_month';
         },
 
         get headerTitle() {

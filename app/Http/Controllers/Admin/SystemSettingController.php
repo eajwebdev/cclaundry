@@ -9,6 +9,7 @@ use App\Models\SystemSetting;
 use App\Support\Activity;
 use App\Support\BusinessDefaults;
 use App\Support\Booking;
+use App\Support\MachineClass;
 use App\Support\PublicUpload;
 use App\Support\SmsNotifier;
 use Illuminate\Support\Facades\Artisan;
@@ -95,6 +96,8 @@ class SystemSettingController extends Controller
             'branch_contact' => ['nullable', 'string', 'max:50'],
             'branch_type' => ['nullable', Rule::in(['full_service', 'pickup_dropoff'])],
             'machine_count' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'titan_machines' => ['nullable', 'array', 'max:100'],
+            'titan_machines.*' => ['integer', 'min:1', 'max:100'],
             'receipt_header' => ['nullable', 'string'],
             'receipt_footer' => ['nullable', 'string'],
             'operating_hours' => ['nullable', 'array'],
@@ -189,6 +192,16 @@ class SystemSettingController extends Controller
             'machine_count' => $validated['machine_count'] ?? 0,
         ]);
 
+        // Only when the form sent the Titan picker, so older forms keep the saved sizes.
+        if ($request->has('titan_machines_present')) {
+            $branch->update([
+                'titan_machine_numbers' => MachineClass::normalizeNumbers(
+                    $request->input('titan_machines', []),
+                    (int) ($validated['machine_count'] ?? 0)
+                ) ?: null,
+            ]);
+        }
+
         $branchSettingsPayload = [
             'receipt_header' => $validated['receipt_header'] ?? null,
             'receipt_footer' => $validated['receipt_footer'] ?? null,
@@ -244,6 +257,7 @@ class SystemSettingController extends Controller
             $validated['branch_contact'],
             $validated['branch_type'],
             $validated['machine_count'],
+            $validated['titan_machines'],
             $validated['receipt_header'],
             $validated['receipt_footer'],
             $validated['operating_hours'],

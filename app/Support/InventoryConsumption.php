@@ -28,39 +28,35 @@ class InventoryConsumption
         $inventory = $usage->inventory;
         $sku = strtoupper(trim((string) $inventory?->sku));
         $name = mb_strtolower(trim((string) $inventory?->name));
-        $quantity = $service->pricing_type === 'kilo'
-            ? max($serviceQuantity, (float) ($service->minimum_kilos ?? 0))
-            : $serviceQuantity;
+        $quantity = LaundryDosingGuide::doseQuantity($service, $serviceQuantity);
 
+        $pricingType = (string) $service->pricing_type;
+        $kilosPerLoad = (float) $service->kilos_per_load ?: null;
+
+        // The guide has one detergent column (Mrs. Bloom) and one softener
+        // column (Yen Yen), so every detergent/softener item linked to a
+        // dosed service follows it.
         if (self::isDetergent($sku, $name)) {
-            $chemical = self::isMrsBloomDetergent($sku, $name)
-                ? LaundryDosingGuide::MRS_BLOOM_DETERGENT
-                : LaundryDosingGuide::STANDARD_DETERGENT;
-            $milliliters = LaundryDosingGuide::milliliters($profile, $chemical, $quantity, (string) $service->pricing_type);
+            $milliliters = LaundryDosingGuide::milliliters($profile, LaundryDosingGuide::DETERGENT, $quantity, $pricingType, $kilosPerLoad);
 
             return self::millilitersInInventoryUnit($milliliters, (string) $inventory?->unit);
         }
 
         if (self::isFabricConditioner($sku, $name)) {
-            $milliliters = LaundryDosingGuide::milliliters(
-                $profile,
-                LaundryDosingGuide::FABRIC_SOFTENER,
-                $quantity,
-                (string) $service->pricing_type
-            );
+            $milliliters = LaundryDosingGuide::milliliters($profile, LaundryDosingGuide::FABRIC_SOFTENER, $quantity, $pricingType, $kilosPerLoad);
 
             return self::millilitersInInventoryUnit($milliliters, (string) $inventory?->unit);
         }
 
         // Plastic Bag (Plastic packaging / laundry bag / plastic bag):
         // Keep Regular Laundry's established 8 kg packaging rule. Other guide
-        // profiles use their own maximum load from the dosing table.
+        // profiles use one bag per machine load from the guide.
         if (self::isPlasticBag($sku, $name)) {
             if (self::isRegularLaundry($service)) {
                 $kilosPerBag = (float) ($service->kilos_per_load ?: 8);
                 $loads = (int) ceil(round($quantity / max($kilosPerBag, 1), 6));
             } else {
-                $loads = LaundryDosingGuide::loadCount($profile, $quantity, (string) $service->pricing_type);
+                $loads = LaundryDosingGuide::loadCount($profile, $quantity, $pricingType, $kilosPerLoad);
             }
 
             $bagsPerLoad = (float) $usage->quantity > 0 ? (float) $usage->quantity : 1.0;
@@ -92,17 +88,6 @@ class InventoryConsumption
             || str_contains($name, 'mrs. bloom')
             || str_contains($name, 'mrs-bloom')
             || str_contains($name, 'bloom');
-    }
-
-    public static function isMrsBloomDetergent(?string $sku, ?string $name): bool
-    {
-        $sku = strtoupper(trim((string) $sku));
-        $name = mb_strtolower(trim((string) $name));
-
-        return str_contains($sku, 'BLOOM')
-            || str_contains($name, 'mrs bloom')
-            || str_contains($name, 'mrs. bloom')
-            || str_contains($name, 'mrs-bloom');
     }
 
     public static function isFabricConditioner(?string $sku, ?string $name): bool

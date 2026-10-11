@@ -102,6 +102,14 @@ class DashboardController extends Controller
         $currency = SystemSetting::current()->currency ?: 'PHP';
         $financial = FinancialReconciliation::forPeriod($branchId, $dateFrom, $dateTo);
 
+        // Supplies and Monthly costs follow the chosen period. With nothing
+        // chosen they keep showing the current month, as before.
+        $periodChosen = $request->filled('period') || $request->filled('date_range');
+        $tabPeriod = $this->periodInfo(
+            $periodChosen ? $dateFrom : now()->startOfMonth()->toDateString(),
+            $periodChosen ? $dateTo : now()->endOfMonth()->toDateString()
+        );
+
         $orders = JobOrder::query()
             ->when($branchId, fn ($query) => $query->where('branch_id', $branchId));
 
@@ -422,13 +430,16 @@ class DashboardController extends Controller
             'low_stock_items' => $lowStockItems,
             'top_visitor_locations' => $topVisitorLocations,
             'trusted_customers' => $trustedCustomers,
-            'current_month_name' => now()->format('F'),
-            'current_month_year' => now()->format('F Y'),
+            // The Supplies and Monthly costs period ("October" / "October 2026").
+            'current_month_name' => $tabPeriod['short'],
+            'current_month_year' => $tabPeriod['label'],
             'today' => $this->buildTodayData($request, $branchId, $dateFrom, $dateTo, $currency, $financial, $orders, $payments, $collections),
-            'supplies' => $this->buildSuppliesData($request, $branchId, $dateFrom, $dateTo, $currency),
-            'monthly_costs' => $this->buildMonthlyCostsData($request, $branchId, $dateFrom, $dateTo, $currency),
+            'supplies' => $this->buildSuppliesData($request, $branchId, $tabPeriod['from'], $tabPeriod['to'], $currency),
+            'monthly_costs' => $this->buildMonthlyCostsData($request, $branchId, $tabPeriod['from'], $tabPeriod['to'], $currency),
+            'tab_period' => $tabPeriod,
             'active_tab' => $request->query('tab', 'today'),
             'current_period' => $this->currentPeriod($request),
+            'period_chosen' => $periodChosen,
         ];
     }
 
@@ -693,9 +704,12 @@ class DashboardController extends Controller
         string $dateTo,
         string $currency
     ): array {
-        $monthStart = now()->startOfMonth()->toDateString();
-        $monthEnd = now()->endOfMonth()->toDateString();
-        $dayOfMonth = max(1, now()->day);
+        // The chosen period (the current month when none is chosen).
+        $monthStart = $dateFrom;
+        $monthEnd = $dateTo;
+        $period = $this->periodInfo($dateFrom, $dateTo);
+        $lastCountedDay = Carbon::parse($dateTo)->min(today());
+        $dayOfMonth = max(1, (int) Carbon::parse($dateFrom)->diffInDays($lastCountedDay, false) + 1);
 
         $inventoryQuery = Inventory::query()
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
@@ -876,13 +890,7 @@ class DashboardController extends Controller
                 ];
             });
 
-        $month = now();
-        $weeks = [
-            ['label' => $month->format('M').' 1–7', 'start' => $month->copy()->startOfMonth()->toDateString(), 'end' => $month->copy()->startOfMonth()->addDays(6)->toDateString()],
-            ['label' => $month->format('M').' 8–14', 'start' => $month->copy()->startOfMonth()->addDays(7)->toDateString(), 'end' => $month->copy()->startOfMonth()->addDays(13)->toDateString()],
-            ['label' => $month->format('M').' 15–21', 'start' => $month->copy()->startOfMonth()->addDays(14)->toDateString(), 'end' => $month->copy()->startOfMonth()->addDays(20)->toDateString()],
-            ['label' => $month->format('M').' 22–'.$month->daysInMonth, 'start' => $month->copy()->startOfMonth()->addDays(21)->toDateString(), 'end' => $month->copy()->endOfMonth()->toDateString()],
-        ];
+        $weeks = $this->movementBuckets($dateFrom, $dateTo);
 
         $currentStockValue = (float) Inventory::query()
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
@@ -922,8 +930,8 @@ class DashboardController extends Controller
         }
 
         $movementCaption = ($totalSuppliesUsed > 0 || $totalSuppliesRestocked > 0)
-            ? "Weekly stock movement based on real inventory logs. On-hand value: {$this->money($currency, $currentStockValue)}."
-            : "Total on-hand stock value is currently {$this->money($currency, $currentStockValue)}. Weekly restock and usage will display here as movements are recorded.";
+            ? "Stock movement {$period['phrase']} from real inventory logs. On-hand value: {$this->money($currency, $currentStockValue)}."
+            : "Total on-hand stock value is currently {$this->money($currency, $currentStockValue)}. Restock and usage {$period['phrase']} will display here as movements are recorded.";
 
         $netDiff = $totalSuppliesRestocked - $totalSuppliesUsed;
         $netSign = $netDiff >= 0 ? '+' : '';
@@ -954,8 +962,13 @@ class DashboardController extends Controller
         string $dateTo,
         string $currency
     ): array {
-        $monthStart = now()->startOfMonth()->toDateString();
-        $monthEnd = now()->endOfMonth()->toDateString();
+        // The chosen period (the current month when none is chosen).
+        $monthStart = $dateFrom;
+        $monthEnd = $dateTo;
+        $period = $this->periodInfo($dateFrom, $dateTo);
+        // Pay periods are judged in the month the period ends (up to today).
+        $payReference = Carbon::parse($dateTo)->min(today());
+        $salaryMonths = $this->salaryMonthsInPeriod($dateFrom, $dateTo);
 
         $billsExpenses = BranchExpense::query()
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
@@ -966,9 +979,7 @@ class DashboardController extends Controller
 
         $billsTotal = (float) $billsExpenses->sum('amount');
 
-        $lastMonthStart = now()->subMonth()->startOfMonth()->toDateString();
-        $lastMonthEnd = now()->subMonth()->endOfMonth()->toDateString();
-        $lastMonthName = now()->subMonth()->format('F');
+        [$lastMonthStart, $lastMonthEnd, $vsPreviousLabel] = $this->previousPeriod($period);
         $lastMonthBills = (float) BranchExpense::query()
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereDate('expense_date', '>=', $lastMonthStart)
@@ -978,9 +989,9 @@ class DashboardController extends Controller
 
         $billsDiff = $billsTotal - $lastMonthBills;
         if ($lastMonthBills > 0) {
-            $billsVsLastMonth = ($billsDiff >= 0 ? "↑ {$this->money($currency, abs($billsDiff))}" : "↓ {$this->money($currency, abs($billsDiff))}") . " vs {$lastMonthName}";
+            $billsVsLastMonth = ($billsDiff >= 0 ? "↑ {$this->money($currency, abs($billsDiff))}" : "↓ {$this->money($currency, abs($billsDiff))}") . " {$vsPreviousLabel}";
         } elseif ($billsTotal > 0) {
-            $billsVsLastMonth = $this->money($currency, $billsTotal) . " this month";
+            $billsVsLastMonth = $this->money($currency, $billsTotal) . " {$period['phrase']}";
         } else {
             $billsVsLastMonth = "No bills recorded";
         }
@@ -1006,15 +1017,16 @@ class DashboardController extends Controller
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('expense_type', 'payroll')
             ->whereNotNull('attendance_employee_id')
-            ->whereDate('salary_period_start', '<=', $monthEnd)
-            ->whereDate('salary_period_end', '>=', $monthStart)
+            ->whereDate('salary_period_start', '<=', $payReference->copy()->endOfMonth()->toDateString())
+            ->whereDate('salary_period_end', '>=', $payReference->copy()->startOfMonth()->toDateString())
             ->get();
 
-        $firstPeriodStart = now()->startOfMonth();
-        $firstPeriodEnd = now()->startOfMonth()->addDays(14);
-        $secondPeriodStart = now()->startOfMonth()->addDays(15);
-        $secondPeriodEnd = now()->endOfMonth();
-        $currentDay = (int) now()->day;
+        $firstPeriodStart = $payReference->copy()->startOfMonth();
+        $firstPeriodEnd = $payReference->copy()->startOfMonth()->addDays(14);
+        $secondPeriodStart = $payReference->copy()->startOfMonth()->addDays(15);
+        $secondPeriodEnd = $payReference->copy()->endOfMonth();
+        // In the current month, judge by today; a past month is fully due.
+        $currentDay = $payReference->isSameMonth(today()) ? (int) today()->day : (int) $payReference->daysInMonth;
         $currentPeriodStart = $currentDay <= 15 ? $firstPeriodStart : $secondPeriodStart;
         $currentPeriodEnd = $currentDay <= 15 ? $firstPeriodEnd : $secondPeriodEnd;
         $currentPeriodLabel = $currentPeriodStart->format('M j').' - '.$currentPeriodEnd->format('M j');
@@ -1044,8 +1056,9 @@ class DashboardController extends Controller
         foreach ($staffEmployees as $staff) {
             $salary = $staff->configured_monthly_salary;
             $dailyRate = $salary > 0 ? round($salary / 26, 2) : 0;
-            $days = $salary > 0 ? 26 : 0;
-            $wages = round($dailyRate * $days, 2);
+            // 26 work days a month, prorated when the period is not one month.
+            $days = $salary > 0 ? (int) round(26 * $salaryMonths) : 0;
+            $wages = round($dailyRate * 26 * $salaryMonths, 2);
             $totalCost = $wages;
 
             $wagesSum += $wages;
@@ -1087,7 +1100,7 @@ class DashboardController extends Controller
                 'total_cost' => $this->money($currency, $totalCost),
                 'paid_amount' => $this->money($currency, $paidAmount),
                 'pay_status_1' => $firstPaid ? '15th: Paid' : ($salary <= 0 ? '15th: Salary not set' : ($currentDay >= 15 ? '15th: Unpaid' : '15th: Upcoming')),
-                'pay_status_2' => $secondPaid ? 'Month-end: Paid' : ($salary <= 0 ? 'Month-end: Salary not set' : ($currentDay >= now()->daysInMonth ? 'Month-end: Unpaid' : 'Month-end: Upcoming')),
+                'pay_status_2' => $secondPaid ? 'Month-end: Paid' : ($salary <= 0 ? 'Month-end: Salary not set' : ($currentDay >= $payReference->daysInMonth ? 'Month-end: Unpaid' : 'Month-end: Upcoming')),
             ];
         }
 
@@ -1168,9 +1181,9 @@ class DashboardController extends Controller
         if ($lastMonthOtherPurchases > 0) {
             $otherDiffPct = round((($otherPurchasesTotal - $lastMonthOtherPurchases) / $lastMonthOtherPurchases) * 100);
             $sign = $otherDiffPct >= 0 ? '+' : '';
-            $vsLastMonthText = "{$sign}{$otherDiffPct}% vs {$lastMonthName}";
+            $vsLastMonthText = "{$sign}{$otherDiffPct}% {$vsPreviousLabel}";
         } elseif ($otherPurchasesTotal > 0) {
-            $vsLastMonthText = "Recorded this month";
+            $vsLastMonthText = "Recorded {$period['phrase']}";
         } else {
             $vsLastMonthText = "None recorded";
         }
@@ -1189,6 +1202,8 @@ class DashboardController extends Controller
 
         $latestReceipts = BranchExpense::query()
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->whereDate('expense_date', '>=', $monthStart)
+            ->whereDate('expense_date', '<=', $monthEnd)
             ->latest('expense_date')
             ->limit(4)
             ->get()
@@ -1222,7 +1237,7 @@ class DashboardController extends Controller
         $sixMonthsBreakdown = [];
         $maxMonthBill = 1;
         for ($i = 5; $i >= 0; $i--) {
-            $m = now()->subMonths($i);
+            $m = $payReference->copy()->startOfMonth()->subMonthsNoOverflow($i);
             $monthLabel = $m->format('M');
             $sixMonths[] = $monthLabel;
             $mStart = $m->copy()->startOfMonth()->toDateString();
@@ -1266,7 +1281,7 @@ class DashboardController extends Controller
             ];
         }
 
-        $billsRangeLabel = !empty($sixMonths) ? ($sixMonths[0] . ' – ' . end($sixMonths) . ' ' . now()->year) : '';
+        $billsRangeLabel = !empty($sixMonths) ? ($sixMonths[0] . ' – ' . end($sixMonths) . ' ' . $payReference->year) : '';
 
         $totalKgMonth = (float) JobOrderItem::query()
             ->join('job_orders', 'job_orders.id', '=', 'job_order_items.job_order_id')
@@ -1310,8 +1325,9 @@ class DashboardController extends Controller
             $otherPer100 = round(($otherPurchasesTotal / $monthlySales) * 100);
             $staysPer100 = round(($leftForShop / $monthlySales) * 100);
             $breakEven = round($totalPayrollCost + $billsTotal + $suppliesUsedCost + $otherPurchasesTotal, 2);
-            $dailyBreakEven = round($breakEven / max(1, now()->daysInMonth), 2);
-            $ruleOfThumb = "For every ₱100 of laundry sold: ₱{$staffPer100} pays staff, ₱{$billsPer100} pays bills, ₱{$suppliesPer100} buys supplies, ₱{$otherPer100} goes to other purchases, ₱{$staysPer100} stays. Break-even: about {$this->money($currency, $breakEven)} a month ({$this->money($currency, $dailyBreakEven)} a day).";
+            $dailyBreakEven = round($breakEven / max(1, $period['days']), 2);
+            $breakEvenSpan = $period['is_month'] ? 'a month' : 'for this period';
+            $ruleOfThumb = "For every ₱100 of laundry sold: ₱{$staffPer100} pays staff, ₱{$billsPer100} pays bills, ₱{$suppliesPer100} buys supplies, ₱{$otherPer100} goes to other purchases, ₱{$staysPer100} stays. Break-even: about {$this->money($currency, $breakEven)} {$breakEvenSpan} ({$this->money($currency, $dailyBreakEven)} a day).";
         } else {
             $ruleOfThumb = 'For every ₱100 of laundry sold: track real staff, bills, supplies, and other purchases to monitor store operating margin.';
         }
@@ -1349,7 +1365,7 @@ class DashboardController extends Controller
                 'attendance_pct' => $attendancePct,
                 'attendance_sub' => "{$attendanceDays} of {$totalDays} work days",
                 'payroll_per_kg' => $this->money($currency, $payrollPerKg),
-                'per_kg_sub' => number_format($totalKgMonth, 1) . ' kg this month',
+                'per_kg_sub' => number_format($totalKgMonth, 1) . " kg {$period['phrase']}",
                 'next_payout' => $this->money($currency, round($wagesSum / 2, 2)),
                 'next_payout_sub' => "Next wages in {$daysUntilPayout} days",
             ],
@@ -1878,6 +1894,156 @@ class DashboardController extends Controller
         return $from->isSameYear($to)
             ? $from->format('M j').' – '.$to->format('M j, Y')
             : $from->format('M j, Y').' – '.$to->format('M j, Y');
+    }
+
+    /**
+     * How the period reads on the Supplies and Monthly costs tabs:
+     * label ("October 2026", "Sep 26 – Oct 9, 2026"), short name for titles,
+     * and a phrase that completes "Supplies used …".
+     *
+     * @return array{from: string, to: string, label: string, short: string, phrase: string, is_month: bool, days: int}
+     */
+    private function periodInfo(string $dateFrom, string $dateTo): array
+    {
+        $from = Carbon::parse($dateFrom)->startOfDay();
+        $to = Carbon::parse($dateTo)->startOfDay();
+        $isWholeMonth = $from->isSameDay($from->copy()->startOfMonth())
+            && $to->isSameDay($from->copy()->endOfMonth());
+
+        if ($isWholeMonth) {
+            $label = $from->format('F Y');
+            $short = $from->format('F');
+            $phrase = $from->isSameMonth(now()) ? 'this month' : 'in '.$from->format('F');
+        } elseif ($from->isSameDay($to)) {
+            $label = $from->format('M j, Y');
+            $short = $from->format('M j');
+            $phrase = $from->isToday() ? 'today' : 'on '.$from->format('M j');
+        } else {
+            $label = $this->rangeLabel($dateFrom, $dateTo);
+            $short = $label;
+            $phrase = $from->isSameDay(now()->startOfWeek()) && $to->isSameDay(now()->endOfWeek()->startOfDay())
+                ? 'this week'
+                : 'in this period';
+        }
+
+        return [
+            'from' => $from->toDateString(),
+            'to' => $to->toDateString(),
+            'label' => $label,
+            'short' => $short,
+            'phrase' => $phrase,
+            'is_month' => $isWholeMonth,
+            'days' => (int) $from->diffInDays($to) + 1,
+        ];
+    }
+
+    /**
+     * The period before this one, for "vs …" comparisons: the previous
+     * calendar month for a whole month, otherwise the same number of days.
+     *
+     * @return array{0: string, 1: string, 2: string}
+     */
+    private function previousPeriod(array $period): array
+    {
+        $from = Carbon::parse($period['from']);
+
+        if ($period['is_month']) {
+            $previous = $from->copy()->subMonthNoOverflow();
+
+            return [$previous->copy()->startOfMonth()->toDateString(), $previous->copy()->endOfMonth()->toDateString(), 'vs '.$previous->format('F')];
+        }
+
+        $days = $period['days'];
+
+        return [
+            $from->copy()->subDays($days)->toDateString(),
+            $from->copy()->subDay()->toDateString(),
+            $days === 1 ? 'vs the day before' : "vs the previous {$days} days",
+        ];
+    }
+
+    /**
+     * Share of a month's salary that falls inside the period: 1.0 for one
+     * whole calendar month, prorated by calendar days otherwise.
+     */
+    private function salaryMonthsInPeriod(string $dateFrom, string $dateTo): float
+    {
+        $cursor = Carbon::parse($dateFrom)->startOfDay();
+        $end = Carbon::parse($dateTo)->startOfDay();
+        $months = 0.0;
+
+        while ($cursor->lte($end)) {
+            $monthEnd = $cursor->copy()->endOfMonth()->startOfDay();
+            $sliceEnd = $monthEnd->lt($end) ? $monthEnd : $end;
+            $months += ($cursor->diffInDays($sliceEnd) + 1) / $cursor->daysInMonth;
+            $cursor = $sliceEnd->copy()->addDay();
+        }
+
+        return round($months, 4);
+    }
+
+    /**
+     * Chart buckets for stock movement: daily up to two weeks, weekly up to
+     * about four months, monthly beyond that.
+     *
+     * @return list<array{label: string, start: string, end: string}>
+     */
+    private function movementBuckets(string $dateFrom, string $dateTo): array
+    {
+        $from = Carbon::parse($dateFrom)->startOfDay();
+        $to = Carbon::parse($dateTo)->startOfDay();
+        $days = (int) $from->diffInDays($to) + 1;
+        $buckets = [];
+
+        // A whole month keeps its four familiar weeks: 1–7, 8–14, 15–21, 22–end.
+        if ($from->isSameDay($from->copy()->startOfMonth()) && $to->isSameDay($from->copy()->endOfMonth()->startOfDay())) {
+            foreach ([[0, 6], [7, 13], [14, 20], [21, null]] as [$startOffset, $endOffset]) {
+                $start = $from->copy()->addDays($startOffset);
+                $end = $endOffset === null ? $to->copy() : $from->copy()->addDays($endOffset);
+                $buckets[] = [
+                    'label' => $from->format('M').' '.$start->day.'–'.$end->day,
+                    'start' => $start->toDateString(),
+                    'end' => $end->toDateString(),
+                ];
+            }
+
+            return $buckets;
+        }
+
+        if ($days <= 14) {
+            for ($day = $from->copy(); $day->lte($to); $day->addDay()) {
+                $buckets[] = ['label' => $day->format('M j'), 'start' => $day->toDateString(), 'end' => $day->toDateString()];
+            }
+
+            return $buckets;
+        }
+
+        if ($days > 120) {
+            for ($month = $from->copy(); $month->lte($to); $month = $month->copy()->addMonthNoOverflow()->startOfMonth()) {
+                $end = $month->copy()->endOfMonth()->startOfDay();
+                $buckets[] = [
+                    'label' => $month->format('M Y'),
+                    'start' => $month->toDateString(),
+                    'end' => ($end->lt($to) ? $end : $to)->toDateString(),
+                ];
+            }
+
+            return $buckets;
+        }
+
+        for ($start = $from->copy(); $start->lte($to); $start->addDays(7)) {
+            $end = $start->copy()->addDays(6);
+            $end = $end->lt($to) ? $end : $to->copy();
+            $buckets[] = [
+                'label' => $start->isSameMonth($end)
+                    ? $start->format('M j').'–'.$end->format('j')
+                    : $start->format('M j').' – '.$end->format('M j'),
+                'start' => $start->toDateString(),
+                'end' => $end->toDateString(),
+            ];
+        }
+
+        return $buckets;
     }
 
     private function dateRangeValue(Request $request): string

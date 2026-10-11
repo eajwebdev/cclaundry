@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Branch;
+use App\Models\BranchExpense;
 use App\Models\Customer;
+use App\Models\Inventory;
 use App\Models\JobOrder;
 use App\Models\Payment;
 use App\Models\SystemSetting;
@@ -208,6 +210,82 @@ class DashboardProductionTest extends TestCase
         $this->assertArrayHasKey('waterfall', $payload['monthly_costs']);
         $this->assertArrayHasKey('other_purchases', $payload['monthly_costs']);
         $this->assertArrayHasKey('vs_last_month', $payload['monthly_costs']['other_purchases']);
+    }
+
+    public function test_supplies_and_monthly_costs_follow_the_chosen_period(): void
+    {
+        $this->settings();
+
+        $branch = Branch::query()->create(['name' => 'Main Branch', 'code' => 'MAIN', 'is_active' => true]);
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'branch_id' => $branch->id,
+            'access' => ['dashboard'],
+        ]);
+        $lastMonth = now()->startOfMonth()->subMonthNoOverflow();
+
+        BranchExpense::query()->create([
+            'branch_id' => $branch->id,
+            'category' => 'Utilities',
+            'expense_type' => 'utilities',
+            'title' => 'Electric bill',
+            'amount' => 3200,
+            'expense_date' => $lastMonth->copy()->addDays(9)->toDateString(),
+            'payment_method' => 'cash',
+            'paid_from' => 'store_cash',
+            'created_by' => $admin->id,
+        ]);
+        $detergent = Inventory::query()->create([
+            'branch_id' => $branch->id,
+            'name' => 'Mrs. Bloom Detergent',
+            'sku' => 'SUP-BLOOM',
+            'unit' => 'liter',
+            'quantity' => 10,
+            'reorder_level' => 2,
+            'unit_cost' => 100,
+            'is_active' => true,
+        ]);
+        $detergent->movements()->create([
+            'user_id' => $admin->id,
+            'movement_type' => 'out',
+            'quantity' => 2,
+            'remarks' => 'Auto deducted for JO-LAST-MONTH',
+        ])->forceFill(['created_at' => $lastMonth->copy()->addDays(9)->setTime(10, 0)])->save();
+
+        // Nothing chosen: the other tabs keep showing the current month.
+        $current = $this->actingAs($admin)->getJson(route('dashboard.data'))->assertOk()->json();
+        $this->assertFalse($current['period_chosen']);
+        $this->assertSame(now()->format('F Y'), $current['tab_period']['label']);
+        $this->assertSame('PHP 0.00', $current['monthly_costs']['bills_this_month']);
+        $this->assertSame('PHP 0.00', $current['supplies']['supplies_used_month']);
+
+        // A chosen date range moves Supplies and Monthly costs with it.
+        $range = $lastMonth->copy()->startOfMonth()->toDateString().' to '.$lastMonth->copy()->endOfMonth()->toDateString();
+        $chosen = $this->actingAs($admin)->getJson(route('dashboard.data', ['date_range' => $range]))->assertOk()->json();
+        $this->assertTrue($chosen['period_chosen']);
+        $this->assertSame($lastMonth->format('F Y'), $chosen['tab_period']['label']);
+        $this->assertSame('PHP 3,200.00', $chosen['monthly_costs']['bills_this_month']);
+        $this->assertSame('PHP 200.00', $chosen['supplies']['supplies_used_month']);
+        $this->assertSame($lastMonth->format('M'), end($chosen['monthly_costs']['bills_history_6m']['months']));
+
+        // The page shows the period controls on the other tabs too.
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['tab' => 'costs', 'date_range' => $range]))
+            ->assertOk()
+            ->assertSee('changePeriod(\'this_month\')', false)
+            ->assertSee('Custom date range');
+    }
+
+    public function test_payroll_is_prorated_to_the_chosen_period(): void
+    {
+        $dashboard = app(\App\Http\Controllers\Admin\DashboardController::class);
+        $salaryMonths = fn (string $from, string $to) => (new \ReflectionMethod($dashboard, 'salaryMonthsInPeriod'))->invoke($dashboard, $from, $to);
+
+        // A whole month is exactly one month of salary; one day of a 30-day month is 1/30.
+        $this->assertSame(1.0, $salaryMonths('2026-09-01', '2026-09-30'));
+        $this->assertSame(round(1 / 30, 4), $salaryMonths('2026-09-10', '2026-09-10'));
+        // Sep 16 – Oct 15: 15/30 of September + 15/31 of October.
+        $this->assertSame(round(15 / 30 + 15 / 31, 4), $salaryMonths('2026-09-16', '2026-10-15'));
     }
 
     private function payment(Branch $branch, Customer $customer, JobOrder $order, string $number, float $amount, $paidAt): Payment

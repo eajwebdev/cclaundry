@@ -8,6 +8,7 @@ use App\Models\AttendanceEmployee;
 use App\Models\Branch;
 use App\Models\BranchExpense;
 use App\Support\Activity;
+use App\Support\ExpenseReceipt;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -99,27 +100,41 @@ class ExpenseController extends Controller
     {
         $user = $request->user();
         $validated = $this->validatedExpense($request);
+        $receiptPath = $request->hasFile('receipt') ? ExpenseReceipt::store($request->file('receipt')) : null;
 
-        DB::transaction(function () use ($request, $validated, $user): void {
-            $this->guardDuplicateSalary($validated);
+        try {
+            DB::transaction(function () use ($request, $validated, $user, $receiptPath): void {
+                $this->recordExpense($request, $validated, $user, $receiptPath);
+            });
+        } catch (\Throwable $exception) {
+            // Nothing was saved, so do not keep an orphaned photo.
+            ExpenseReceipt::delete($receiptPath);
 
-            $expense = BranchExpense::create($validated + ['created_by' => $user->id]);
-
-            if ($expense->paid_from === 'owner') {
-                $this->createOwnerPayable($expense, $user->id);
-            }
-
-            Activity::log($request, 'expense_recorded', $expense, [
-                'title' => $expense->title,
-                'amount' => $expense->amount,
-                'funding_source' => $expense->paid_from,
-                'employee_id' => $expense->attendance_employee_id,
-                'salary_period_start' => $expense->salary_period_start?->toDateString(),
-                'salary_period_end' => $expense->salary_period_end?->toDateString(),
-            ], $expense->branch_id);
-        });
+            throw $exception;
+        }
 
         return back()->with('success', 'Expense recorded successfully.');
+    }
+
+    private function recordExpense(Request $request, array $validated, $user, ?string $receiptPath): void
+    {
+        $this->guardDuplicateSalary($validated);
+
+        $expense = BranchExpense::create($validated + ['created_by' => $user->id, 'receipt_path' => $receiptPath]);
+
+        if ($expense->paid_from === 'owner') {
+            $this->createOwnerPayable($expense, $user->id);
+        }
+
+        Activity::log($request, 'expense_recorded', $expense, [
+            'title' => $expense->title,
+            'amount' => $expense->amount,
+            'funding_source' => $expense->paid_from,
+            'employee_id' => $expense->attendance_employee_id,
+            'salary_period_start' => $expense->salary_period_start?->toDateString(),
+            'salary_period_end' => $expense->salary_period_end?->toDateString(),
+            'has_receipt' => $receiptPath !== null,
+        ], $expense->branch_id);
     }
 
     public function update(Request $request, BranchExpense $expense)
@@ -128,7 +143,33 @@ class ExpenseController extends Controller
         abort_unless($user->isAdmin(), 403);
 
         $validated = $this->validatedExpense($request, $expense);
+        $previousReceipt = $expense->receipt_path;
+        $newReceipt = $request->hasFile('receipt') ? ExpenseReceipt::store($request->file('receipt')) : null;
 
+        if ($newReceipt) {
+            $validated['receipt_path'] = $newReceipt;
+        } elseif ($request->boolean('remove_receipt')) {
+            $validated['receipt_path'] = null;
+        }
+
+        try {
+            $this->updateExpense($request, $validated, $expense, $user);
+        } catch (\Throwable $exception) {
+            ExpenseReceipt::delete($newReceipt);
+
+            throw $exception;
+        }
+
+        // The old photo is removed only once the new state is saved.
+        if (array_key_exists('receipt_path', $validated) && $previousReceipt !== $validated['receipt_path']) {
+            ExpenseReceipt::delete($previousReceipt);
+        }
+
+        return back()->with('success', 'Expense updated successfully.');
+    }
+
+    private function updateExpense(Request $request, array $validated, BranchExpense $expense, $user): void
+    {
         DB::transaction(function () use ($request, $validated, $expense, $user): void {
             $this->guardDuplicateSalary($validated, $expense->id);
 
@@ -176,10 +217,11 @@ class ExpenseController extends Controller
             Activity::log($request, 'expense_updated', $expense, [
                 'before' => $before,
                 'after' => $expense->fresh()->only($tracked),
+                'receipt' => array_key_exists('receipt_path', $validated)
+                    ? ($validated['receipt_path'] ? 'replaced' : 'removed')
+                    : 'unchanged',
             ], $expense->branch_id);
         });
-
-        return back()->with('success', 'Expense updated successfully.');
     }
 
     private function validatedExpense(Request $request, ?BranchExpense $existing = null): array
@@ -227,7 +269,15 @@ class ExpenseController extends Controller
             'expense_type' => ['nullable', Rule::in(self::CATEGORIES)],
             'reference_no' => ['nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
+            // Phone photos can be large; they are compressed to KB on save.
+            'receipt' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:20480'],
+            'remove_receipt' => ['nullable', 'boolean'],
+        ], [
+            'receipt.image' => 'The receipt must be a photo (JPG, PNG or WEBP).',
+            'receipt.mimes' => 'The receipt must be a photo (JPG, PNG or WEBP).',
+            'receipt.max' => 'The receipt photo must be 20 MB or smaller.',
         ]);
+        unset($validated['receipt'], $validated['remove_receipt']);
 
         if (! $user->canManageAllBranches()) {
             $validated['branch_id'] = $user->branch_id;
@@ -307,13 +357,28 @@ class ExpenseController extends Controller
             return back()->with('error', 'This expense already has payable repayments and cannot be deleted.');
         }
 
+        $receiptPath = $expense->receipt_path;
+
         DB::transaction(function () use ($expense): void {
             $payable = $expense->accountsPayable;
             $expense->delete();
             $payable?->delete();
         });
 
+        ExpenseReceipt::delete($receiptPath);
+
         return back()->with('success', 'Expense removed successfully.');
+    }
+
+    public function receipt(Request $request, BranchExpense $expense)
+    {
+        if (! $request->user()->canManageAllBranches()) {
+            abort_unless((int) $request->user()->branch_id === (int) $expense->branch_id, 403);
+        }
+
+        abort_unless(ExpenseReceipt::exists($expense->receipt_path), 404);
+
+        return ExpenseReceipt::response($expense->receipt_path);
     }
 
     private function dateRange(Request $request): array

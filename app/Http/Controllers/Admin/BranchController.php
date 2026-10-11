@@ -10,6 +10,7 @@ use App\Support\BusinessDefaults;
 use App\Support\DefaultInventoryItems;
 use App\Support\DefaultLaundryServices;
 use App\Support\DefaultServiceInventoryUsages;
+use App\Support\MachineClass;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -54,6 +55,7 @@ class BranchController extends Controller
         $validated['machine_count'] = $validated['branch_type'] === 'pickup_dropoff'
             ? 0
             : ($validated['machine_count'] ?? BusinessDefaults::MACHINE_COUNT);
+        $validated = $this->withTitanMachines($request, $validated, (int) $validated['machine_count']);
 
         DB::transaction(function () use ($request, $validated) {
             $branch = Branch::create($validated + ['is_active' => $request->boolean('is_active')]);
@@ -85,6 +87,11 @@ class BranchController extends Controller
         $validated['latitude'] = null;
         $validated['longitude'] = null;
         $validated['attendance_radius_meters'] = null;
+        $validated = $this->withTitanMachines(
+            $request,
+            $validated,
+            (int) (array_key_exists('machine_count', $validated) ? $validated['machine_count'] : $branch->machine_count)
+        );
 
         $branch->update($validated);
 
@@ -157,9 +164,26 @@ class BranchController extends Controller
             'contact_number' => ['nullable', 'string', 'max:50'],
             'branch_type' => ['nullable', Rule::in(['full_service', 'pickup_dropoff'])],
             'machine_count' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'titan_machines' => ['nullable', 'array', 'max:100'],
+            'titan_machines.*' => ['integer', 'min:1', 'max:100'],
             'qr_pay_url' => ['nullable', 'string', 'max:2048'],
             'is_active' => ['nullable', 'boolean'],
         ];
+    }
+
+    /**
+     * Save the Titan washer numbers only when the form sent the picker, so
+     * older forms and scripts leave the saved machine sizes alone.
+     */
+    private function withTitanMachines(Request $request, array $validated, int $machineCount): array
+    {
+        unset($validated['titan_machines']);
+
+        if ($request->has('titan_machines_present')) {
+            $validated['titan_machine_numbers'] = MachineClass::normalizeNumbers($request->input('titan_machines', []), $machineCount) ?: null;
+        }
+
+        return $validated;
     }
 
     private function authorizeBranch(Branch $branch): void
