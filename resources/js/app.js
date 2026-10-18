@@ -110,6 +110,13 @@ import {
     Wind,
     X,
     Zap,
+    Bath,
+    Bed,
+    Bike,
+    CircleAlert,
+    Delete,
+    NotebookPen,
+    UserPlus,
 } from 'lucide-static';
 
 // Registered here rather than in the map bundle on purpose: the rider's run
@@ -273,6 +280,26 @@ const icons = {
     attendance: CalendarCheck,
     employees: IdCard,
     smsLogs: Bell,
+    bath: Bath,
+    bed: Bed,
+    bike: Bike,
+    'circle-alert': CircleAlert,
+    delete: Delete,
+    'notebook-pen': NotebookPen,
+    'user-plus': UserPlus,
+    'washing-machine': WashingMachine,
+};
+
+/**
+ * An icon as markup, for x-html. Icons inside x-for lists change with the
+ * data, and a [data-lucide] placeholder is swapped out once and never again.
+ */
+window.lucideSvg = (name, className = 'h-5 w-5') => {
+    const svg = icons[name];
+
+    return svg
+        ? svg.trim().replace(/class="[^"]*"/, `class="${className}" aria-hidden="true"`)
+        : '';
 };
 
 window.renderLucideIcons = () => {

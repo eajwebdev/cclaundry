@@ -1,6 +1,13 @@
 @import "tailwindcss";
 
 /*
+ * Laravel's pagination links live in vendor/, which Tailwind does not scan
+ * (it skips git-ignored folders). Without this their sm:flex never existed,
+ * so page links were invisible on every screen 640px and wider.
+ */
+@source "../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php";
+
+/*
  * MapLibre's stylesheet, pulled into the base layer on purpose. Tailwind v4
  * puts its utilities in a cascade layer, and unlayered CSS beats a layered
  * rule whatever the source order -- so imported plain, MapLibre's
@@ -11,6 +18,14 @@
 @import "maplibre-gl/dist/maplibre-gl.css" layer(base);
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Screen-size tiers for fixed-height screens like the POS, which has no page
+ * scroll to fill: `tall` screens get roomier rows, `roomy` (big desktop) ones
+ * also get larger tiles and type, so the content uses the space it is given.
+ */
+@custom-variant tall (@media (min-height: 860px) and (orientation: landscape));
+@custom-variant roomy (@media (min-width: 1600px) and (min-height: 860px));
 
 /*
  * Cane & Cotton palette - sampled directly from public/logo.png.

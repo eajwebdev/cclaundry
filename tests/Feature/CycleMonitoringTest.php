@@ -141,8 +141,8 @@ class CycleMonitoringTest extends TestCase
             ->get(route('admin.cycles.index'))
             ->assertOk()
             ->assertSeeInOrder([
-                '<p class="truncate font-semibold">Highlighted Customer</p>',
-                '<p class="truncate text-sm text-muted">JO-CUSTOMER-HEADING</p>',
+                '<p class="truncate text-sm font-semibold sm:text-base">Highlighted Customer</p>',
+                '<p class="truncate text-xs text-muted sm:text-sm">JO-CUSTOMER-HEADING</p>',
             ], false);
     }
 
@@ -860,13 +860,13 @@ class CycleMonitoringTest extends TestCase
             ->get(route('admin.cycles.index', ['search' => 'JO-MACHINE-MATCH']))
             ->assertOk()
             ->assertSee('Machine overview')
-            ->assertSee('2xl:grid-cols-[minmax(21rem,0.85fr)_minmax(0,1.4fr)]', false)
+            ->assertSee('2xl:grid-cols-[minmax(25.5rem,0.82fr)_minmax(0,1.18fr)]', false)
             ->assertSee('Wash Machines')
             ->assertSee('Dry Machines')
             ->assertSee('Wash #6')
             ->assertSee('Dry #6')
             ->assertSee('Job Orders')
-            ->assertSee('grid-template-columns: repeat(6, minmax(104px, 1fr)); min-width: 664px;', false)
+            ->assertSee('grid-template-columns: repeat(6, minmax(var(--machine-card-min, 50px), 1fr)); min-width: 100%;', false)
             ->assertSee('available.png')
             ->assertSee('unavailable.png')
             ->assertSee('In use')
@@ -879,17 +879,17 @@ class CycleMonitoringTest extends TestCase
                 'Dry Machines',
                 'Dry #1',
                 '>1</p>',
-                'Drying cycles',
+                'Drying<span class="hidden 2xl:inline"> cycles</span>',
                 'Wash Machines',
                 'Wash #1',
                 'unavailable.png',
                 '>1</p>',
-                'Washing cycles',
+                'Washing<span class="hidden 2xl:inline"> cycles</span>',
             ], false)
             ->assertDontSee('JO-MACHINE-HIDDEN');
 
-        $this->assertSame(6, substr_count($response->getContent(), 'text-sm font-semibold">Wash #'));
-        $this->assertSame(6, substr_count($response->getContent(), 'text-sm font-semibold">Dry #'));
+        $this->assertSame(6, substr_count($response->getContent(), 'xl:text-sm">Wash #'));
+        $this->assertSame(6, substr_count($response->getContent(), 'xl:text-sm">Dry #'));
     }
 
     public function test_machine_usage_counts_ignore_search_customer_and_status_filters(): void
@@ -940,7 +940,7 @@ class CycleMonitoringTest extends TestCase
             ->assertSeeInOrder([
                 'Wash #1',
                 '>2</p>',
-                'Washing cycles',
+                'Washing<span class="hidden 2xl:inline"> cycles</span>',
             ], false)
             ->assertSee('Usage counts by cycle date only');
     }
@@ -1783,8 +1783,8 @@ class CycleMonitoringTest extends TestCase
             ->get(route('admin.job-orders.receipt', $order))
             ->assertOk()
             ->assertSee('JO-PRINT-PROD')
-            ->assertSee('Production Branch')
-            ->assertSee('data:image/svg+xml');
+            ->assertSee('Pickup Branch')
+            ->assertDontSee('data:image/svg+xml');
     }
 
     public function test_production_scan_auto_assigns_pickup_dropoff_order_to_scanning_branch(): void

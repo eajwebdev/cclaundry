@@ -273,10 +273,10 @@ class RiderTrackingTest extends TestCase
     }
 
     /**
-     * An order the branch never marked finished is not released past its own
-     * stages, and the rider's delivery is still recorded.
+     * A load still in the machines cannot be delivered: the rider is told why,
+     * and neither the run nor the branch's order moves.
      */
-    public function test_delivering_a_run_leaves_an_unfinished_job_order_for_the_counter(): void
+    public function test_delivering_a_run_is_refused_until_the_job_order_is_ready_for_delivery(): void
     {
         $branch = $this->branch();
         $rider = $this->rider($branch);
@@ -286,11 +286,13 @@ class RiderTrackingTest extends TestCase
 
         $this->actingAs($rider)
             ->patchJson(route('rider.jobs.status', $job), ['status' => 'completed', 'client_token' => 'early-drop'])
-            ->assertOk();
+            ->assertUnprocessable()
+            ->assertJsonPath('ok', false);
 
         $this->assertSame('washing', $order->fresh()->status);
         $this->assertNull($order->fresh()->released_at);
-        $this->assertSame('completed', $job->fresh()->status);
+        $this->assertSame('picked_up', $job->fresh()->status);
+        $this->assertNull($job->fresh()->delivered_at);
     }
 
     /** A resend of the delivery must not release, or log, a second time. */
@@ -1093,6 +1095,8 @@ class RiderTrackingTest extends TestCase
         $this->actingAs($rider)
             ->patchJson(route('rider.jobs.status', $first), ['status' => 'picked_up', 'tag_code' => 'CC-DAILY'])
             ->assertOk();
+        // Delivered only once the branch has it ready.
+        $first->jobOrder()->associate($this->jobOrder($branch, 'ready_for_delivery'))->save();
         $this->actingAs($rider)
             ->patchJson(route('rider.jobs.status', $first), ['status' => 'completed'])
             ->assertOk();
@@ -1266,6 +1270,8 @@ class RiderTrackingTest extends TestCase
         $this->assertSame('CC-0001', $job->tag_code);
         $this->assertNotNull($job->picked_up_at);
 
+        // Delivered only once the branch has it ready.
+        $job->jobOrder()->associate($this->jobOrder($branch, 'ready_for_delivery'))->save();
         $this->actingAs($rider)
             ->patch(route('rider.jobs.status', $job), ['status' => 'completed'])
             ->assertRedirect(route('rider.index'));

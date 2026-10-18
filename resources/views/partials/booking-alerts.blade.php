@@ -176,14 +176,25 @@
 
             async poll() {
                 if (this.polling || this.stopped || document.hidden) return;
+                // A form on this page is saving. Its success or error message
+                // waits in the session for the very next request, and a poll
+                // landing in between would use it up, so sit this one out.
+                if (window.appSaving) {
+                    this.schedulePoll();
+                    return;
+                }
                 this.polling = true;
                 try {
                     const lastSeen = Math.max(0, Number.parseInt(this.read('lastSeen') || '0', 10) || 0);
-                    const response = await fetch(this.feedUrl + '?after=' + lastSeen, {
+                    const request = fetch(this.feedUrl + '?after=' + lastSeen, {
                         cache: 'no-store',
                         headers: { Accept: 'application/json' },
                         credentials: 'same-origin',
                     });
+                    // A save waits for this request to finish before it starts.
+                    window.appPolls = [...(window.appPolls || []), request];
+                    request.finally(() => window.appPolls = (window.appPolls || []).filter(pending => pending !== request)).catch(() => {});
+                    const response = await request;
 
                     // Signed out or lost access: stop quietly rather than spin.
                     if (response.status === 401 || response.status === 403 || response.redirected) {
