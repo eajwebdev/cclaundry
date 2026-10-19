@@ -562,7 +562,7 @@
                                 <div x-show="editIndex === index" x-cloak class="mt-1.5 flex items-center gap-2">
                                     <div class="flex h-7 overflow-hidden rounded-md border border-border dark:border-gray-700">
                                         <button type="button" @click="decreaseQuantity(item)" class="flex w-7 items-center justify-center text-sm hover:bg-smoke dark:hover:bg-gray-800" aria-label="Less">−</button>
-                                        <input type="number" :step="quantityStep(item)" :min="quantityStep(item)" :name="`items[${index}][quantity]`" x-model.number="item.quantity" aria-label="Quantity" class="w-12 border-x border-border bg-transparent text-center text-xs outline-none dark:border-gray-700">
+                                        <input type="number" step="0.01" min="0.01" :name="`items[${index}][quantity]`" x-model.number="item.quantity" aria-label="Quantity" class="w-12 border-x border-border bg-transparent text-center text-xs outline-none dark:border-gray-700">
                                         <button type="button" @click="increaseQuantity(item)" class="flex w-7 items-center justify-center text-sm hover:bg-smoke dark:hover:bg-gray-800" aria-label="More">+</button>
                                     </div>
                                     <button type="button" x-show="usesKeypad(item)" @click="openKeypad(serviceById(item.id))" class="h-7 rounded-md border border-border px-2 text-[10px] font-bold text-muted hover:text-dark dark:border-gray-700 dark:hover:text-white">Weigh</button>
