@@ -424,15 +424,6 @@ class CycleController extends Controller
             }
         }
 
-        if (
-            $validated['cycle_type'] === 'dry'
-            && $jobOrder->cycles()->where('cycle_type', 'wash')->whereNull('ended_at')->exists()
-        ) {
-            return back()->withErrors([
-                'cycle_type' => "End the active Washing cycle for {$jobOrder->job_order_number} before starting Drying.",
-            ])->withInput();
-        }
-
         // Check for machine conflicts for each selected machine
         $machineNumbers = $validated['machine_numbers'] ?? [];
         if (in_array($validated['cycle_type'], ['wash', 'dry'], true) && ! empty($machineNumbers)) {

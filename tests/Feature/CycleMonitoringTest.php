@@ -704,7 +704,7 @@ class CycleMonitoringTest extends TestCase
             ]);
     }
 
-    public function test_same_job_order_cannot_start_drying_until_washing_ends(): void
+    public function test_same_job_order_can_start_drying_while_washing_is_active(): void
     {
         $this->completeSystemSettings();
         $this->activeTrial();
@@ -734,28 +734,20 @@ class CycleMonitoringTest extends TestCase
                 'machine_number' => 1,
             ])
             ->assertRedirect()
-            ->assertSessionHasErrors([
-                'cycle_type' => 'End the active Washing cycle for JO-WASH-DRY-001 before starting Drying.',
-            ]);
+            ->assertSessionHasNoErrors();
 
-        $this->assertDatabaseMissing('cycle_records', [
+        $this->assertDatabaseHas('cycle_records', [
             'job_order_id' => $order->id,
             'cycle_type' => 'dry',
             'machine_number' => 1,
+            'ended_at' => null,
         ]);
-        $this->assertSame('washing', $order->refresh()->status);
+        $this->assertNull($washCycle->refresh()->ended_at);
+        $this->assertSame('drying', $order->refresh()->status);
 
         $this->actingAs($user)
             ->patch(route('admin.cycles.end', $washCycle))
             ->assertRedirect();
-
-        $this->actingAs($user)
-            ->post(route('admin.cycles.store', $order), [
-                'cycle_type' => 'dry',
-                'machine_number' => 1,
-            ])
-            ->assertRedirect()
-            ->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('cycle_records', [
             'job_order_id' => $order->id,

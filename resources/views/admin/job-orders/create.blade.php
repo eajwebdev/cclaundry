@@ -356,8 +356,8 @@
                                 <div class="contents">
                                     <template x-for="(service, position) in group.services" :key="service.id">
                                         <span class="inline-flex max-w-full items-center gap-1.5">
-                                        <span x-show="position === 0" class="shrink-0 pl-1 text-[11px] font-bold text-dark dark:text-white"><span x-text="group.label"></span><span x-show="group.pickOne" class="font-normal text-muted"> (pick one)</span></span>
-                                        <button type="button" @click="toggleAddon(service, group)" class="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-left transition tall:h-8 roomy:h-10 roomy:pr-3.5"
+                                        <span x-show="position === 0" class="shrink-0 pl-1 text-[11px] font-bold text-dark dark:text-white" x-text="group.label"></span>
+                                        <button type="button" @click="toggleAddon(service)" class="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-left transition tall:h-8 roomy:h-10 roomy:pr-3.5"
                                                 :class="lineFor(service) ? 'border-emerald-600 bg-emerald-50 ring-1 ring-emerald-600 dark:bg-emerald-500/10' : 'border-border hover:border-emerald-500/60 dark:border-gray-700'"
                                                 :aria-pressed="Boolean(lineFor(service))" :title="service.name">
                                             <span class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#E7EFE3] text-[#4D6B45] dark:bg-[#4D6B45]/30 dark:text-[#B9D3AF]" x-html="icon(serviceIcon(service), 'h-3.5 w-3.5')"></span>
@@ -863,7 +863,7 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         submitting: false,
         editIndex: null,
         bookingLoaded: @js((bool) $booked),
-        keypad: { open: false, service: null, group: null, value: '' },
+        keypad: { open: false, service: null, value: '' },
         recentIds: [],
         tagModalOpen: @js((bool) ($tagLookupError ?? null)),
         tagSearch: @js($tagCode ?? ''),
@@ -1176,9 +1176,9 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         get addonGroups() {
             const addons = this.filteredServices.filter(s => this.isAddon(s));
             return [
-                { key: 'detergent', label: 'Detergent', pickOne: true },
-                { key: 'fabcon', label: 'Fabric conditioner', pickOne: true },
-                { key: 'extras', label: 'Extras', pickOne: false },
+                { key: 'detergent', label: 'Detergent' },
+                { key: 'fabcon', label: 'Fabric conditioner' },
+                { key: 'extras', label: 'Extras' },
             ]
                 .map(group => ({ ...group, services: addons.filter(s => this.addonKind(s) === group.key) }))
                 .filter(group => group.services.length);
@@ -1342,19 +1342,16 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
             this.editIndex = null;
             this.items = this.items.filter(item => !(item.type !== 'preset' && String(item.id) === String(service.id)));
         },
-        toggleAddon(service, group) {
+        toggleAddon(service) {
             // Sold by weight (e.g. hand wash per kilo): weigh it like a laundry
             // service rather than charging one unit. The keypad can also remove it.
             if (this.usesKeypad({ type: 'service', pricing_type: service.pricing_type })) {
-                this.openKeypad(service, group);
+                this.openKeypad(service);
                 return;
             }
             if (this.lineFor(service)) {
                 this.removeLine(service);
                 return;
-            }
-            if (group.pickOne) {
-                group.services.forEach(other => this.removeLine(other));
             }
             this.add(service);
         },
@@ -1433,13 +1430,13 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         },
 
         // ---- Weight keypad -----------------------------------------------
-        openKeypad(service, group = null) {
+        openKeypad(service) {
             if (!service) return;
             const line = this.lineFor(service);
-            this.keypad = { open: true, service, group, value: line ? this.fmtQty(line.quantity) : '' };
+            this.keypad = { open: true, service, value: line ? this.fmtQty(line.quantity) : '' };
         },
         closeKeypad() {
-            this.keypad = { open: false, service: null, group: null, value: '' };
+            this.keypad = { open: false, service: null, value: '' };
         },
         get keypadUnit() {
             return this.keypad.service?.pricing_type === 'liter' ? 'L' : 'kg';
@@ -1478,12 +1475,6 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         confirmKeypad(useMinimum) {
             if (this.keypadWeight <= 0) return;
             const quantity = useMinimum ? Math.max(this.keypadWeight, this.keypadMinimum) : this.keypadWeight;
-            // A pick-one add-on replaces the other choice only once it is confirmed.
-            if (this.keypad.group?.pickOne) {
-                this.keypad.group.services
-                    .filter(other => String(other.id) !== String(this.keypad.service.id))
-                    .forEach(other => this.removeLine(other));
-            }
             this.add(this.keypad.service, Math.round(quantity * 100) / 100);
             this.closeKeypad();
         },

@@ -17,6 +17,47 @@ class JobOrderEditAddOnTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_new_order_can_include_multiple_add_ons_from_the_same_group(): void
+    {
+        SystemSetting::query()->create([
+            'business_name' => 'Spin Klean Laundry',
+            'currency' => 'PHP',
+            'job_order_prefix' => 'JO',
+            'invoice_prefix' => 'INV',
+            'primary_color' => '#2E7D32',
+            'is_completed' => true,
+        ]);
+
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $branch = Branch::query()->create(['name' => 'Main Branch', 'code' => 'MAIN', 'branch_type' => 'full_service', 'is_active' => true]);
+        $customer = Customer::query()->create(['branch_id' => $branch->id, 'name' => 'Joven', 'billing_type' => 'regular', 'unpaid_limit' => 1000, 'is_active' => true]);
+        $regular = LaundryService::query()->create(['branch_id' => $branch->id, 'name' => 'Wash', 'report_category' => 'regular', 'pricing_type' => 'load', 'price' => 100, 'is_active' => true]);
+        $ariel = LaundryService::query()->create(['branch_id' => $branch->id, 'name' => 'Ariel Detergent', 'report_category' => 'detergent', 'pricing_type' => 'load', 'price' => 20, 'is_active' => true]);
+        $tide = LaundryService::query()->create(['branch_id' => $branch->id, 'name' => 'Tide Detergent', 'report_category' => 'detergent', 'pricing_type' => 'load', 'price' => 25, 'is_active' => true]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.job-orders.create', ['branch_id' => $branch->id]))
+            ->assertOk()
+            ->assertDontSee('pickOne');
+
+        $this->actingAs($admin)->post(route('admin.job-orders.store'), [
+            'branch_id' => $branch->id,
+            'processing_branch_id' => $branch->id,
+            'customer_id' => $customer->id,
+            'items' => collect([$regular, $ariel, $tide])->map(fn ($service) => [
+                'laundry_service_id' => $service->id,
+                'description' => $service->name,
+                'quantity' => 1,
+                'unit_price' => $service->price,
+            ])->all(),
+            'payment_type' => 'unpaid',
+        ])->assertSessionHasNoErrors();
+
+        $order = JobOrder::query()->firstOrFail();
+        $this->assertEqualsCanonicalizing([$regular->id, $ariel->id, $tide->id], $order->items()->pluck('laundry_service_id')->all());
+        $this->assertSame(145.0, (float) $order->total);
+    }
+
     public function test_booking_order_can_be_edited_to_add_an_add_on(): void
     {
         SystemSetting::query()->create([
