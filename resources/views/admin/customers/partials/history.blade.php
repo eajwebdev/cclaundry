@@ -1,3 +1,7 @@
+@php
+    $cycleLabels = ['wash' => 'Wash', 'dry' => 'Dry', 'fold' => 'Fold', 'iron' => 'Steam'];
+    $machineName = fn ($branch, $number) => '#'.$number.' '.\App\Support\MachineClass::label(\App\Support\MachineClass::forMachine($branch, (int) $number));
+@endphp
 <div class="space-y-4">
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
         @foreach([
@@ -13,11 +17,32 @@
         @endforeach
     </div>
     <p class="text-xs text-muted">Each job order counts as one visit. Cancelled orders are excluded from visit counts.</p>
+
+    {{-- Which washers and dryers this customer's laundry has gone through. --}}
+    <section aria-labelledby="machine-usage-title" class="rounded-md border border-border p-3 dark:border-gray-800">
+        <h3 id="machine-usage-title" class="text-sm font-semibold">Machines used</h3>
+        @if($machineUsage->isEmpty())
+            <p class="mt-1 text-xs text-muted">No machine cycles recorded yet for this customer.</p>
+        @else
+            <ul class="mt-2 flex flex-wrap gap-2">
+                @foreach($machineUsage as $usage)
+                    <li class="rounded-md bg-smoke px-2.5 py-1.5 text-xs dark:bg-gray-950">
+                        <span class="font-semibold">{{ $cycleLabels[$usage->cycle_type] ?? ucfirst($usage->cycle_type) }} #{{ $usage->machine_number }}</span>
+                        <span class="text-muted">{{ $usage->machine_class }}@if($showMachineBranch) · {{ $usage->branch?->name }}@endif</span>
+                        <span class="font-semibold">× {{ $usage->uses }}</span>
+                        @if($usage->last_used_at)
+                            <span class="block text-[11px] text-muted">Last {{ \Illuminate\Support\Carbon::parse($usage->last_used_at)->format('M d, Y') }}</span>
+                        @endif
+                    </li>
+                @endforeach
+            </ul>
+        @endif
+    </section>
     <div class="overflow-x-auto rounded-md border border-border dark:border-gray-800">
         <table class="w-full text-left text-sm">
             <thead class="bg-smoke text-xs uppercase text-muted dark:bg-gray-950">
                 <tr>
-                    @foreach(['Date', 'Job order', 'Services', 'Status', 'Total', 'Balance'] as $heading)
+                    @foreach(['Date', 'Job order', 'Services', 'Machines', 'Status', 'Total', 'Balance'] as $heading)
                         <th scope="col" class="whitespace-nowrap px-3 py-2">{{ $heading }}</th>
                     @endforeach
                 </tr>
@@ -37,12 +62,26 @@
                                 <span class="text-muted">No service details</span>
                             @endforelse
                         </td>
+                        <td class="min-w-44 px-3 py-3">
+                            @php $machineBranch = $order->processingBranch ?? $order->branch; @endphp
+                            @forelse($order->cycles as $cycle)
+                                <p class="whitespace-nowrap">
+                                    <span class="font-medium">{{ $cycleLabels[$cycle->cycle_type] ?? ucfirst($cycle->cycle_type) }}</span>
+                                    {{ $machineName($machineBranch, $cycle->machine_number) }}
+                                </p>
+                                <p class="mb-1 whitespace-nowrap text-xs text-muted">
+                                    {{ $cycle->started_at?->format('M d, h:i A') ?? 'Not started' }}@if($cycle->ended_at) – {{ $cycle->ended_at->format('h:i A') }}@endif
+                                </p>
+                            @empty
+                                <span class="text-muted">None recorded</span>
+                            @endforelse
+                        </td>
                         <td class="px-3 py-3"><span class="whitespace-nowrap {{ \App\Support\StatusBadge::classes($order->status) }}">{{ \App\Support\StatusBadge::label($order->status) }}</span></td>
                         <td class="whitespace-nowrap px-3 py-3">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $order->total, 2) }}</td>
                         <td class="whitespace-nowrap px-3 py-3">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $order->balance, 2) }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="px-3 py-8 text-center text-muted">No job orders yet for this customer.</td></tr>
+                    <tr><td colspan="7" class="px-3 py-8 text-center text-muted">No job orders yet for this customer.</td></tr>
                 @endforelse
             </tbody>
         </table>

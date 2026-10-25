@@ -81,6 +81,36 @@
         ->concat($addons->map(fn ($addon) => $toMeta($addon, true)))
         ->values();
 
+    // Step 1 reads like the counter's POS: services as tiles grouped by how
+    // they are priced, add-ons as chips grouped by what they are.
+    $serviceGroups = collect([
+        'preset' => 'Bundles',
+        'kilo' => 'By the kilo',
+        'load' => 'By the load',
+        'piece' => 'By the piece',
+    ])
+        ->map(fn (string $label, string $type) => [
+            'label' => $label,
+            'items' => $offerings->filter(fn ($offering) => $offering['pricing_type'] === $type)->values(),
+        ])
+        ->push([
+            'label' => 'Other services',
+            'items' => $offerings->reject(fn ($offering) => in_array($offering['pricing_type'], ['preset', 'kilo', 'load', 'piece'], true))->values(),
+        ])
+        ->filter(fn (array $group) => $group['items']->isNotEmpty())
+        ->values();
+
+    $addonGroups = $addons
+        ->groupBy(fn ($addon) => match ($addon['report_category'] ?? null) {
+            'detergent' => 'Detergent',
+            'fabcon' => 'Fabric conditioner',
+            'finishing_spray' => 'Finishing spray',
+            default => 'Extras',
+        })
+        ->sortBy(fn ($items, string $label) => array_search($label, ['Detergent', 'Fabric conditioner', 'Finishing spray', 'Extras'], true));
+
+    $peso = fn ($amount) => '₱'.number_format((float) $amount, fmod((float) $amount, 1) ? 2 : 0);
+
     // What the visitor had already chosen, when a submission bounced back.
     $initialLines = collect(old('items', []))
         ->map(fn ($item) => [
@@ -285,8 +315,7 @@
                     </p>
 
                     {{-- What actually posts: one pair of hidden fields per chosen
-                         line. The boxes on the cards are Alpine-only, so nothing
-                         is submitted twice. --}}
+                         line. The tiles and the keypad are Alpine-only. --}}
                     <template x-for="(line, index) in lines" :key="line.key">
                         <span>
                             <input type="hidden" :name="`items[${index}][key]`" :value="line.key">
@@ -296,11 +325,36 @@
 
                     <fieldset class="mt-6">
                         <legend class="cc-label text-[15px]">1. What would you like us to clean? <span class="text-cc-brown">*</span></legend>
-                        <p class="cc-help mt-1">Tick everything you&rsquo;re sending. A regular load and a comforter can travel in one booking, and each one asks how much.</p>
+                        <p class="cc-help mt-1">Tap a service, then tell us about how much. A rough guess is fine, we weigh it at the branch.</p>
 
-                        <div class="mt-3 space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
-                            @foreach ($offerings as $offering)
-                                @include('partials.booking-offering', ['offering' => $offering, 'isAddon' => false])
+                        <div class="mt-4 space-y-5">
+                            @foreach ($serviceGroups as $group)
+                                <div>
+                                    <p class="text-[11px] font-bold tracking-[0.18em] text-cc-muted uppercase">{{ $group['label'] }}</p>
+                                    <div class="mt-2 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                                        @foreach ($group['items'] as $offering)
+                                            @php $offeringKey = $offering['key']; @endphp
+                                            <button type="button" @click="openSheet(@js($offeringKey))"
+                                                    class="cc-option relative min-h-[8.5rem] flex-col items-start gap-2 p-3 text-left sm:p-3.5"
+                                                    :class="{ 'cc-option-active': isPicked(@js($offeringKey)) }"
+                                                    :aria-pressed="isPicked(@js($offeringKey))">
+                                                <span class="cc-icon-tile h-10 w-10"><span data-lucide="{{ $offering['icon'] }}" class="h-5 w-5"></span></span>
+                                                <span x-show="isPicked(@js($offeringKey))" x-cloak
+                                                      class="absolute top-2.5 right-2.5 max-w-[60%] truncate rounded-full bg-cc-brown px-2 py-0.5 text-[11px] font-bold text-white"
+                                                      x-text="amountLabel(bookable(@js($offeringKey)), qty[@js($offeringKey)])"></span>
+                                                <span class="line-clamp-2 text-[13px] leading-snug font-bold text-cc-deep sm:text-sm">{{ $offering['name'] }}</span>
+                                                <span class="mt-auto text-sm font-bold text-cc-brown">
+                                                    {{ $peso($offering['price']) }}@if($offering['unit_short'])<span class="text-xs font-semibold text-cc-muted"> / {{ $offering['unit_short'] }}</span>@endif
+                                                </span>
+                                                @if(! empty($offering['minimum_kilos']))
+                                                    <span class="-mt-1.5 text-[11px] text-cc-muted">min {{ rtrim(rtrim(number_format((float) $offering['minimum_kilos'], 2), '0'), '.') }} kg</span>
+                                                @elseif(! empty($offering['includes']))
+                                                    <span class="-mt-1.5 line-clamp-2 text-[11px] leading-snug text-cc-muted">{{ implode(' + ', $offering['includes']) }}</span>
+                                                @endif
+                                            </button>
+                                        @endforeach
+                                    </div>
+                                </div>
                             @endforeach
                         </div>
 
@@ -318,20 +372,140 @@
                              than instead of one. --}}
                         <fieldset class="mt-7">
                             <legend class="cc-label text-[15px]">2. Optional Add-ons</legend>
-                            <p class="cc-help mt-1">Choose your preferred detergent, fabric conditioner, and finishing spray for this load.</p>
+                            <p class="cc-help mt-1">Tap to add, tap again to remove. One fabric conditioner and one finishing spray per booking.</p>
 
-                            <div class="mt-3 space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
-                                @foreach ($addons as $addon)
-                                    @include('partials.booking-offering', ['offering' => $addon, 'isAddon' => true])
+                            <div class="mt-3 space-y-3">
+                                @foreach ($addonGroups as $groupLabel => $groupAddons)
+                                    <div>
+                                        <p class="text-[11px] font-bold tracking-[0.18em] text-cc-muted uppercase">{{ $groupLabel }}</p>
+                                        <div class="mt-1.5 flex flex-wrap gap-2">
+                                            @foreach ($groupAddons as $addon)
+                                                @php $addonKey = $addon['key']; @endphp
+                                                <button type="button" @click="toggle(@js($addonKey))"
+                                                        class="cc-chip max-w-full gap-2 pr-4 pl-1.5"
+                                                        :class="{ 'cc-chip-active': isPicked(@js($addonKey)) }"
+                                                        :aria-pressed="isPicked(@js($addonKey))">
+                                                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/70 text-cc-brown">
+                                                        <span x-show="! isPicked(@js($addonKey))"><span data-lucide="plus" class="h-4 w-4"></span></span>
+                                                        <span x-show="isPicked(@js($addonKey))" x-cloak><span data-lucide="check" class="h-4 w-4"></span></span>
+                                                    </span>
+                                                    <span class="truncate">{{ $addon['name'] }}</span>
+                                                    <span class="shrink-0 text-xs font-semibold opacity-80">{{ (float) $addon['price'] > 0 ? '+'.$peso($addon['price']) : 'Free' }}</span>
+                                                </button>
+                                            @endforeach
+                                        </div>
+                                    </div>
                                 @endforeach
                             </div>
                         </fieldset>
                     @endif
 
-                    <div class="cc-soft mt-5 flex items-center justify-between gap-3 px-4 py-3">
-                        <span class="text-sm font-bold text-cc-muted">Estimated total</span>
-                        <span class="font-display text-2xl leading-none font-bold text-cc-deep" x-text="money(estimate)"></span>
+                    {{-- The basket: what is on the booking so far, like the POS cart. --}}
+                    <div class="mt-7 rounded-2xl border border-cc-line bg-white/60">
+                        <div class="flex items-center justify-between gap-3 border-b border-cc-line px-4 py-3">
+                            <p class="text-sm font-bold text-cc-deep">Your laundry</p>
+                            <p class="text-xs font-semibold text-cc-muted" x-text="lines.length === 1 ? '1 item' : lines.length + ' items'"></p>
+                        </div>
+                        <p x-show="! lines.length" class="px-4 py-5 text-center text-sm text-cc-muted">Nothing yet. Tap a service above to start.</p>
+                        <ul x-show="lines.length" x-cloak class="divide-y divide-cc-line">
+                            <template x-for="line in lines" :key="line.key">
+                                <li class="flex items-center gap-3 px-4 py-3">
+                                    <div class="min-w-0 flex-1">
+                                        <p class="truncate text-sm font-bold text-cc-deep" x-text="bookable(line.key).label"></p>
+                                        <p class="text-xs text-cc-muted">
+                                            <span x-text="amountLabel(bookable(line.key), line.quantity)"></span>
+                                            <span x-show="belowMinimum(line.key)" x-text="'· charged at the ' + minimumLabel(line.key) + ' minimum'"></span>
+                                        </p>
+                                    </div>
+                                    {{-- Add-ons count loads with a stepper; services reopen the keypad. --}}
+                                    <div x-show="bookable(line.key).isAddon" class="flex h-9 shrink-0 items-center overflow-hidden rounded-full border border-cc-line bg-white">
+                                        <button type="button" @click="stepAddon(line.key, -1)" class="flex h-9 w-9 items-center justify-center text-lg font-bold text-cc-brown" aria-label="One load less">&minus;</button>
+                                        <span class="w-6 text-center text-sm font-bold text-cc-deep" x-text="line.quantity"></span>
+                                        <button type="button" @click="stepAddon(line.key, 1)" class="flex h-9 w-9 items-center justify-center text-lg font-bold text-cc-brown" aria-label="One load more">+</button>
+                                    </div>
+                                    <button type="button" x-show="! bookable(line.key).isAddon" @click="openSheet(line.key)"
+                                            class="h-9 shrink-0 rounded-full px-3 text-xs font-bold text-cc-brown ring-1 ring-cc-line transition hover:bg-cc-soft">Edit</button>
+                                    <span class="w-16 shrink-0 text-right text-sm font-bold text-cc-deep" x-text="money(lineTotalFor(line.key))"></span>
+                                    <button type="button" @click="removeLine(line.key)" class="-mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-cc-muted transition hover:bg-red-50 hover:text-red-700" aria-label="Remove">
+                                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                                    </button>
+                                </li>
+                            </template>
+                        </ul>
+                        <div class="flex items-center justify-between gap-3 border-t border-cc-line px-4 py-3">
+                            <span>
+                                <span class="block text-sm font-bold text-cc-deep">Estimated total</span>
+                                <span class="block text-[11px] text-cc-muted">Confirmed after weighing</span>
+                            </span>
+                            <span class="font-display text-2xl leading-none font-bold text-cc-deep" x-text="money(estimate)"></span>
+                        </div>
                     </div>
+
+                    {{-- How much: a keypad sheet, like weighing at the counter.
+                         Teleported so no transformed ancestor can trap it. --}}
+                    <template x-teleport="body">
+                        <div x-show="sheet.open" x-cloak x-transition.opacity
+                             @keydown.window="sheet.open && sheetKey($event)"
+                             @click.self="closeSheet()"
+                             class="fixed inset-0 z-[70] flex items-end justify-center bg-black/45 backdrop-blur-[2px] sm:items-center sm:p-4"
+                             role="dialog" aria-modal="true" aria-labelledby="booking-sheet-title">
+                            <div x-show="sheet.open" x-transition:enter="transition duration-200 ease-out" x-transition:enter-start="translate-y-full sm:translate-y-4 sm:opacity-0" x-transition:enter-end="translate-y-0 sm:opacity-100"
+                                 class="max-h-[92dvh] w-full overflow-y-auto rounded-t-[1.75rem] bg-cc-surface px-4 pt-2.5 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-w-sm sm:rounded-[1.5rem] sm:p-5">
+                                <div class="mx-auto mb-2.5 h-1.5 w-10 rounded-full bg-cc-line sm:hidden" aria-hidden="true"></div>
+
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <p class="text-[10px] font-bold tracking-[0.18em] text-cc-brown uppercase" x-text="sheetPrompt"></p>
+                                        <h3 id="booking-sheet-title" class="mt-0.5 line-clamp-2 font-display text-xl leading-tight font-bold text-cc-deep" x-text="sheetItem?.label"></h3>
+                                        <p class="mt-0.5 text-xs text-cc-muted" x-text="sheetPriceLine"></p>
+                                    </div>
+                                    <button type="button" @click="closeSheet()" class="-mr-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-cc-muted hover:bg-cc-soft" aria-label="Close">
+                                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                                    </button>
+                                </div>
+
+                                <div class="mt-3 rounded-2xl bg-white px-4 py-3 text-right ring-1 ring-cc-line">
+                                    <p class="font-display text-[2.6rem] leading-none font-bold text-cc-deep tabular-nums">
+                                        <span x-text="sheet.value || '0'"></span>
+                                        <span class="text-lg text-cc-muted" x-text="sheetUnit"></span>
+                                    </p>
+                                    <p class="mt-1 min-h-4 text-xs text-cc-muted">
+                                        <span x-show="sheetAmount > 0" x-text="'≈ ' + money(sheetItem ? lineTotal(sheetItem, sheetAmount) : 0)"></span>
+                                        <span x-show="sheetBelowMinimum" x-text="'(charged at the ' + (sheetItem?.minimumKilos || '') + ' kg minimum)'"></span>
+                                    </p>
+                                </div>
+                                <p x-show="sheetError" x-cloak class="cc-error" x-text="sheetError"></p>
+
+                                <div class="mt-3 flex gap-2 overflow-x-auto pb-0.5">
+                                    <template x-for="chip in sheetChips" :key="chip">
+                                        <button type="button" @click="sheet.value = String(chip); sheetError = ''"
+                                                class="cc-chip min-h-10 shrink-0 px-3.5 text-[13px]"
+                                                :class="sheetAmount === chip && 'cc-chip-active'"
+                                                x-text="chip + ' ' + sheetUnit"></button>
+                                    </template>
+                                </div>
+
+                                <div class="mt-3 grid grid-cols-3 gap-2">
+                                    <template x-for="key in ['1','2','3','4','5','6','7','8','9','.','0','back']" :key="key">
+                                        <button type="button" @click="sheetPress(key)"
+                                                class="flex h-[3.25rem] touch-manipulation items-center justify-center rounded-2xl bg-white text-xl font-bold text-cc-deep ring-1 ring-cc-line select-none active:bg-cc-soft"
+                                                :aria-label="key === 'back' ? 'Delete' : key">
+                                            <span x-show="key !== 'back'" x-text="key"></span>
+                                            <svg x-show="key === 'back'" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 5a2 2 0 0 0-1.344.519l-6.328 5.74a1 1 0 0 0 0 1.481l6.328 5.741A2 2 0 0 0 10 19h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"/><path d="m12 9 6 6"/><path d="m18 9-6 6"/></svg>
+                                        </button>
+                                    </template>
+                                </div>
+
+                                <div class="mt-3 flex gap-2">
+                                    <button type="button" x-show="sheet.key && isPicked(sheet.key)" @click="removeLine(sheet.key); closeSheet()"
+                                            class="cc-btn-outline shrink-0 px-4 text-red-700">Remove</button>
+                                    <button type="button" @click="confirmSheet()" :disabled="sheetAmount <= 0"
+                                            class="cc-btn flex-1 disabled:pointer-events-none disabled:opacity-50"
+                                            x-text="sheetAmount > 0 ? (isPicked(sheet.key) ? 'Update' : 'Add') + ' ' + sheet.value + ' ' + sheetUnit : 'Enter an amount'"></button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
                 </div>
 
                 {{-- ═══ Step 2: customer details ═══ --}}
@@ -598,21 +772,28 @@
                 </div>
 
                 {{-- ─────────── Navigation ─────────── --}}
-                <div class="mt-7 flex items-center gap-3 lg:mt-8 lg:justify-end lg:border-t lg:border-cc-line lg:pt-6">
+                {{-- On a phone this bar sticks to the bottom of the screen while the
+                     card is in view, so the total and Continue are always in reach. --}}
+                <div class="sticky bottom-0 z-20 -mx-5 mt-7 flex items-center gap-3 border-t border-cc-line bg-cc-surface/95 px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:-mx-8 sm:px-8 lg:static lg:mx-0 lg:mt-8 lg:justify-end lg:bg-transparent lg:px-0 lg:pt-6 lg:pb-0 lg:backdrop-blur-none">
                     <button type="button" @click="back()" x-show="step > 1" x-cloak
                             class="cc-btn-outline w-12 shrink-0 px-0 lg:mr-auto lg:w-auto lg:px-5" aria-label="Back to the previous step">
                         <span data-lucide="arrow-left" class="h-5 w-5"></span>
                         <span class="hidden lg:inline">Back</span>
                     </button>
 
-                    <button type="button" @click="next()" x-show="step < totalSteps" class="cc-btn flex-1 lg:flex-none lg:px-10">
+                    <div class="min-w-0 flex-1 lg:hidden">
+                        <p class="text-[11px] font-semibold text-cc-muted" x-text="lines.length ? (lines.length === 1 ? '1 item' : lines.length + ' items') + ' · estimate' : 'Estimate'"></p>
+                        <p class="font-display text-xl leading-none font-bold text-cc-deep" x-text="money(estimate)"></p>
+                    </div>
+
+                    <button type="button" @click="next()" x-show="step < totalSteps" class="cc-btn shrink-0 px-6 lg:px-10">
                         Continue
                         <span data-lucide="arrow-right" class="h-4 w-4"></span>
                     </button>
 
                     <button type="submit" x-show="step === totalSteps" x-cloak
                             :disabled="submitting" :class="submitting && 'pointer-events-none opacity-70'"
-                            class="cc-btn flex-1 lg:flex-none lg:px-10">
+                            class="cc-btn shrink-0 px-6 lg:px-10">
                         <span x-text="submitting ? 'Booking…' : 'Confirm Pickup'">Confirm Pickup</span>
                         <span data-lucide="arrow-right" class="h-4 w-4"></span>
                     </button>
@@ -650,6 +831,9 @@
             // correctly yet. Server-side errors are rendered by Blade instead.
             errors: {},
             submitting: false,
+            // The "how much" keypad sheet.
+            sheet: { open: false, key: null, value: '' },
+            sheetError: '',
             form: { ...config.initial },
             // Default to a single address; unticking reveals a separate one.
             sameAddress: ! config.initial.delivery_address,
@@ -680,6 +864,11 @@
                 // Another branch runs other windows, so a time picked for the
                 // first may not exist at the second.
                 this.$watch('form.branch_id', () => this.keepSlotsValid());
+
+                // No page scroll behind the keypad sheet on a phone.
+                this.$watch('sheet.open', (open) => {
+                    document.documentElement.style.overflow = open ? 'hidden' : '';
+                });
             },
 
             /** The chosen branch's pickup windows, key => label. */
@@ -737,18 +926,135 @@
                     this.picked = this.picked.filter((pickedKey) => this.bookable(pickedKey)?.addonGroup !== item.addonGroup);
                 }
 
-                this.picked.push(key);
-                if (item?.isAddon) {
-                    this.qty[key] = '1';
-                } else if (item?.pricingType === 'kilo' && Number(item.minimumKilos || 0) > 0) {
-                    this.qty[key] = String(item.minimumKilos);
+                // Services ask "how much" on the keypad; an add-on starts at one load.
+                if (! item?.isAddon) {
+                    this.openSheet(key);
+                    return;
                 }
 
-                // Straight into "how much", which is the whole point of ticking it.
-                this.$nextTick(() => {
-                    const field = this.$el.querySelector('#qty-' + key.replace(/[^a-z0-9]+/gi, '-'));
-                    if (field) field.focus();
-                });
+                this.picked.push(key);
+                this.qty[key] = '1';
+                this.clearItemErrors();
+            },
+
+            removeLine(key) {
+                this.picked = this.picked.filter((picked) => picked !== key);
+                this.qty[key] = '';
+            },
+
+            /** Loads of an add-on, from 1 to 20, by the basket's stepper. */
+            stepAddon(key, delta) {
+                const next = Math.min(20, Math.max(1, Math.round(parseFloat(this.qty[key]) || 1) + delta));
+                this.qty[key] = String(next);
+            },
+
+            clearItemErrors() {
+                for (const field of ['items', 'items_service', 'items_quantity']) delete this.errors[field];
+            },
+
+            // ---- Keypad sheet ------------------------------------------------
+            openSheet(key) {
+                const item = this.bookable(key);
+                if (! item) return;
+
+                // Reopening shows what was entered; a new kilo service starts
+                // at its minimum, which is what most customers send anyway.
+                const start = this.isPicked(key)
+                    ? String(this.qty[key] ?? '')
+                    : (item.pricingType === 'kilo' && Number(item.minimumKilos) > 0 ? String(item.minimumKilos) : '');
+
+                this.sheet = { open: true, key, value: start };
+                this.sheetError = '';
+            },
+
+            closeSheet() {
+                this.sheet = { open: false, key: null, value: '' };
+                this.sheetError = '';
+            },
+
+            get sheetItem() {
+                return this.sheet.key ? this.bookable(this.sheet.key) : null;
+            },
+
+            get sheetAmount() {
+                return parseFloat(this.sheet.value) || 0;
+            },
+
+            get sheetUnit() {
+                const noun = this.sheetItem?.unitNoun;
+                if (noun === 'kg') return 'kg';
+                if (noun === 'pc') return this.sheetAmount === 1 ? 'pair' : 'pairs';
+                return this.sheetAmount === 1 ? 'pc' : 'pcs';
+            },
+
+            get sheetPrompt() {
+                const noun = this.sheetItem?.unitNoun;
+                if (noun === 'kg') return 'About how many kilos?';
+                if (noun === 'pc') return 'How many pairs?';
+                return 'How many?';
+            },
+
+            get sheetPriceLine() {
+                const item = this.sheetItem;
+                if (! item) return '';
+                const unit = String(item.unit || '').trim();
+                return this.money(item.price) + (unit ? ' ' + unit : '') + (item.minimumKilos ? ' · min ' + item.minimumKilos + ' kg' : '');
+            },
+
+            get sheetChips() {
+                const noun = this.sheetItem?.unitNoun;
+                if (noun === 'kg') {
+                    const minimum = Number(this.sheetItem.minimumKilos) || 0;
+                    return [3, 5, 6, 8, 10, 12, 15].filter((kg) => kg >= minimum || kg === 3 && ! minimum);
+                }
+                return [1, 2, 3, 4, 5];
+            },
+
+            get sheetBelowMinimum() {
+                const minimum = Number(this.sheetItem?.minimumKilos) || 0;
+                return minimum > 0 && this.sheetAmount > 0 && this.sheetAmount < minimum;
+            },
+
+            sheetPress(key) {
+                let value = this.sheet.value;
+                this.sheetError = '';
+
+                if (key === 'back') {
+                    value = value.slice(0, -1);
+                } else if (key === '.') {
+                    if (value.includes('.')) return;
+                    value = (value || '0') + '.';
+                } else {
+                    if (/\.\d$/.test(value) || value.replace('.', '').length >= 4) return;
+                    value = value === '0' ? key : value + key;
+                }
+
+                this.sheet.value = value;
+            },
+
+            sheetKey(event) {
+                if (/^[0-9]$/.test(event.key)) this.sheetPress(event.key);
+                else if (event.key === '.' || event.key === ',') this.sheetPress('.');
+                else if (event.key === 'Backspace') this.sheetPress('back');
+                else if (event.key === 'Enter') this.confirmSheet();
+                else if (event.key === 'Escape') this.closeSheet();
+                else return;
+                event.preventDefault();
+                event.stopPropagation();
+            },
+
+            confirmSheet() {
+                const amount = this.sheetAmount;
+                if (amount < 0.5 || amount > 200) {
+                    this.sheetError = amount > 200 ? 'That is more than one pickup can take. Up to 200, please.' : 'Please enter at least 0.5.';
+                    return;
+                }
+
+                const key = this.sheet.key;
+                if (! this.isPicked(key)) this.picked.push(key);
+                this.qty[key] = String(Math.round(amount * 10) / 10);
+                this.clearItemErrors();
+                this.closeSheet();
             },
 
             hasAmount(key) {
@@ -901,11 +1207,11 @@
 
             /** Tapping a service on the landing page adds it to the booking. */
             pick(offeringKey) {
+                this.step = 1;
+
                 if (this.bookable(offeringKey) && ! this.isPicked(offeringKey)) {
                     this.toggle(offeringKey);
                 }
-
-                this.step = 1;
             },
 
             openStep(target) {
@@ -1054,6 +1360,7 @@
              */
             onEnter(event) {
                 const target = event.target;
+                if (this.sheet.open) return;
                 if (target.tagName === 'TEXTAREA' || target.tagName === 'BUTTON') return;
                 if (this.step >= this.totalSteps) return;
 

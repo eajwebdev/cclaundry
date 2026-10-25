@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\CycleRecord;
+use App\Support\MachineClass;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
@@ -96,9 +98,40 @@ class CustomerController extends Controller
         $visitCount = (clone $visits)->count();
         $firstVisit = (clone $visits)->oldest('created_at')->value('created_at');
         $lastVisit = (clone $visits)->latest('created_at')->value('created_at');
-        $orders = $query->with(['items', 'branch:id,name'])->latest('created_at')->orderByDesc('id')->paginate(10);
+        $orders = (clone $query)
+            ->with([
+                'items',
+                'branch:id,name,machine_count,titan_machine_numbers',
+                'processingBranch:id,name,machine_count,titan_machine_numbers',
+                // Only cycles run on a numbered machine say which machine was used.
+                'cycles' => fn ($cycles) => $cycles->whereNotNull('machine_number')->orderBy('started_at')->orderBy('id'),
+            ])
+            ->latest('created_at')->orderByDesc('id')->paginate(10);
 
-        return view('admin.customers.partials.history', compact('customer', 'visitCount', 'firstVisit', 'lastVisit', 'orders'));
+        // Every washer and dryer this customer's laundry has gone through,
+        // across all their orders, most used first.
+        $machineUsage = CycleRecord::query()
+            ->join('job_orders', 'job_orders.id', '=', 'cycle_records.job_order_id')
+            ->whereIn('cycle_records.job_order_id', (clone $query)->select('job_orders.id'))
+            ->whereNull('job_orders.deleted_at')
+            ->whereNotNull('cycle_records.machine_number')
+            ->whereIn('cycle_records.cycle_type', ['wash', 'dry'])
+            ->selectRaw('COALESCE(job_orders.processing_branch_id, job_orders.branch_id) as machine_branch_id')
+            ->selectRaw('cycle_records.machine_number, cycle_records.cycle_type, COUNT(*) as uses, MAX(cycle_records.started_at) as last_used_at')
+            ->groupByRaw('COALESCE(job_orders.processing_branch_id, job_orders.branch_id), cycle_records.machine_number, cycle_records.cycle_type')
+            ->orderByDesc('uses')->orderBy('cycle_records.machine_number')
+            ->get();
+        $machineBranches = Branch::query()
+            ->whereIn('id', $machineUsage->pluck('machine_branch_id')->unique())
+            ->get(['id', 'name', 'machine_count', 'titan_machine_numbers'])
+            ->keyBy('id');
+        $machineUsage->each(function ($row) use ($machineBranches) {
+            $row->branch = $machineBranches->get((int) $row->machine_branch_id);
+            $row->machine_class = MachineClass::label(MachineClass::forMachine($row->branch, (int) $row->machine_number));
+        });
+        $showMachineBranch = $machineBranches->count() > 1;
+
+        return view('admin.customers.partials.history', compact('customer', 'visitCount', 'firstVisit', 'lastVisit', 'orders', 'machineUsage', 'showMachineBranch'));
     }
 
     public function update(Request $request, Customer $customer)

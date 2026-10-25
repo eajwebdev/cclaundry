@@ -94,4 +94,37 @@ class CustomerHistoryTest extends TestCase
         $customer->delete();
         $this->get(route('admin.customers.history', $customer))->assertNotFound();
     }
+
+    public function test_history_shows_which_machines_each_order_used(): void
+    {
+        $customer = $this->customer('MAIN');
+        $customer->branch->update(['machine_count' => 5, 'titan_machine_numbers' => [3]]);
+        $other = $this->customer('OTHER');
+        $admin = User::factory()->create(['role' => 'super_admin']);
+
+        $first = $this->order($customer, 'JO-MACHINE-1');
+        $first->cycles()->create(['cycle_type' => 'wash', 'machine_number' => 3, 'cycle_number' => 1, 'started_at' => now()->subDays(2)->setTime(9, 15), 'ended_at' => now()->subDays(2)->setTime(9, 50)]);
+        $first->cycles()->create(['cycle_type' => 'dry', 'machine_number' => 2, 'cycle_number' => 1, 'started_at' => now()->subDays(2)->setTime(10, 0)]);
+        $first->cycles()->create(['cycle_type' => 'fold', 'machine_number' => null, 'cycle_number' => 1, 'started_at' => now()->subDays(2)->setTime(11, 0)]);
+        $second = $this->order($customer, 'JO-MACHINE-2');
+        $second->cycles()->create(['cycle_type' => 'wash', 'machine_number' => 3, 'cycle_number' => 1, 'started_at' => now()->subDay()]);
+        $this->order($customer, 'JO-NO-MACHINE');
+        $this->order($other, 'JO-OTHER')->cycles()->create(['cycle_type' => 'wash', 'machine_number' => 5, 'cycle_number' => 1, 'started_at' => now()]);
+
+        $this->actingAs($admin)->get(route('admin.customers.history', $customer))
+            ->assertOk()
+            ->assertSee('Machines used')
+            ->assertViewHas('machineUsage', function ($usage) {
+                $wash = $usage->first();
+
+                return $usage->count() === 2
+                    && $wash->cycle_type === 'wash' && (int) $wash->machine_number === 3
+                    && (int) $wash->uses === 2 && $wash->machine_class === 'Titan';
+            })
+            ->assertSee('Wash #3', false)->assertSee('× 2', false)
+            ->assertSee('#3 Titan')->assertSee('#2 Giant')
+            ->assertSee('09:15 AM – 09:50 AM', false)
+            ->assertSee('None recorded')
+            ->assertDontSee('Fold #')->assertDontSee('#5 ');
+    }
 }

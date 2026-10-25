@@ -122,10 +122,11 @@ class BookingSubmissionTest extends TestCase
         $response = $this->get(route('landing'))->assertOk();
 
         $response->assertSee('What would you like us to clean?', false);
-        $response->assertSee('Estimated weight', false);
+        $response->assertSee('About how many kilos?', false);
         $response->assertSee('Optional Add-ons', false);
         $response->assertSee('finishing spray', false);
-        $response->assertSee('Number of loads', false);
+        $response->assertSee('One load more', false);
+        $response->assertSee('Downy Mystique Fabcon', false);
         $response->assertDontSee('fixed price', false);
         $response->assertSee('Add-on', false);
 
