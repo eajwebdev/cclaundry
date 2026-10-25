@@ -242,6 +242,7 @@ Route::middleware(['auth', 'not.rider', 'settings.completed', 'system.maintenanc
         });
         Route::resource('users', UserController::class)->only(['index', 'store', 'update', 'destroy'])->middleware('menu.access:users');
         Route::resource('customers', CustomerController::class)->only(['index', 'store', 'update', 'destroy'])->middleware('menu.access:customers');
+        Route::get('/customers/{customer}/history', [CustomerController::class, 'history'])->name('customers.history')->middleware('menu.access:customers');
         Route::middleware('menu.access:services')->group(function () {
             Route::resource('services', LaundryServiceController::class)->only(['index', 'store', 'update', 'destroy']);
             Route::post('/services/presets', [LaundryServiceController::class, 'storePreset'])->name('services.presets.store');

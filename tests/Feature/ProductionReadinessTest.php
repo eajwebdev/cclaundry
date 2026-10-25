@@ -294,7 +294,7 @@ class ProductionReadinessTest extends TestCase
             ->assertDontSee('JO-FILTER-HUB');
     }
 
-    public function test_customer_module_shows_laundry_visit_count_and_loyal_status(): void
+    public function test_customer_module_shows_laundry_visits_and_sorts_each_data_column(): void
     {
         SystemSetting::query()->create([
             'business_name' => 'SPIN KLEAN LAUNDRY',
@@ -337,6 +337,34 @@ class ProductionReadinessTest extends TestCase
             ->assertSee('Ten Visit Customer')
             ->assertSee('10')
             ->assertSee('Loyal');
+
+        $customer->forceFill(['created_at' => now()->subYear()])->save();
+        $otherBranch = Branch::query()->create(['name' => 'Zeta Branch', 'code' => 'ZETA', 'is_active' => true]);
+        $other = Customer::query()->create([
+            'branch_id' => $otherBranch->id, 'name' => 'Alice Customer',
+            'unpaid_limit' => 500, 'is_active' => false,
+        ]);
+
+        foreach ([
+            'name' => [$other->id, $customer->id],
+            'branch' => [$customer->id, $other->id],
+            'unpaid_limit' => [$customer->id, $other->id],
+            'visits' => [$other->id, $customer->id],
+            'status' => [$other->id, $customer->id],
+            'created_at' => [$customer->id, $other->id],
+        ] as $sort => $ids) {
+            foreach (['asc', 'desc'] as $direction) {
+                $expected = $direction === 'asc' ? $ids : array_reverse($ids);
+                $this->get(route('admin.customers.index', compact('sort', 'direction')))
+                    ->assertOk()->assertViewHas('customers', fn ($rows) => $rows->pluck('id')->all() === $expected);
+            }
+        }
+
+        $this->get(route('admin.customers.index', [
+            'sort' => 'visits', 'direction' => 'desc', 'search' => 'Alice', 'branch_id' => $otherBranch->id, 'status' => 'inactive',
+        ]))->assertOk()->assertViewHas('customers', fn ($rows) => $rows->pluck('id')->all() === [$other->id]);
+        $this->getJson(route('admin.customers.index', ['sort' => 'invalid']))->assertUnprocessable();
+        $this->getJson(route('admin.customers.index', ['direction' => 'invalid']))->assertUnprocessable();
     }
 
     public function test_system_assistant_is_role_and_branch_scoped(): void

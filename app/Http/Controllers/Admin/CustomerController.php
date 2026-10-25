@@ -13,9 +13,26 @@ class CustomerController extends Controller
 {
     private const BILLING_TYPES = ['regular', 'po', 'monthly_billing'];
     private const STATUS_FILTERS = ['active', 'inactive'];
+    private const SORT_COLUMNS = [
+        'name' => 'customers.name',
+        'branch' => 'branch',
+        'unpaid_limit' => 'customers.unpaid_limit',
+        'visits' => 'job_orders_count',
+        'status' => 'customers.is_active',
+        'created_at' => 'customers.created_at',
+    ];
 
     public function index(Request $request)
     {
+        $sorting = $request->validate([
+            'sort' => ['nullable', Rule::in(array_keys(self::SORT_COLUMNS))],
+            'direction' => ['nullable', Rule::in(['asc', 'desc'])],
+        ]);
+        $sort = $sorting['sort'] ?? 'created_at';
+        $direction = $sorting['direction'] ?? ($sort === 'created_at' ? 'desc' : 'asc');
+        $sortColumn = $sort === 'branch'
+            ? Branch::query()->select('name')->whereColumn('branches.id', 'customers.branch_id')->limit(1)
+            : self::SORT_COLUMNS[$sort];
         $user = $request->user();
 
         $branches = Branch::query()
@@ -26,7 +43,7 @@ class CustomerController extends Controller
 
         $customers = Customer::query()
             ->with('branch')
-            ->withCount('jobOrders')
+            ->withCount(['jobOrders' => fn ($orders) => $orders->where('status', '!=', 'cancelled')])
             ->when(! $this->canChooseBranch($user), fn ($query) => $query->where('branch_id', $user->branch_id))
             ->when($request->filled('branch_id') && $this->canChooseBranch($user), fn ($query) => $query->where('branch_id', $request->branch_id))
             ->when(in_array($request->status, self::STATUS_FILTERS, true), fn ($query) => $query->where('is_active', $request->status === 'active'))
@@ -39,11 +56,12 @@ class CustomerController extends Controller
                         ->orWhere('email', 'like', "%{$search}%");
                 });
             })
-            ->latest()
+            ->orderBy($sortColumn, $direction)
+            ->orderBy('customers.id', $direction)
             ->paginate(10)
             ->withQueryString();
 
-        return view('admin.customers.index', compact('customers', 'branches'));
+        return view('admin.customers.index', compact('customers', 'branches', 'sort', 'direction'));
     }
 
     public function store(Request $request)
@@ -67,6 +85,20 @@ class CustomerController extends Controller
         return redirect()
             ->route('admin.customers.index')
             ->with('success', 'Customer created successfully.');
+    }
+
+    public function history(Request $request, Customer $customer)
+    {
+        $this->authorizeCustomer($customer);
+        $query = $customer->jobOrders()
+            ->when(! $this->canChooseBranch($request->user()), fn ($orders) => $orders->where('branch_id', $request->user()->branch_id));
+        $visits = (clone $query)->where('status', '!=', 'cancelled');
+        $visitCount = (clone $visits)->count();
+        $firstVisit = (clone $visits)->oldest('created_at')->value('created_at');
+        $lastVisit = (clone $visits)->latest('created_at')->value('created_at');
+        $orders = $query->with(['items', 'branch:id,name'])->latest('created_at')->orderByDesc('id')->paginate(10);
+
+        return view('admin.customers.partials.history', compact('customer', 'visitCount', 'firstVisit', 'lastVisit', 'orders'));
     }
 
     public function update(Request $request, Customer $customer)
