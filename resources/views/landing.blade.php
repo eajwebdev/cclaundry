@@ -182,36 +182,39 @@
                 <p class="cc-subtitle mx-auto mt-1.5 max-w-sm">Please call the branch to book in the meantime. Online booking will be back shortly.</p>
             </div>
         @else
-            {{-- Desktop: two columns of stacked cards, so the list stays about as
-                 tall as the photos beside it. --}}
-            <div class="grid gap-3 lg:grid-cols-2 lg:gap-4">
+            {{-- Two columns of cards on every screen, like the POS tiles, so a
+                 phone shows the whole price list in half the scrolling. --}}
+            <div class="grid grid-cols-2 gap-2.5 sm:gap-3 lg:gap-4">
                 @foreach ($offerings as $offering)
                     {{-- Block form on purpose: the one-line form, in a file that
                          also uses the block form, makes Blade swallow everything
                          up to the next closing tag. --}}
                     @php $unit = $offering['unit_short'] ?: null; @endphp
                     <a href="#book" @click="$dispatch('preselect-offering', '{{ $offering['key'] }}')"
-                       class="cc-card group relative flex items-center gap-4 p-3 pr-4 transition hover:-translate-y-0.5 hover:border-cc-tan lg:flex-col lg:items-start lg:gap-3 lg:p-5">
-                        <span class="cc-icon-tile h-20 w-20 rounded-2xl lg:h-14 lg:w-14">
-                            <span data-lucide="{{ $offering['icon'] }}" class="h-9 w-9 lg:h-7 lg:w-7"></span>
+                       class="cc-card group relative flex min-w-0 flex-col items-start gap-2 p-3 transition hover:-translate-y-0.5 hover:border-cc-tan sm:gap-2.5 sm:p-4 lg:gap-3 lg:p-5">
+                        <span class="cc-icon-tile h-10 w-10 rounded-xl sm:h-12 sm:w-12 lg:h-14 lg:w-14 lg:rounded-2xl">
+                            <span data-lucide="{{ $offering['icon'] }}" class="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7"></span>
                         </span>
-                        <span class="min-w-0 flex-1">
-                            <span class="flex flex-wrap items-center gap-1.5">
-                                <span class="leading-snug font-bold text-cc-deep">{{ $offering['name'] }}</span>
+                        {{-- Tapping adds it to the booking, POS style. --}}
+                        <span class="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-cc-brown text-white shadow-sm transition group-hover:scale-105 sm:top-4 sm:right-4 lg:top-5 lg:right-5 lg:h-9 lg:w-9" aria-hidden="true">
+                            <span data-lucide="plus" class="h-4 w-4"></span>
+                        </span>
+                        <span class="block w-full min-w-0">
+                            <span class="block text-[13px] leading-snug font-bold break-words text-cc-deep sm:text-[15px] lg:text-base">
+                                {{ $offering['name'] }}
                                 @if($offering['type'] === 'preset')
-                                    <span class="rounded-full bg-cc-soft px-2 py-0.5 text-[10px] font-bold tracking-wide text-cc-brown uppercase">Bundle</span>
+                                    <span class="ml-0.5 inline-block rounded-full bg-cc-soft px-1.5 py-0.5 align-middle text-[9px] font-bold tracking-wide text-cc-brown uppercase">Bundle</span>
                                 @endif
                             </span>
-                            <span class="mt-0.5 block font-display text-xl leading-tight font-bold text-cc-brown">
-                                {{ $peso($offering['price']) }}@if($unit)<span class="text-base"> / {{ $unit }}</span>@endif
+                            <span class="mt-1 block font-display text-base leading-tight font-bold text-cc-brown sm:text-lg lg:text-xl">
+                                {{ $peso($offering['price']) }}@if($unit)<span class="text-xs sm:text-sm lg:text-base"> / {{ $unit }}</span>@endif
                             </span>
                             @if($offering['includes'])
-                                <span class="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-cc-muted">{{ implode(' + ', $offering['includes']) }}</span>
+                                <span class="mt-1 line-clamp-3 block text-[11px] leading-snug text-cc-muted sm:text-xs sm:leading-relaxed">{{ implode(' + ', $offering['includes']) }}</span>
                             @elseif($offering['blurb'])
-                                <span class="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-cc-muted">{{ $offering['blurb'] }}</span>
+                                <span class="mt-1 line-clamp-3 block text-[11px] leading-snug text-cc-muted sm:text-xs sm:leading-relaxed">{{ $offering['blurb'] }}</span>
                             @endif
                         </span>
-                        <span data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-cc-muted transition group-hover:translate-x-0.5 group-hover:text-cc-brown lg:absolute lg:top-6 lg:right-5"></span>
                     </a>
                 @endforeach
             </div>

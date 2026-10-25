@@ -863,6 +863,54 @@ textarea {
         background-size: 1rem;
     }
 
+    /* Small phones: tighter type and controls so a form fits the screen.
+       Typed text stays at 16px, because iOS zooms into any smaller field. */
+    @media (max-width: 419px) {
+        .cc-title {
+            font-size: 1.5rem;
+        }
+
+        .cc-subtitle {
+            font-size: 0.8125rem;
+            line-height: 1.5;
+        }
+
+        .cc-label {
+            font-size: 0.8125rem;
+        }
+
+        .cc-help,
+        .cc-error {
+            font-size: 0.6875rem;
+        }
+
+        .cc-input {
+            min-height: 2.75rem;
+            padding: 0.55rem 0.85rem;
+            border-radius: 0.75rem;
+        }
+
+        .cc-input::placeholder {
+            font-size: 0.875rem;
+        }
+
+        textarea.cc-input {
+            min-height: 4.25rem;
+        }
+
+        select.cc-input {
+            padding-right: 2.25rem;
+            background-position: right 0.75rem center;
+        }
+
+        .cc-btn,
+        .cc-btn-outline {
+            min-height: 2.75rem;
+            padding: 0.5rem 1.15rem;
+            font-size: 0.875rem;
+        }
+    }
+
     /* iOS collapses an empty date field and centres its value. */
     input[type="date"].cc-input::-webkit-date-and-time-value {
         text-align: left;

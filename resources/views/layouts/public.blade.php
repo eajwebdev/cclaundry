@@ -94,7 +94,7 @@
                aria-label="{{ $publicBusinessName }} home">
                 <x-brand-mark class="h-9 w-9" />
                 <span class="min-w-0 text-left leading-none">
-                    <span class="block truncate font-display text-base font-bold tracking-[0.1em] text-cc-deep uppercase">{{ $publicWordmark }}</span>
+                    <span class="block truncate font-display text-[13px] font-bold tracking-[0.04em] text-cc-deep uppercase min-[360px]:text-base min-[360px]:tracking-[0.1em]">{{ $publicWordmark }}</span>
                     @if($publicWordmarkSub)
                         <span class="mt-0.5 block text-[9px] font-bold tracking-[0.42em] text-cc-muted uppercase">{{ $publicWordmarkSub }}</span>
                     @endif

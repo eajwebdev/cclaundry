@@ -139,7 +139,7 @@
     $reviewRows[] = ['sticky-note', 'Special instructions', 'form.notes', 3, 'form.notes'];
 @endphp
 
-<section id="book" class="scroll-mt-20 px-4 pt-16 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
+<section id="book" class="scroll-mt-20 px-3 pt-16 min-[420px]:px-4 sm:pt-20 lg:scroll-mt-24 lg:pt-28">
     <div class="mx-auto max-w-xl {{ $offerings->isEmpty() ? '' : 'lg:max-w-6xl' }}">
 
         @if($offerings->isEmpty())
@@ -270,7 +270,7 @@
                 </ul>
             </aside>
 
-            <div x-ref="card" class="cc-card scroll-mt-20 p-5 sm:p-8 lg:scroll-mt-28 lg:p-10">
+            <div x-ref="card" class="cc-card scroll-mt-20 p-4 min-[420px]:p-5 sm:p-8 lg:scroll-mt-28 lg:p-10">
 
                 {{-- ─────────── Progress ─────────── --}}
                 <div class="lg:hidden">
@@ -305,7 +305,7 @@
 
                 {{-- ═══ Step 1: service & weight ═══ --}}
                 <div data-step="1" x-show="step === 1" class="mt-6 lg:mt-0">
-                    <h2 class="cc-title text-[1.7rem] sm:text-3xl">Book Your Laundry Pickup</h2>
+                    <h2 class="cc-title text-[1.4rem] min-[420px]:text-[1.7rem] sm:text-3xl">Book Your Laundry Pickup</h2>
                     <p class="cc-subtitle mt-1.5">
                         @if($bookingCustomer)
                             Booking as <span class="font-bold text-cc-brown">{{ $bookingCustomer->name }}</span>. We&rsquo;ve filled in the details we already have.
@@ -510,10 +510,10 @@
 
                 {{-- ═══ Step 2: customer details ═══ --}}
                 <div data-step="2" x-show="step === 2" x-cloak class="mt-6 lg:mt-0">
-                    <h2 class="cc-title text-[1.7rem] sm:text-3xl">Customer Details</h2>
+                    <h2 class="cc-title text-[1.4rem] min-[420px]:text-[1.7rem] sm:text-3xl">Customer Details</h2>
                     <p class="cc-subtitle mt-1.5">Please provide your details so we can contact you.</p>
 
-                    <div class="mt-6 space-y-4">
+                    <div class="mt-5 space-y-3.5 min-[420px]:mt-6 min-[420px]:space-y-4">
                         <div>
                             <label for="contact_name" class="cc-label">Full Name <span class="text-cc-brown">*</span></label>
                             <input id="contact_name" type="text" name="contact_name" required autocomplete="name"
@@ -589,7 +589,7 @@
 
                 {{-- ═══ Step 3: pickup schedule & return ═══ --}}
                 <div data-step="3" x-show="step === 3" x-cloak class="mt-6 lg:mt-0">
-                    <h2 class="cc-title text-[1.7rem] sm:text-3xl">Choose Your Pickup Schedule</h2>
+                    <h2 class="cc-title text-[1.4rem] min-[420px]:text-[1.7rem] sm:text-3xl">Choose Your Pickup Schedule</h2>
                     <p class="cc-subtitle mt-1.5">Select your preferred date and time.</p>
 
                     <div class="mt-6 grid gap-4 sm:grid-cols-2">
@@ -733,7 +733,7 @@
 
                 {{-- ═══ Step 4: review ═══ --}}
                 <div data-step="4" x-show="step === 4" x-cloak class="mt-6 lg:mt-0">
-                    <h2 class="cc-title text-[1.7rem] sm:text-3xl">Review Your Booking</h2>
+                    <h2 class="cc-title text-[1.4rem] min-[420px]:text-[1.7rem] sm:text-3xl">Review Your Booking</h2>
                     <p class="cc-subtitle mt-1.5">Please check your details before confirming.</p>
 
                     <ul class="mt-5 divide-y divide-cc-line rounded-2xl border border-cc-line bg-white/60 px-4">
@@ -774,19 +774,19 @@
                 {{-- ─────────── Navigation ─────────── --}}
                 {{-- On a phone this bar sticks to the bottom of the screen while the
                      card is in view, so the total and Continue are always in reach. --}}
-                <div class="sticky bottom-0 z-20 -mx-5 mt-7 flex items-center gap-3 border-t border-cc-line bg-cc-surface/95 px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:-mx-8 sm:px-8 lg:static lg:mx-0 lg:mt-8 lg:justify-end lg:bg-transparent lg:px-0 lg:pt-6 lg:pb-0 lg:backdrop-blur-none">
+                <div class="sticky bottom-0 z-20 -mx-4 mt-6 flex items-center gap-2.5 border-t border-cc-line bg-cc-surface/95 px-4 pt-2.5 min-[420px]:-mx-5 min-[420px]:mt-7 min-[420px]:gap-3 min-[420px]:px-5 min-[420px]:pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:-mx-8 sm:px-8 lg:static lg:mx-0 lg:mt-8 lg:justify-end lg:bg-transparent lg:px-0 lg:pt-6 lg:pb-0 lg:backdrop-blur-none">
                     <button type="button" @click="back()" x-show="step > 1" x-cloak
-                            class="cc-btn-outline w-12 shrink-0 px-0 lg:mr-auto lg:w-auto lg:px-5" aria-label="Back to the previous step">
+                            class="cc-btn-outline w-11 shrink-0 px-0 min-[420px]:w-12 lg:mr-auto lg:w-auto lg:px-5" aria-label="Back to the previous step">
                         <span data-lucide="arrow-left" class="h-5 w-5"></span>
                         <span class="hidden lg:inline">Back</span>
                     </button>
 
                     <div class="min-w-0 flex-1 lg:hidden">
-                        <p class="text-[11px] font-semibold text-cc-muted" x-text="lines.length ? (lines.length === 1 ? '1 item' : lines.length + ' items') + ' · estimate' : 'Estimate'"></p>
-                        <p class="font-display text-xl leading-none font-bold text-cc-deep" x-text="money(estimate)"></p>
+                        <p class="truncate text-[10px] font-semibold text-cc-muted min-[420px]:text-[11px]" x-text="lines.length ? (lines.length === 1 ? '1 item' : lines.length + ' items') : 'Estimate'"></p>
+                        <p class="font-display text-lg leading-none font-bold text-cc-deep min-[420px]:text-xl" x-text="money(estimate)"></p>
                     </div>
 
-                    <button type="button" @click="next()" x-show="step < totalSteps" class="cc-btn shrink-0 px-6 lg:px-10">
+                    <button type="button" @click="next()" x-show="step < totalSteps" class="cc-btn shrink-0 px-5 min-[420px]:px-6 lg:px-10">
                         Continue
                         <span data-lucide="arrow-right" class="h-4 w-4"></span>
                     </button>
