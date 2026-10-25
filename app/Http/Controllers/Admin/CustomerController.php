@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\CycleRecord;
+use App\Support\CustomerInsights;
 use App\Support\MachineClass;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -20,6 +21,7 @@ class CustomerController extends Controller
         'branch' => 'branch',
         'unpaid_limit' => 'customers.unpaid_limit',
         'visits' => 'job_orders_count',
+        'spent' => 'total_spent',
         'status' => 'customers.is_active',
         'created_at' => 'customers.created_at',
     ];
@@ -29,9 +31,11 @@ class CustomerController extends Controller
         $sorting = $request->validate([
             'sort' => ['nullable', Rule::in(array_keys(self::SORT_COLUMNS))],
             'direction' => ['nullable', Rule::in(['asc', 'desc'])],
+            'period' => ['nullable', Rule::in(array_keys(CustomerInsights::PERIODS))],
         ]);
+        $period = $sorting['period'] ?? 'month';
         $sort = $sorting['sort'] ?? 'created_at';
-        $direction = $sorting['direction'] ?? (in_array($sort, ['unpaid_limit', 'visits', 'created_at'], true) ? 'desc' : 'asc');
+        $direction = $sorting['direction'] ?? (in_array($sort, ['unpaid_limit', 'visits', 'spent', 'created_at'], true) ? 'desc' : 'asc');
         $sortColumn = $sort === 'branch'
             ? Branch::query()->select('name')->whereColumn('branches.id', 'customers.branch_id')->limit(1)
             : self::SORT_COLUMNS[$sort];
@@ -43,11 +47,19 @@ class CustomerController extends Controller
             ->orderBy('name')
             ->get();
 
-        $customers = Customer::query()
+        // Everyone this user may see in the chosen branch; the insights panel
+        // and the table both start from here.
+        $visibleCustomers = Customer::query()
+            ->when(! $this->canChooseBranch($user), fn ($query) => $query->where('customers.branch_id', $user->branch_id))
+            ->when($request->filled('branch_id') && $this->canChooseBranch($user), fn ($query) => $query->where('customers.branch_id', $request->branch_id));
+        $insights = (new CustomerInsights(clone $visibleCustomers, $period))->toArray();
+
+        $visits = fn ($orders) => $orders->where('status', '!=', 'cancelled');
+        $customers = (clone $visibleCustomers)
             ->with('branch')
-            ->withCount(['jobOrders' => fn ($orders) => $orders->where('status', '!=', 'cancelled')])
-            ->when(! $this->canChooseBranch($user), fn ($query) => $query->where('branch_id', $user->branch_id))
-            ->when($request->filled('branch_id') && $this->canChooseBranch($user), fn ($query) => $query->where('branch_id', $request->branch_id))
+            ->withCount(['jobOrders' => $visits])
+            ->withSum(['jobOrders as total_spent' => $visits], 'total')
+            ->withMax(['jobOrders as last_visit_at' => $visits], 'created_at')
             ->when(in_array($request->status, self::STATUS_FILTERS, true), fn ($query) => $query->where('is_active', $request->status === 'active'))
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->search;
@@ -63,7 +75,9 @@ class CustomerController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        return view('admin.customers.index', compact('customers', 'branches', 'sort', 'direction'));
+        $topSpenderIds = $insights['topSpenders']->pluck('customer.id')->all();
+
+        return view('admin.customers.index', compact('customers', 'branches', 'sort', 'direction', 'period', 'insights', 'topSpenderIds'));
     }
 
     public function store(Request $request)

@@ -152,4 +152,68 @@ class CustomerHistoryTest extends TestCase
             ->assertSee('direction=asc', false)->assertSee('Fewest visits first');
         $this->get(route('admin.customers.index'))->assertSee('Most visits first');
     }
+
+    public function test_insights_rank_best_customers_and_find_lapsed_regulars(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 20)->setTime(12, 0));
+        $vip = $this->customer('MAIN');
+        $vip->update(['name' => 'Vip Vera']);
+        $branchId = $vip->branch_id;
+        $make = fn (string $name) => Customer::query()->create(['branch_id' => $branchId, 'name' => $name, 'is_active' => true]);
+        $regular = $make('Regular Rita');
+        $lapsed = $make('Lapsed Lito');
+        $once = $make('Once Olive');
+        $make('Never Nora');
+        $other = $this->customer('OTHER');
+
+        $visit = function (Customer $customer, string $number, string $date, float $total, float $balance = 0, string $status = 'completed') {
+            $order = JobOrder::query()->create([
+                'customer_id' => $customer->id, 'branch_id' => $customer->branch_id, 'job_order_number' => $number,
+                'status' => $status, 'subtotal' => $total, 'total' => $total, 'balance' => $balance,
+            ]);
+            $order->forceFill(['created_at' => $date])->save();
+        };
+        $visit($vip, 'V1', '2026-10-05', 1000);
+        $visit($vip, 'V2', '2026-10-15', 900, 300);
+        foreach (['R1' => '2026-10-02', 'R2' => '2026-10-08', 'R3' => '2026-10-18'] as $number => $date) {
+            $visit($regular, $number, $date, 150);
+        }
+        $visit($regular, 'R-CANCELLED', '2026-10-19', 5000, 0, 'cancelled');
+        foreach (['L1' => '2026-06-01', 'L2' => '2026-07-01', 'L3' => '2026-08-01'] as $number => $date) {
+            $visit($lapsed, $number, $date, 200, $number === 'L3' ? 50 : 0);
+        }
+        $visit($once, 'OL1', '2026-09-10', 100);
+        $visit($other, 'O1', '2026-10-10', 99999);
+
+        $this->actingAs(User::factory()->create(['role' => 'super_admin']));
+        $names = fn ($rows) => $rows->map(fn ($row) => $row->customer->name)->all();
+
+        $response = $this->get(route('admin.customers.index', ['branch_id' => $branchId]))->assertOk()
+            ->assertSee('Customer insights')->assertSee('Most visits')->assertSee('Haven&#039;t come back', false);
+        $insights = $response->viewData('insights');
+
+        $this->assertSame('month', $insights['period']);
+        $this->assertSame(2, $insights['activeCustomers']);
+        $this->assertSame(5, $insights['newCustomers']);
+        $this->assertSame(5, $insights['visitCount']);
+        $this->assertEqualsWithDelta(2350 / 5, $insights['averageSpend'], 0.001);
+        // Vera, Rita and Lito came back; Olive came once.
+        $this->assertEquals(75, $insights['repeatRate']);
+        $this->assertSame(['Regular Rita', 'Vip Vera'], $names($insights['mostVisits']));
+        $this->assertSame(['Vip Vera', 'Regular Rita'], $names($insights['topSpenders']));
+        $this->assertSame(['Vip Vera', 'Lapsed Lito'], $names($insights['unpaidBalances']));
+        $this->assertEquals(350, $insights['unpaidTotal']);
+        $this->assertSame(['Lapsed Lito'], $names($insights['lapsedRegulars']));
+        $this->assertNotContains('Customer OTHER', $names($insights['topSpenders']));
+        $this->assertContains($vip->id, $response->viewData('topSpenderIds'));
+
+        // All time counts Lito's summer visits too.
+        $allTime = $this->get(route('admin.customers.index', ['branch_id' => $branchId, 'period' => 'all']))->viewData('insights');
+        $this->assertSame(['Regular Rita', 'Lapsed Lito', 'Vip Vera', 'Once Olive'], $names($allTime['mostVisits']));
+
+        // The table can sort by money spent, highest first.
+        $this->assertSame('Vip Vera', $this->get(route('admin.customers.index', ['branch_id' => $branchId, 'sort' => 'spent']))
+            ->viewData('customers')->first()->name);
+        $this->get(route('admin.customers.index', ['period' => 'forever']))->assertSessionHasErrors('period');
+    }
 }

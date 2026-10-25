@@ -3,7 +3,7 @@
 @section('page_title', 'Customers')
 
 @section('content')
-@php($canChooseBranch = auth()->user()->isSuperAdmin() || auth()->user()->role === 'admin')
+@php $canChooseBranch = auth()->user()->isSuperAdmin() || auth()->user()->role === 'admin'; @endphp
 <div x-data="customerRecords" class="space-y-4">
     <div class="flex flex-col gap-3 rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -21,10 +21,95 @@
         </button>
     </div>
 
+    {{-- Customer insights: who the best and most loyal customers are. --}}
+    @php
+        $currency = $appSettings?->currency ?? 'PHP';
+        $money = fn ($amount) => $currency.' '.number_format((float) $amount, 2);
+        $lists = [
+            ['Most visits', 'repeat', 'Regulars in '.strtolower($insights['periodLabel']), $insights['mostVisits'],
+                fn ($row) => $row->visits.' '.\Illuminate\Support\Str::plural('visit', $row->visits), fn ($row) => $money($row->spent).' spent'],
+            ['Top spenders', 'crown', 'Best customers by sales', $insights['topSpenders'],
+                fn ($row) => $money($row->spent), fn ($row) => $row->visits.' '.\Illuminate\Support\Str::plural('visit', $row->visits)],
+            ['Unpaid balances', 'hand-coins', 'Collect on their next visit', $insights['unpaidBalances'],
+                fn ($row) => $money($row->owed), fn ($row) => 'Last visit '.$row->last_visit_at?->format('M d')],
+            ['Haven\'t come back', 'user-x', \App\Support\CustomerInsights::REGULAR_VISITS.'+ visits, away '.\App\Support\CustomerInsights::LAPSED_DAYS.'+ days', $insights['lapsedRegulars'],
+                fn ($row) => $row->last_visit_at?->diffForHumans(null, \Carbon\CarbonInterface::DIFF_ABSOLUTE).' away', fn ($row) => $row->visits.' visits before'],
+        ];
+        $emptyText = [
+            'Most visits' => 'No visits in this period yet.',
+            'Top spenders' => 'No sales in this period yet.',
+            'Unpaid balances' => 'Nobody owes anything. Nice!',
+            'Haven\'t come back' => 'All regulars are still coming in.',
+        ];
+    @endphp
+    <section aria-labelledby="customer-insights-title" class="space-y-3 rounded-lg border border-border bg-white p-3 shadow-sm sm:p-4 dark:border-gray-800 dark:bg-gray-900">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h2 id="customer-insights-title" class="text-base font-semibold">Customer insights</h2>
+                <p class="text-xs text-muted">Visits exclude cancelled orders. {{ $canChooseBranch && ! request('branch_id') ? 'All branches.' : 'This branch only.' }}</p>
+            </div>
+            <nav aria-label="Insights period" class="flex gap-1 overflow-x-auto rounded-md bg-smoke p-1 dark:bg-gray-950">
+                @foreach(\App\Support\CustomerInsights::PERIODS as $periodKey => $periodLabel)
+                    <a href="{{ route('admin.customers.index', array_merge(request()->except('page', 'period'), ['period' => $periodKey])) }}"
+                       @if($period === $periodKey) aria-current="true" @endif
+                       class="whitespace-nowrap rounded px-2.5 py-1 text-xs font-medium {{ $period === $periodKey ? 'bg-white text-dark shadow-sm dark:bg-gray-800 dark:text-white' : 'text-muted hover:text-dark dark:hover:text-white' }}">{{ $periodLabel }}</a>
+                @endforeach
+            </nav>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            @foreach([
+                ['Active customers', number_format($insights['activeCustomers']), number_format($insights['newCustomers']).' new '.($period === 'all' ? 'in total' : strtolower($insights['periodLabel']))],
+                ['Repeat rate', $insights['repeatRate'] === null ? '—' : $insights['repeatRate'].'%', number_format($insights['returnedCustomers']).' of '.number_format($insights['visitedCustomers']).' came back (all time)'],
+                ['Average spend', $insights['averageSpend'] === null ? '—' : $money($insights['averageSpend']), 'per visit · '.number_format($insights['visitCount']).' '.\Illuminate\Support\Str::plural('visit', $insights['visitCount'])],
+                ['Unpaid balance', $money($insights['unpaidTotal']), number_format($insights['unpaidCustomers']).' '.\Illuminate\Support\Str::plural('customer', $insights['unpaidCustomers']).' owe'],
+            ] as [$label, $value, $hint])
+                <div class="rounded-md border border-border p-3 dark:border-gray-800">
+                    <p class="text-xs text-muted">{{ $label }}</p>
+                    <p class="mt-1 truncate text-lg font-semibold tabular-nums">{{ $value }}</p>
+                    <p class="truncate text-[11px] text-muted" title="{{ $hint }}">{{ $hint }}</p>
+                </div>
+            @endforeach
+        </div>
+
+        <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+            @foreach($lists as [$title, $icon, $subtitle, $rows, $stat, $detail])
+                <div class="rounded-md border border-border dark:border-gray-800">
+                    <div class="flex items-center gap-2 border-b border-border px-3 py-2 dark:border-gray-800">
+                        <span data-lucide="{{ $icon }}" class="h-4 w-4 text-primary"></span>
+                        <div class="min-w-0">
+                            <h3 class="text-sm font-semibold">{{ $title }}</h3>
+                            <p class="truncate text-[11px] text-muted">{{ $subtitle }}</p>
+                        </div>
+                    </div>
+                    <ol class="divide-y divide-border dark:divide-gray-800">
+                        @forelse($rows as $rank => $row)
+                            <li>
+                                <button type="button" data-history-url="{{ route('admin.customers.history', $row->customer) }}" data-customer-name="{{ $row->customer->name }}"
+                                        @click="openHistory($el.dataset.historyUrl, $el.dataset.customerName)"
+                                        class="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-smoke dark:hover:bg-gray-950" title="View {{ $row->customer->name }}'s history">
+                                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold {{ $rank === 0 ? 'bg-primary text-white' : 'bg-smoke text-muted dark:bg-gray-800' }}">{{ $rank + 1 }}</span>
+                                    <span class="min-w-0 flex-1">
+                                        <span class="block truncate text-sm font-medium">{{ $row->customer->name }}</span>
+                                        <span class="block truncate text-[11px] text-muted">{{ $detail($row) }}</span>
+                                    </span>
+                                    <span class="shrink-0 text-right text-xs font-semibold tabular-nums">{{ $stat($row) }}</span>
+                                </button>
+                            </li>
+                        @empty
+                            <li class="px-3 py-4 text-center text-xs text-muted">{{ $emptyText[$title] }}</li>
+                        @endforelse
+                    </ol>
+                </div>
+            @endforeach
+        </div>
+    </section>
+
     <div class="rounded-lg border border-border bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
         <form method="GET" action="{{ route('admin.customers.index') }}" class="grid grid-cols-1 gap-2 md:grid-cols-[1fr_11rem_11rem_9rem_auto]">
             <input type="hidden" name="sort" value="{{ $sort }}">
             <input type="hidden" name="direction" value="{{ $direction }}">
+            <input type="hidden" name="period" value="{{ $period }}">
             <div class="flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 dark:border-gray-800 dark:bg-gray-950">
                 <span data-lucide="search" class="h-4 w-4 text-muted"></span>
                 <input name="search" value="{{ request('search') }}" type="search" placeholder="Search customers..." class="w-full bg-transparent text-sm outline-none">
@@ -58,9 +143,9 @@
             <table class="w-full text-left text-sm">
                 <thead class="border-b border-border bg-smoke text-xs uppercase text-muted dark:border-gray-800 dark:bg-gray-950">
                     <tr>
-                        @foreach(['name' => 'Customer', 'branch' => 'Branch', 'unpaid_limit' => 'Unpaid Limit', 'visits' => 'Laundry Visits', 'created_at' => 'Created', 'status' => 'Status'] as $key => $label)
-                            @php($firstDirection = in_array($key, ['unpaid_limit', 'visits', 'created_at'], true) ? 'desc' : 'asc')
-                            @php($nextDirection = $sort === $key ? ($direction === 'asc' ? 'desc' : 'asc') : $firstDirection)
+                        @foreach(['name' => 'Customer', 'branch' => 'Branch', 'unpaid_limit' => 'Unpaid Limit', 'visits' => 'Laundry Visits', 'spent' => 'Total Spent', 'created_at' => 'Created', 'status' => 'Status'] as $key => $label)
+                            @php $firstDirection = in_array($key, ['unpaid_limit', 'visits', 'spent', 'created_at'], true) ? 'desc' : 'asc'; @endphp
+                            @php $nextDirection = $sort === $key ? ($direction === 'asc' ? 'desc' : 'asc') : $firstDirection; @endphp
                             <th scope="col" class="px-4 py-3" aria-sort="{{ $sort === $key ? ($direction === 'asc' ? 'ascending' : 'descending') : 'none' }}">
                                 <a href="{{ route('admin.customers.index', array_merge(request()->except('page', 'sort', 'direction'), ['sort' => $key, 'direction' => $nextDirection])) }}"
                                    class="inline-flex items-center gap-1.5 whitespace-nowrap hover:text-primary {{ $sort === $key ? 'text-primary' : '' }}"
@@ -69,6 +154,7 @@
                                        'created_at' => $nextDirection === 'asc' ? 'Oldest first' : 'Newest first',
                                        'visits' => $nextDirection === 'asc' ? 'Fewest visits first' : 'Most visits first',
                                        'unpaid_limit' => $nextDirection === 'asc' ? 'Lowest limit first' : 'Highest limit first',
+                                       'spent' => $nextDirection === 'asc' ? 'Lowest spend first' : 'Highest spend first',
                                        default => $nextDirection === 'asc' ? 'Sort A to Z' : 'Sort Z to A',
                                    } }}">
                                     {{ $label }}
@@ -93,6 +179,15 @@
                                 <span class="font-semibold">{{ number_format($customer->job_orders_count) }}</span>
                                 @if($customer->job_orders_count >= 10)
                                     <span class="ml-1 inline-flex rounded-md border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-violet-700 dark:border-violet-900/60 dark:bg-violet-500/10 dark:text-violet-300">Loyal</span>
+                                @endif
+                                @if($customer->last_visit_at)
+                                    <p class="whitespace-nowrap text-xs text-muted">Last {{ \Illuminate\Support\Carbon::parse($customer->last_visit_at)->format('M d, Y') }}</p>
+                                @endif
+                            </td>
+                            <td class="whitespace-nowrap px-4 py-3">
+                                {{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $customer->total_spent, 2) }}
+                                @if(in_array($customer->id, $topSpenderIds, true))
+                                    <span class="ml-1 inline-flex rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-700 dark:border-amber-900/60 dark:bg-amber-500/10 dark:text-amber-300" title="Top 5 by sales, {{ strtolower($insights['periodLabel']) }}">Top spender</span>
                                 @endif
                             </td>
                             <td class="whitespace-nowrap px-4 py-3">{{ $customer->created_at?->format('M d, Y') }}</td>
@@ -130,7 +225,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-4 py-10 text-center text-muted">No customers found.</td>
+                            <td colspan="9" class="px-4 py-10 text-center text-muted">No customers found.</td>
                         </tr>
                     @endforelse
                 </tbody>
