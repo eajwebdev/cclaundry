@@ -127,4 +127,29 @@ class CustomerHistoryTest extends TestCase
             ->assertSee('None recorded')
             ->assertDontSee('Fold #')->assertDontSee('#5 ');
     }
+
+    public function test_customer_columns_sort_both_ways_with_numbers_biggest_first(): void
+    {
+        $quiet = $this->customer('MAIN');
+        $quiet->update(['name' => 'Ana Quiet', 'unpaid_limit' => 500]);
+        $busy = Customer::query()->create(['branch_id' => $quiet->branch_id, 'name' => 'Zed Busy', 'unpaid_limit' => 100, 'is_active' => true]);
+        foreach (range(1, 3) as $i) {
+            $this->order($busy, 'JO-BUSY-'.$i);
+        }
+        $this->order($quiet, 'JO-QUIET-1');
+        $this->actingAs(User::factory()->create(['role' => 'super_admin']));
+        $names = fn (array $query) => $this->get(route('admin.customers.index', $query))->assertOk()->viewData('customers')->pluck('name')->all();
+
+        // A first click on a number column shows the biggest first.
+        $this->assertSame(['Zed Busy', 'Ana Quiet'], $names(['sort' => 'visits']));
+        $this->assertSame(['Ana Quiet', 'Zed Busy'], $names(['sort' => 'visits', 'direction' => 'asc']));
+        $this->assertSame(['Ana Quiet', 'Zed Busy'], $names(['sort' => 'unpaid_limit']));
+        $this->assertSame(['Ana Quiet', 'Zed Busy'], $names(['sort' => 'name']));
+        $this->assertSame(['Zed Busy', 'Ana Quiet'], $names(['sort' => 'name', 'direction' => 'desc']));
+
+        // The header link flips the direction of the active column.
+        $this->get(route('admin.customers.index', ['sort' => 'visits', 'direction' => 'desc']))
+            ->assertSee('direction=asc', false)->assertSee('Fewest visits first');
+        $this->get(route('admin.customers.index'))->assertSee('Most visits first');
+    }
 }

@@ -31,7 +31,7 @@ class CustomerController extends Controller
             'direction' => ['nullable', Rule::in(['asc', 'desc'])],
         ]);
         $sort = $sorting['sort'] ?? 'created_at';
-        $direction = $sorting['direction'] ?? ($sort === 'created_at' ? 'desc' : 'asc');
+        $direction = $sorting['direction'] ?? (in_array($sort, ['unpaid_limit', 'visits', 'created_at'], true) ? 'desc' : 'asc');
         $sortColumn = $sort === 'branch'
             ? Branch::query()->select('name')->whereColumn('branches.id', 'customers.branch_id')->limit(1)
             : self::SORT_COLUMNS[$sort];

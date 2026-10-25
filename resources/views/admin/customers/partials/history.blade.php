@@ -49,28 +49,27 @@
             </thead>
             <tbody class="divide-y divide-border dark:divide-gray-800">
                 @forelse($orders as $order)
-                    <tr>
+                    <tr class="align-top">
                         <td class="whitespace-nowrap px-3 py-3">{{ $order->created_at?->format('M d, Y h:i A') }}</td>
                         <td class="px-3 py-3">
                             <p class="whitespace-nowrap font-medium">{{ $order->job_order_number }}</p>
                             <p class="text-xs text-muted">{{ $order->branch?->name }}</p>
                         </td>
-                        <td class="min-w-40 px-3 py-3">
+                        <td class="min-w-56 px-3 py-3">
                             @forelse($order->items as $item)
                                 <p>{{ $item->description }} × {{ (float) $item->quantity }}</p>
                             @empty
                                 <span class="text-muted">No service details</span>
                             @endforelse
                         </td>
-                        <td class="min-w-44 px-3 py-3">
+                        <td class="px-3 py-3">
                             @php $machineBranch = $order->processingBranch ?? $order->branch; @endphp
                             @forelse($order->cycles as $cycle)
-                                <p class="whitespace-nowrap">
+                                {{-- One line per cycle keeps busy orders compact. --}}
+                                <p class="whitespace-nowrap leading-relaxed">
                                     <span class="font-medium">{{ $cycleLabels[$cycle->cycle_type] ?? ucfirst($cycle->cycle_type) }}</span>
                                     {{ $machineName($machineBranch, $cycle->machine_number) }}
-                                </p>
-                                <p class="mb-1 whitespace-nowrap text-xs text-muted">
-                                    {{ $cycle->started_at?->format('M d, h:i A') ?? 'Not started' }}@if($cycle->ended_at) – {{ $cycle->ended_at->format('h:i A') }}@endif
+                                    <span class="text-xs text-muted">· {{ $cycle->started_at?->format('M d, h:i A') ?? 'Not started' }}@if($cycle->ended_at) – {{ $cycle->ended_at->format('h:i A') }}@endif</span>
                                 </p>
                             @empty
                                 <span class="text-muted">None recorded</span>

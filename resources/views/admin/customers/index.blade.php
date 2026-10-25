@@ -59,14 +59,20 @@
                 <thead class="border-b border-border bg-smoke text-xs uppercase text-muted dark:border-gray-800 dark:bg-gray-950">
                     <tr>
                         @foreach(['name' => 'Customer', 'branch' => 'Branch', 'unpaid_limit' => 'Unpaid Limit', 'visits' => 'Laundry Visits', 'created_at' => 'Created', 'status' => 'Status'] as $key => $label)
-                            @php($nextDirection = $sort === $key && $direction === 'asc' ? 'desc' : 'asc')
+                            @php($firstDirection = in_array($key, ['unpaid_limit', 'visits', 'created_at'], true) ? 'desc' : 'asc')
+                            @php($nextDirection = $sort === $key ? ($direction === 'asc' ? 'desc' : 'asc') : $firstDirection)
                             <th scope="col" class="px-4 py-3" aria-sort="{{ $sort === $key ? ($direction === 'asc' ? 'ascending' : 'descending') : 'none' }}">
                                 <a href="{{ route('admin.customers.index', array_merge(request()->except('page', 'sort', 'direction'), ['sort' => $key, 'direction' => $nextDirection])) }}"
                                    class="inline-flex items-center gap-1.5 whitespace-nowrap hover:text-primary {{ $sort === $key ? 'text-primary' : '' }}"
                                    aria-label="Sort {{ $label }} {{ $nextDirection === 'asc' ? 'ascending' : 'descending' }}"
-                                   title="{{ $key === 'created_at' ? ($nextDirection === 'asc' ? 'Oldest first' : 'Newest first') : ($nextDirection === 'asc' ? 'Sort ascending' : 'Sort descending') }}">
+                                   title="{{ match ($key) {
+                                       'created_at' => $nextDirection === 'asc' ? 'Oldest first' : 'Newest first',
+                                       'visits' => $nextDirection === 'asc' ? 'Fewest visits first' : 'Most visits first',
+                                       'unpaid_limit' => $nextDirection === 'asc' ? 'Lowest limit first' : 'Highest limit first',
+                                       default => $nextDirection === 'asc' ? 'Sort A to Z' : 'Sort Z to A',
+                                   } }}">
                                     {{ $label }}
-                                    <span data-lucide="{{ $sort === $key ? ($direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down' }}" class="h-3.5 w-3.5" aria-hidden="true"></span>
+                                    <span data-lucide="{{ $sort === $key ? ($direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down' }}" class="h-3.5 w-3.5 {{ $sort === $key ? '' : 'opacity-40' }}" aria-hidden="true"></span>
                                 </a>
                             </th>
                         @endforeach
@@ -139,8 +145,8 @@
     <dialog x-cloak x-effect="if (historyOpen && !$el.open) $el.showModal(); else if (!historyOpen && $el.open) $el.close()"
             aria-labelledby="customer-history-title"
             @cancel="historyOpen = false" @close="historyOpen = false" @click="if ($event.target === $el) historyOpen = false"
-            class="m-auto max-h-[90dvh] w-[calc(100%_-_2rem)] max-w-5xl overflow-hidden rounded-lg bg-white p-0 text-dark shadow-2xl backdrop:bg-black/50 dark:bg-gray-900 dark:text-gray-100">
-        <section class="flex max-h-[90dvh] w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-gray-900">
+            class="m-auto h-[92dvh] max-h-[92dvh] w-[calc(100%_-_1.5rem)] max-w-[96rem] overflow-hidden rounded-lg bg-white p-0 text-dark shadow-2xl backdrop:bg-black/50 dark:bg-gray-900 dark:text-gray-100">
+        <section class="flex h-full max-h-[92dvh] w-full flex-col overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-gray-900">
             <div class="flex shrink-0 items-center justify-between gap-3 border-b border-border p-4 dark:border-gray-800">
                 <div>
                     <h2 id="customer-history-title" class="text-lg font-semibold">Customer history</h2>
@@ -150,7 +156,7 @@
                     <span data-lucide="x" class="h-4 w-4"></span>
                 </button>
             </div>
-            <div class="min-h-0 overflow-y-auto p-4" :aria-busy="historyLoading">
+            <div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5" :aria-busy="historyLoading">
                 <p x-show="historyLoading" role="status" class="py-8 text-center text-sm text-muted">Loading history…</p>
                 <div x-show="historyError" role="alert" class="py-4 text-center text-sm">
                     <p x-text="historyError"></p>
