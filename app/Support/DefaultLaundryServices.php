@@ -33,6 +33,9 @@ class DefaultLaundryServices
             ['name' => 'Downy Mystique',             'pricing_type' => 'custom', 'price' => 10, 'price_unit_label' => 'per load', 'category' => 'Add-ons', 'report_category' => 'fabcon', 'landing' => ['pinned' => true, 'icon' => 'sparkles', 'order' => 10, 'blurb' => 'Optional fabric conditioner for your load.']],
             ['name' => 'Downy Sunrise',              'pricing_type' => 'custom', 'price' => 10, 'price_unit_label' => 'per load', 'category' => 'Add-ons', 'report_category' => 'fabcon', 'landing' => ['pinned' => true, 'icon' => 'sparkles', 'order' => 11, 'blurb' => 'Optional fabric conditioner for your load.']],
             ['name' => 'Finishing Spray',             'pricing_type' => 'custom', 'price' => 0,  'price_unit_label' => 'per load', 'category' => 'Add-ons', 'report_category' => 'finishing_spray', 'landing' => ['pinned' => true, 'icon' => 'spray-can', 'order' => 12, 'blurb' => 'Optional finishing spray for your load.']],
+            // Free odor treatment for smelly laundry, measured in ml. Staff
+            // only: it replaces the fabric conditioner, so it is not pinned.
+            ['name' => 'Vinegar',                    'pricing_type' => 'ml',     'price' => 0,  'price_unit_label' => 'per ml',   'category' => 'Add-ons', 'report_category' => 'vinegar'],
         ];
     }
 

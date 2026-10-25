@@ -477,6 +477,8 @@ class JobOrderController extends Controller
             ]);
         }
 
+        $validated['items'] = $this->applyVinegarRules($validated['items'], $selectedServices);
+
         $createdOrder = null;
         $response = DB::transaction(function () use ($request, $validated, $selectedServices, $user, &$createdOrder) {
             $pickupRequest = null;
@@ -690,6 +692,8 @@ class JobOrderController extends Controller
                 'items' => 'All services must belong to this job order branch.',
             ]);
         }
+
+        $validated['items'] = $this->applyVinegarRules($validated['items'], $selectedServices);
 
         return DB::transaction(function () use ($request, $validated, $selectedServices, $jobOrder) {
             $previousProcessingBranchId = (int) ($jobOrder->processing_branch_id ?: $jobOrder->branch_id);
@@ -1088,7 +1092,8 @@ class JobOrderController extends Controller
 
         $deductions = [];
         $hasDetergentAddon = $services->contains('report_category', 'detergent');
-        $hasFabconAddon = $services->contains('report_category', 'fabcon');
+        // Vinegar (for smelly laundry) takes the fabric conditioner's place.
+        $hasFabconAddon = $services->contains(fn ($service) => in_array($service->report_category, ['fabcon', 'vinegar'], true));
 
         foreach ($items as $item) {
             $service = $services->get((int) $item['laundry_service_id']);
@@ -1098,7 +1103,7 @@ class JobOrderController extends Controller
             }
 
             $hasPlasticBagUsage = false;
-            $isProductAddon = in_array($service->report_category, ['detergent', 'fabcon'], true);
+            $isProductAddon = in_array($service->report_category, ['detergent', 'fabcon', 'vinegar'], true);
 
             foreach ($service->inventoryUsages as $usage) {
                 // Replace matching defaults in any service recipe, while
@@ -1182,6 +1187,31 @@ class JobOrderController extends Controller
                 'quantity' => round((float) $inventory->quantity - $quantity, 4),
             ]);
         }
+    }
+
+    /**
+     * Vinegar is a free odor treatment that replaces the fabric conditioner:
+     * it is always charged at zero, and any fabcon on the same order (an
+     * add-on or the fabcon inside a package) is dropped.
+     */
+    private function applyVinegarRules(array $items, $selectedServices): array
+    {
+        $categoryOf = fn (array $item) => $selectedServices->get((int) ($item['laundry_service_id'] ?? 0))?->report_category;
+        $hasVinegar = collect($items)->contains(fn (array $item) => $categoryOf($item) === 'vinegar');
+
+        if (! $hasVinegar) {
+            return $items;
+        }
+
+        $kept = array_values(array_filter($items, fn (array $item) => $categoryOf($item) !== 'fabcon'));
+
+        return array_map(function (array $item) use ($categoryOf) {
+            if ($categoryOf($item) === 'vinegar') {
+                $item['unit_price'] = 0;
+            }
+
+            return $item;
+        }, $kept);
     }
 
     private function restoreInventoryForOrder(JobOrder $order, ?int $userId): void

@@ -36,6 +36,7 @@ class DefaultServiceInventoryUsages
             'Downy Mystique' => ['Downy Mystique Fabric Conditioner' => 1],
             'Downy Sunrise' => ['Downy Sunrise Fabric Conditioner' => 1],
             'Finishing Spray' => ['Finishing Spray' => 1],
+            'Vinegar' => ['Vinegar' => 1],
         ];
     }
 

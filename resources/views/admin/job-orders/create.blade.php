@@ -703,11 +703,12 @@
         <div class="w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl dark:bg-gray-900">
             <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                    <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-muted">Weigh first</p>
-                    <h2 id="weight-keypad-title" class="truncate font-serif text-lg font-bold" x-text="keypad.service?.name"></h2>
-                    <p class="text-xs text-muted" x-text="keypad.service ? priceTag(keypad.service) + (keypadMinimum ? ` · min ${fmtQty(keypadMinimum)} ${keypadUnit}` : '') : ''"></p>
+                    <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-muted" x-text="keypadIsVinegar ? 'Smelly laundry?' : 'Weigh first'"></p>
+                    <h2 id="weight-keypad-title" class="truncate font-serif text-lg font-bold" x-text="keypadIsVinegar ? 'Add vinegar' : keypad.service?.name"></h2>
+                    <p x-show="!keypadIsVinegar" class="text-xs text-muted" x-text="keypad.service ? priceTag(keypad.service) + (keypadMinimum ? ` · min ${fmtQty(keypadMinimum)} ${keypadUnit}` : '') : ''"></p>
+                    <p x-show="keypadIsVinegar" x-cloak class="text-xs text-muted">Free · how many ml?</p>
                 </div>
-                <button type="button" @click="closeKeypad()" class="rounded-lg p-1.5 text-muted hover:bg-smoke dark:hover:bg-gray-800" aria-label="Close keypad">
+                <button type="button" @click="keypadIsVinegar ? skipVinegar() : closeKeypad()" class="rounded-lg p-1.5 text-muted hover:bg-smoke dark:hover:bg-gray-800" aria-label="Close keypad">
                     <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                 </button>
             </div>
@@ -717,7 +718,22 @@
                     <span x-text="keypad.value || '0'"></span>
                     <span class="text-lg text-muted" x-text="keypadUnit"></span>
                 </p>
-                <p class="mt-1 text-xs text-muted" x-show="keypadWeight > 0" x-text="'= ' + peso(keypadWeight * Number(keypad.service?.price || 0))"></p>
+                <p class="mt-1 text-xs text-muted" x-show="keypadWeight > 0 && !keypadIsVinegar" x-text="'= ' + peso(keypadWeight * Number(keypad.service?.price || 0))"></p>
+                <p class="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400" x-show="keypadWeight > 0 && keypadIsVinegar" x-cloak>Free</p>
+            </div>
+            <div x-show="keypadIsVinegar" x-cloak class="mt-2 space-y-2">
+                <p class="rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800 dark:bg-amber-500/10 dark:text-amber-300"
+                   x-text="'Vinegar replaces the fabric conditioner: no Yen Yen'
+                        + (fabconLines.length ? `, ${fabconLines.map(item => item.name).join(', ')} removed` : '')
+                        + (fabconPresetLines.length ? `, and the fabcon in ${fabconPresetLines.map(item => item.name).join(', ')} is taken off` : '')
+                        + '.'"></p>
+                <div class="grid grid-cols-4 gap-2">
+                    <template x-for="ml in [50, 100, 150, 200]" :key="ml">
+                        <button type="button" @click="setVinegarMl(ml)" class="h-9 rounded-lg border text-xs font-bold"
+                                :class="keypadWeight === ml ? 'border-primary-deep bg-primary-deep text-white' : 'border-border dark:border-gray-700'"
+                                x-text="`${ml} ml`"></button>
+                    </template>
+                </div>
             </div>
             <p x-show="keypadBelowMinimum" x-cloak class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800 dark:bg-amber-500/10 dark:text-amber-300"
                x-text="`Below the ${fmtQty(keypadMinimum)} ${keypadUnit} minimum. Charge the minimum (${peso(keypadMinimum * Number(keypad.service?.price || 0))}) or the actual weight.`"></p>
@@ -732,13 +748,18 @@
                 </template>
             </div>
 
-            <div class="mt-3 grid gap-2" :class="keypadBelowMinimum ? 'grid-cols-2' : 'grid-cols-1'">
+            <div x-show="keypadIsVinegar" x-cloak class="mt-3 grid grid-cols-2 gap-2">
+                <button type="button" @click="skipVinegar()" class="h-11 rounded-lg border border-border text-sm font-bold dark:border-gray-700">No vinegar</button>
+                <button type="button" @click="confirmKeypad(true)" :disabled="keypadWeight <= 0" class="h-11 rounded-lg bg-primary-deep text-sm font-bold text-white disabled:bg-primary-soft"
+                        x-text="keypadWeight > 0 ? `Add ${fmtQty(keypadWeight)} ml vinegar` : 'Enter the ml'"></button>
+            </div>
+            <div x-show="!keypadIsVinegar" class="mt-3 grid gap-2" :class="keypadBelowMinimum ? 'grid-cols-2' : 'grid-cols-1'">
                 <button type="button" x-show="keypadBelowMinimum" @click="confirmKeypad(false)" class="h-11 rounded-lg border border-border text-sm font-bold dark:border-gray-700"
                         x-text="`Charge ${fmtQty(keypadWeight)} ${keypadUnit}`"></button>
                 <button type="button" @click="confirmKeypad(true)" :disabled="keypadWeight <= 0" class="h-11 rounded-lg bg-primary-deep text-sm font-bold text-white disabled:bg-primary-soft"
                         x-text="keypadBelowMinimum ? `Charge ${fmtQty(keypadMinimum)} ${keypadUnit} minimum` : (keypadWeight > 0 ? `Add ${fmtQty(keypadWeight)} ${keypadUnit}` : 'Enter the weight')"></button>
             </div>
-            <button type="button" x-show="keypad.service && lineFor(keypad.service)" @click="removeLine(keypad.service); closeKeypad()" class="mt-2 w-full text-center text-xs font-semibold text-red-600 hover:underline">Remove from order</button>
+            <button type="button" x-show="!keypadIsVinegar && keypad.service && lineFor(keypad.service)" @click="removeLine(keypad.service); closeKeypad()" class="mt-2 w-full text-center text-xs font-semibold text-red-600 hover:underline">Remove from order</button>
         </div>
     </div>
 
@@ -863,7 +884,8 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         submitting: false,
         editIndex: null,
         bookingLoaded: @js((bool) $booked),
-        keypad: { open: false, service: null, value: '' },
+        // step: 'weight' for the scale, then 'vinegar' to ask about smelly laundry.
+        keypad: { open: false, service: null, value: '', step: 'weight' },
         recentIds: [],
         tagModalOpen: @js((bool) ($tagLookupError ?? null)),
         tagSearch: @js($tagCode ?? ''),
@@ -906,6 +928,10 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
                 window.addEventListener('online', () => this.pollTags());
                 this.pollTags();
             }
+
+            // Vinegar cancels the fabcon inside packages too, so keep their prices in step.
+            this.$watch('items', () => this.syncPresetFabcon());
+            this.syncPresetFabcon();
 
             this.$watch('branchId', () => {
                 if (this.isEditing) {
@@ -1178,6 +1204,7 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
             return [
                 { key: 'detergent', label: 'Detergent' },
                 { key: 'fabcon', label: 'Fabric conditioner' },
+                { key: 'vinegar', label: 'Smelly laundry' },
                 { key: 'extras', label: 'Extras' },
             ]
                 .map(group => ({ ...group, services: addons.filter(s => this.addonKind(s) === group.key) }))
@@ -1244,9 +1271,55 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         addonKind(service) {
             const category = this.reportCategory(service);
             const name = String(service.name || '').toLowerCase();
+            if (category === 'vinegar' || /vinegar/.test(name)) return 'vinegar';
             if (category === 'fabcon' || /fabcon|fabric|conditioner|downy|comfort/.test(name)) return 'fabcon';
             if (category === 'detergent' || /detergent|ariel|tide|surf|breeze|champion/.test(name)) return 'detergent';
             return 'extras';
+        },
+        /** Free vinegar for smelly laundry; it replaces the fabric conditioner. */
+        get vinegarService() {
+            return this.availableServices.find(service => this.isAddon(service) && this.addonKind(service) === 'vinegar') || null;
+        },
+        get vinegarLine() {
+            return this.vinegarService ? this.lineFor(this.vinegarService) : null;
+        },
+        get fabconLines() {
+            return this.items.filter(item => {
+                return item.type !== 'preset' && this.isFabconService(this.serviceById(item.id));
+            });
+        },
+        isFabconService(service) {
+            return Boolean(service) && this.isAddon(service) && this.addonKind(service) === 'fabcon';
+        },
+        presetById(id) {
+            return this.servicePresets.find(preset => String(preset.id) === String(id)) || null;
+        },
+        /** Price of the fabcon inside one package. */
+        presetFabconTotal(preset) {
+            return preset.items
+                .filter(item => this.isFabconService(this.serviceById(item.id)))
+                .reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.price || 0), 0);
+        },
+        /** Package lines in the cart that include a fabcon. */
+        get fabconPresetLines() {
+            return this.items.filter(item => {
+                const preset = item.type === 'preset' ? this.presetById(item.id) : null;
+                return preset && this.presetFabconTotal(preset) > 0;
+            });
+        },
+        /** With vinegar on the order, each package is charged without its fabcon. */
+        syncPresetFabcon() {
+            const withoutFabcon = Boolean(this.vinegarLine);
+            this.items.forEach(item => {
+                if (item.type !== 'preset') return;
+                const preset = this.presetById(item.id);
+                if (!preset) return;
+                const fabcon = this.presetFabconTotal(preset);
+                const price = this.presetTotal(preset) - (withoutFabcon ? fabcon : 0);
+                const summary = this.presetSummary(preset) + (withoutFabcon && fabcon > 0 ? ' · no fabcon (vinegar)' : '');
+                if (item.price !== price) item.price = price;
+                if (item.summary !== summary) item.summary = summary;
+            });
         },
         get rushService() {
             return this.availableServices.find(service => /\brush\b/i.test(service.name)) || null;
@@ -1272,6 +1345,7 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
             return this.peso(service.price) + (unit ? ` / ${unit}` : '');
         },
         addonPrice(service) {
+            if (Number(service.price) === 0) return 'Free';
             const unit = this.unitShort(service);
             return '+' + this.peso(service.price) + (unit ? `/${unit}` : '');
         },
@@ -1293,7 +1367,7 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
             if (name.includes('dry clean'))                              return 'sparkles';
             if (name.includes('dry') || name.includes('dryer'))          return 'wind';
             if (name.includes('wash only'))                              return 'washing-machine';
-            if (name.includes('bleach') || name.includes('stain'))       return 'flask-conical';
+            if (name.includes('bleach') || name.includes('stain') || name.includes('vinegar')) return 'flask-conical';
             if (name.includes('hang'))                                   return 'shirt';
             if (name.includes('shoe'))                                   return 'footprints';
             if (name.includes('carpet'))                                 return 'layout-grid';
@@ -1343,6 +1417,10 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
             this.items = this.items.filter(item => !(item.type !== 'preset' && String(item.id) === String(service.id)));
         },
         toggleAddon(service) {
+            if (this.addonKind(service) === 'vinegar') {
+                this.openVinegar();
+                return;
+            }
             // Sold by weight (e.g. hand wash per kilo): weigh it like a laundry
             // service rather than charging one unit. The keypad can also remove it.
             if (this.usesKeypad({ type: 'service', pricing_type: service.pricing_type })) {
@@ -1352,6 +1430,10 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
             if (this.lineFor(service)) {
                 this.removeLine(service);
                 return;
+            }
+            // Fabric conditioner and vinegar don't go together.
+            if (this.addonKind(service) === 'fabcon' && this.vinegarLine) {
+                this.removeLine(this.vinegarService);
             }
             this.add(service);
         },
@@ -1433,19 +1515,41 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         openKeypad(service) {
             if (!service) return;
             const line = this.lineFor(service);
-            this.keypad = { open: true, service, value: line ? this.fmtQty(line.quantity) : '' };
+            this.keypad = { open: true, service, value: line ? this.fmtQty(line.quantity) : '', step: 'weight' };
         },
         closeKeypad() {
-            this.keypad = { open: false, service: null, value: '' };
+            this.keypad = { open: false, service: null, value: '', step: 'weight' };
+        },
+        /** Ask how many ml of vinegar, in the same keypad. */
+        openVinegar() {
+            const service = this.vinegarService;
+            if (!service) {
+                this.closeKeypad();
+                return;
+            }
+            const line = this.lineFor(service);
+            this.keypad = { open: true, service, value: line ? this.fmtQty(line.quantity) : '', step: 'vinegar' };
+        },
+        get keypadIsVinegar() {
+            return this.keypad.step === 'vinegar';
+        },
+        setVinegarMl(ml) {
+            this.keypad.value = String(ml);
+        },
+        /** "No vinegar": drop any vinegar already on the order. */
+        skipVinegar() {
+            if (this.vinegarLine) this.removeLine(this.vinegarService);
+            this.closeKeypad();
         },
         get keypadUnit() {
+            if (this.keypadIsVinegar) return 'ml';
             return this.keypad.service?.pricing_type === 'liter' ? 'L' : 'kg';
         },
         get keypadWeight() {
             return Number(this.keypad.value) || 0;
         },
         get keypadMinimum() {
-            return this.keypad.service?.pricing_type === 'kilo' ? Number(this.keypad.service.minimum_kilos || 0) : 0;
+            return !this.keypadIsVinegar && this.keypad.service?.pricing_type === 'kilo' ? Number(this.keypad.service.minimum_kilos || 0) : 0;
         },
         get keypadBelowMinimum() {
             return this.keypadWeight > 0 && this.keypadMinimum > 0 && this.keypadWeight < this.keypadMinimum;
@@ -1468,14 +1572,28 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
             else if (event.key === '.' || event.key === ',') this.keypadPress('.');
             else if (event.key === 'Backspace') this.keypadPress('back');
             else if (event.key === 'Enter') this.confirmKeypad(true);
-            else if (event.key === 'Escape') this.closeKeypad();
+            else if (event.key === 'Escape') this.keypadIsVinegar ? this.skipVinegar() : this.closeKeypad();
             else return;
             event.preventDefault();
         },
         confirmKeypad(useMinimum) {
             if (this.keypadWeight <= 0) return;
+            if (this.keypadIsVinegar) {
+                // Vinegar is free and takes the place of every fabric conditioner.
+                this.fabconLines.forEach(item => this.removeLine(this.serviceById(item.id)));
+                this.add(this.keypad.service, Math.round(this.keypadWeight * 100) / 100);
+                this.lineFor(this.keypad.service).price = 0;
+                this.closeKeypad();
+                return;
+            }
+            const service = this.keypad.service;
             const quantity = useMinimum ? Math.max(this.keypadWeight, this.keypadMinimum) : this.keypadWeight;
-            this.add(this.keypad.service, Math.round(quantity * 100) / 100);
+            this.add(service, Math.round(quantity * 100) / 100);
+            // After weighing a laundry service, ask if it's smelly and needs vinegar.
+            if (service.pricing_type === 'kilo' && !this.isAddon(service) && this.vinegarService) {
+                this.openVinegar();
+                return;
+            }
             this.closeKeypad();
         },
 
