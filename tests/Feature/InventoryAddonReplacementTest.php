@@ -124,6 +124,33 @@ class InventoryAddonReplacementTest extends TestCase
         $this->assertEquals(0, (float) $this->stock['fabcon']->fresh()->quantity);
     }
 
+    public static function otherServiceSelections(): array
+    {
+        $cases = [];
+        foreach (['kilo', 'load', 'piece'] as $pricingType) {
+            foreach ([[], ['fabcon'], ['detergent'], ['detergent', 'fabcon']] as $categories) {
+                $cases[$pricingType.' with '.(implode(' and ', $categories) ?: 'defaults')] = [$pricingType, $categories];
+            }
+        }
+
+        return $cases;
+    }
+
+    #[DataProvider('otherServiceSelections')]
+    public function test_other_services_replace_defaults_and_preserve_their_own_recipe_quantities(string $pricingType, array $categories): void
+    {
+        $this->regular->update(['name' => 'Blanket Cleaning', 'pricing_type' => $pricingType]);
+        $order = $this->createOrder($categories);
+        // This service uses its fixed recipe five times, without Regular
+        // Laundry's weight-based dosing or special packaging calculation.
+        $this->assertEquals(in_array('detergent', $categories) ? 1 : 0.9, (float) $this->stock['detergent']->fresh()->quantity);
+        $this->assertEquals(in_array('fabcon', $categories) ? 1 : 0.925, (float) $this->stock['fabcon']->fresh()->quantity);
+        $this->assertEquals(in_array('detergent', $categories) ? 9 : 10, (float) $this->stock['ariel']->fresh()->quantity);
+        $this->assertEquals(in_array('fabcon', $categories) ? 9 : 10, (float) $this->stock['downy']->fresh()->quantity);
+        $this->assertEquals(15, (float) $this->stock['bag']->fresh()->quantity);
+        $this->assertEquals(150 + (in_array('detergent', $categories) ? 20 : 0) + (in_array('fabcon', $categories) ? 10 : 0), (float) $order->total);
+    }
+
     public function test_editing_addons_restores_previous_stock_and_recalculates_defaults(): void
     {
         $order = $this->createOrder([]);

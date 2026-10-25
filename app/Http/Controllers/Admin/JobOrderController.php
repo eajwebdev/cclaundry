@@ -1098,12 +1098,13 @@ class JobOrderController extends Controller
             }
 
             $hasPlasticBagUsage = false;
+            $isProductAddon = in_array($service->report_category, ['detergent', 'fabcon'], true);
 
             foreach ($service->inventoryUsages as $usage) {
-                // Add-ons replace Regular Laundry's default product of the
-                // same kind. Skip before resolving production stock: an unused
+                // Replace matching defaults in any service recipe, while
+                // retaining each chosen add-on's own stock usage. An unused
                 // default must not require stock in the production branch.
-                if (InventoryConsumption::isRegularLaundry($service)
+                if (! $isProductAddon
                     && (($hasDetergentAddon && InventoryConsumption::isDetergent($usage->inventory?->sku, $usage->inventory?->name))
                         || ($hasFabconAddon && InventoryConsumption::isFabricConditioner($usage->inventory?->sku, $usage->inventory?->name)))) {
                     continue;
