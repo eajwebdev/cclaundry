@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
+use App\Models\JobOrder;
 use App\Models\PickupRequest;
 use App\Models\User;
 use App\Support\Activity;
 use App\Support\Geocoder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Dispatch view: every rider on the map, every open run in a list, and the
@@ -48,13 +51,83 @@ class RiderDispatchController extends Controller
             ->orderBy('pickup_date')
             ->get();
 
+        // Counter-created orders need delivery too, even without a pickup booking.
+        $readyOrders = JobOrder::query()
+            ->where('status', 'ready_for_delivery')
+            ->whereNull('released_at')
+            ->when($selectedBranchId, fn ($query) => $query->where('branch_id', $selectedBranchId))
+            ->with(['customer', 'branch:id,name', 'pickupRequest.rider:id,name'])
+            ->orderByDesc('is_rush')
+            ->orderBy('created_at')
+            ->get();
+
         return view('admin.riders.index', [
             'branches' => $branches,
             'canChooseBranch' => $canChooseBranch,
             'selectedBranchId' => $selectedBranchId,
             'riders' => $riders,
             'activeRuns' => $activeRuns,
+            'readyOrders' => $readyOrders,
         ]);
+    }
+
+    public function assignDelivery(Request $request, JobOrder $jobOrder)
+    {
+        abort_unless($request->user()->canManageAllBranches()
+            || (int) $jobOrder->branch_id === (int) $request->user()->branch_id, 403);
+
+        $validated = $request->validate(['rider_id' => ['required', 'integer', 'exists:users,id']]);
+        $rider = User::query()->riders()->where('status', 'active')
+            ->where('branch_id', $jobOrder->branch_id)->find($validated['rider_id']);
+        if (! $rider) {
+            throw ValidationException::withMessages(['rider_id' => 'Choose an active rider from the order branch.']);
+        }
+
+        DB::transaction(function () use ($request, $jobOrder, $rider) {
+            // Serialize assignment so a retry cannot create a second delivery run.
+            $order = JobOrder::query()->lockForUpdate()->findOrFail($jobOrder->id);
+            if ($order->status !== 'ready_for_delivery' || $order->released_at) {
+                throw ValidationException::withMessages(['rider_id' => 'This order is no longer ready for delivery.']);
+            }
+
+            $run = $order->pickupRequest()->lockForUpdate()->first();
+            if ($run && in_array($run->status, ['completed', 'cancelled'], true)) {
+                throw ValidationException::withMessages(['rider_id' => 'The linked run is already closed.']);
+            }
+
+            if (! $run) {
+                $customer = $order->customer;
+                $run = $order->pickupRequest()->create([
+                    'reference_no' => 'DL-JO-'.$order->id,
+                    'branch_id' => $order->branch_id,
+                    'customer_id' => $order->customer_id,
+                    'contact_name' => $customer?->name ?? '',
+                    'contact_phone' => $customer?->phone ?? '',
+                    'contact_email' => $customer?->email,
+                    'pickup_address' => $customer?->address ?? '',
+                    'pickup_date' => today(),
+                    'delivery_address' => $customer?->address,
+                    'delivery_latitude' => $customer?->latitude,
+                    'delivery_longitude' => $customer?->longitude,
+                    'is_rush' => $order->is_rush,
+                    'estimated_total' => $order->total,
+                    'status' => 'picked_up',
+                    'delivery_preference' => 'deliver',
+                    'handled_by' => $request->user()->id,
+                ]);
+            }
+
+            // The laundry is already at the counter; never send it through pickup again.
+            $run->update(['status' => 'picked_up', 'delivery_preference' => 'deliver']);
+            $run->assignRider($rider->id);
+            Activity::log($request, 'pickup_request_rider_assigned', $run, [
+                'reference_no' => $run->reference_no,
+                'job_order_id' => $order->id,
+                'rider_id' => $rider->id,
+            ], $order->branch_id);
+        });
+
+        return back()->with('success', 'Delivery rider assigned to '.$jobOrder->job_order_number.'.');
     }
 
     /**

@@ -55,6 +55,36 @@
         </section>
 
         <div class="space-y-4">
+            <section class="overflow-hidden rounded-xl border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div class="border-b border-border px-4 py-3 dark:border-gray-800">
+                    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Ready for delivery</p>
+                    <h2 class="mt-1 text-lg font-semibold">{{ $readyOrders->count() }} {{ \Illuminate\Support\Str::plural('order', $readyOrders->count()) }}</h2>
+                </div>
+                <ul class="divide-y divide-border dark:divide-gray-800">
+                    @forelse($readyOrders as $order)
+                        <li class="space-y-2 px-4 py-3">
+                            <p class="text-sm font-medium">{{ $order->customer?->name }}</p>
+                            <p class="font-mono text-xs text-muted">{{ $order->job_order_number }}</p>
+                            <p class="text-xs text-muted">{{ $order->branch?->name }} · {{ $order->pickupRequest?->delivery_address ?: $order->customer?->address }}</p>
+                            <p class="text-xs text-muted">Balance: {{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $order->balance, 2) }}</p>
+                            <form method="POST" action="{{ route('admin.riders.assign-delivery', $order) }}" class="flex gap-2">
+                                @csrf
+                                @method('PATCH')
+                                <select name="rider_id" required aria-label="Delivery rider for {{ $order->job_order_number }}" class="min-w-0 flex-1 rounded-md border border-border bg-white px-2 py-2 text-sm dark:border-gray-800 dark:bg-gray-950">
+                                    <option value="">Choose rider</option>
+                                    @foreach($riders->where('branch_id', $order->branch_id) as $rider)
+                                        <option value="{{ $rider->id }}" @selected($order->pickupRequest?->rider_id === $rider->id)>{{ $rider->name }}</option>
+                                    @endforeach
+                                </select>
+                                <button type="submit" class="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white">Assign</button>
+                            </form>
+                        </li>
+                    @empty
+                        <li class="px-4 py-6 text-center text-sm text-muted">No orders ready for delivery.</li>
+                    @endforelse
+                </ul>
+            </section>
+
             {{-- Roster --}}
             <section class="overflow-hidden rounded-xl border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div class="border-b border-border px-4 py-3 dark:border-gray-800">

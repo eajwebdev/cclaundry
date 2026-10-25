@@ -1377,6 +1377,92 @@ class RiderTrackingTest extends TestCase
             ->assertJson(['tracking' => false]);
     }
 
+    public function test_dispatch_lists_counter_orders_and_assigns_deliveries_without_pickup_bookings(): void
+    {
+        $this->completeSystemSettings();
+        $this->activeTrial();
+        $branch = $this->branch();
+        $rider = $this->rider($branch);
+        $manager = User::factory()->create([
+            'role' => 'branch_manager', 'branch_id' => $branch->id,
+            'status' => 'active', 'access' => ['riders'],
+        ]);
+        $orders = collect([
+            ['regular', 219, 0], ['delivery', 162, 162], ['delivery', 218, 218],
+        ])->map(function ($values) use ($branch) {
+            [$type, $total, $balance] = $values;
+            $order = $this->jobOrder($branch, 'ready_for_delivery');
+            $order->update(['transaction_type' => $type, 'total' => $total, 'balance' => $balance]);
+            $order->customer->update(['address' => 'Talubangi', 'latitude' => 9.98, 'longitude' => 122.81]);
+
+            return $order;
+        });
+        $foreignOrder = $this->jobOrder($this->secondBranch(), 'ready_for_delivery');
+        $notReady = $this->jobOrder($branch, 'washing');
+
+        $this->actingAs($manager)->get(route('admin.riders.index'))
+            ->assertOk()->assertViewHas('readyOrders', fn ($ready) => $ready->modelKeys() === $orders->pluck('id')->all())
+            ->assertSee($orders[0]->job_order_number)->assertSee($orders[1]->job_order_number)
+            ->assertSee($orders[2]->job_order_number)->assertDontSee($foreignOrder->job_order_number)
+            ->assertDontSee($notReady->job_order_number);
+        $this->assertDatabaseCount('pickup_requests', 0);
+
+        foreach ($orders as $order) {
+            // Repeated submissions reuse the run and leave the balance alone.
+            for ($attempt = 0; $attempt < 2; $attempt++) {
+                $this->actingAs($manager)->patch(route('admin.riders.assign-delivery', $order), ['rider_id' => $rider->id])
+                    ->assertRedirect()->assertSessionHasNoErrors();
+            }
+            $run = $order->pickupRequest()->sole();
+            $this->assertSame('picked_up', $run->status);
+            $this->assertSame('deliver', $run->delivery_preference);
+            $this->assertSame($rider->id, $run->rider_id);
+            $this->assertSame('Talubangi', $run->delivery_address);
+            $this->assertEquals(9.98, $run->delivery_latitude);
+            $this->assertEquals($order->balance, $order->fresh()->balance);
+            $this->actingAs($rider)->get(route('rider.index', ['tab' => 'deliver']))
+                ->assertOk()->assertViewHas('toDeliver', fn ($runs) => $runs->contains('id', $run->id));
+            $this->actingAs($rider)->patchJson(route('rider.jobs.status', $run), ['status' => 'completed'])
+                ->assertOk();
+            $this->assertNotNull($order->fresh()->released_at);
+        }
+        $this->assertDatabaseCount('pickup_requests', 3);
+    }
+
+    public function test_dispatch_delivery_assignment_reuses_bookings_and_enforces_branch_and_order_state(): void
+    {
+        $this->completeSystemSettings();
+        $this->activeTrial();
+        $branch = $this->branch();
+        $otherBranch = $this->secondBranch();
+        $rider = $this->rider($branch);
+        $foreignRider = $this->rider($otherBranch);
+        $manager = User::factory()->create([
+            'role' => 'branch_manager', 'branch_id' => $branch->id,
+            'status' => 'active', 'access' => ['riders'],
+        ]);
+        $order = $this->jobOrder($branch, 'ready_for_delivery');
+        $run = $this->booking($branch, [
+            'customer_id' => $order->customer_id, 'job_order_id' => $order->id,
+            'status' => 'picked_up', 'delivery_address' => 'Custom delivery address',
+        ]);
+        $this->actingAs($manager)->patch(route('admin.riders.assign-delivery', $order), ['rider_id' => $rider->id])
+            ->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame($rider->id, $run->fresh()->rider_id);
+        $this->assertSame('Custom delivery address', $run->fresh()->delivery_address);
+        $this->assertDatabaseCount('pickup_requests', 1);
+
+        $this->patch(route('admin.riders.assign-delivery', $order), ['rider_id' => $foreignRider->id])
+            ->assertSessionHasErrors('rider_id');
+        $foreignOrder = $this->jobOrder($otherBranch, 'ready_for_delivery');
+        $this->patch(route('admin.riders.assign-delivery', $foreignOrder), ['rider_id' => $foreignRider->id])
+            ->assertForbidden();
+        $order->update(['status' => 'washing']);
+        $this->patch(route('admin.riders.assign-delivery', $order), ['rider_id' => $rider->id])
+            ->assertSessionHasErrors('rider_id');
+        $this->assertDatabaseCount('pickup_requests', 1);
+    }
+
     public function test_dispatcher_assigns_a_rider_and_the_booking_is_confirmed(): void
     {
         $this->completeSystemSettings();

@@ -291,6 +291,7 @@ Route::middleware(['auth', 'not.rider', 'settings.completed', 'system.maintenanc
             Route::get('/riders', [RiderDispatchController::class, 'index'])->name('riders.index');
             Route::get('/riders/locations', [RiderDispatchController::class, 'locations'])->name('riders.locations');
             Route::patch('/riders/pickup-requests/{pickupRequest}', [RiderDispatchController::class, 'assign'])->name('riders.assign');
+            Route::patch('/riders/job-orders/{jobOrder}', [RiderDispatchController::class, 'assignDelivery'])->name('riders.assign-delivery');
         });
         Route::middleware('menu.access:cycles')->group(function () {
             Route::get('/cycles', [CycleController::class, 'index'])->name('cycles.index');
