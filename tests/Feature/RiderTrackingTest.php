@@ -1463,6 +1463,42 @@ class RiderTrackingTest extends TestCase
         $this->assertDatabaseCount('pickup_requests', 1);
     }
 
+    public function test_dispatch_order_status_and_search_filters_preserve_branch_scope(): void
+    {
+        $this->completeSystemSettings();
+        $this->activeTrial();
+        $branch = $this->branch();
+        $manager = User::factory()->create([
+            'role' => 'branch_manager', 'branch_id' => $branch->id,
+            'status' => 'active', 'access' => ['riders'],
+        ]);
+        $ready = $this->jobOrder($branch, 'ready_for_delivery');
+        $ready->customer->update(['name' => 'Trisha Alfred Elliot', 'address' => 'Bino Orong']);
+        $washing = $this->jobOrder($branch, 'washing');
+        $foreign = $this->jobOrder($this->secondBranch(), 'washing');
+        $foreign->customer->update(['name' => 'Trisha Alfred Elliot']);
+
+        foreach ([
+            ['status' => 'washing', 'ids' => [$washing->id]],
+            ['status' => 'all', 'ids' => [$ready->id, $washing->id]],
+            ['search' => 'Trisha', 'ids' => [$ready->id]],
+            ['search' => $ready->job_order_number, 'ids' => [$ready->id]],
+            ['search' => 'Bino Orong', 'ids' => [$ready->id]],
+            ['status' => 'washing', 'search' => 'Trisha', 'ids' => []],
+            ['search' => 'no matching customer', 'ids' => []],
+        ] as $case) {
+            $ids = $case['ids'];
+            unset($case['ids']);
+            $this->actingAs($manager)->get(route('admin.riders.index', $case))
+                ->assertOk()->assertViewHas('readyOrders', fn ($orders) => $orders->pluck('id')->sort()->values()->all() === $ids)
+                ->assertDontSee($foreign->job_order_number);
+        }
+
+        $this->get(route('admin.riders.index', ['status' => 'washing']))
+            ->assertDontSee(route('admin.riders.assign-delivery', $washing), false);
+        $this->getJson(route('admin.riders.index', ['status' => 'invalid']))->assertUnprocessable();
+    }
+
     public function test_dispatcher_assigns_a_rider_and_the_booking_is_confirmed(): void
     {
         $this->completeSystemSettings();

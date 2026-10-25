@@ -1,12 +1,13 @@
 @extends('layouts.app')
 
 @section('page_title', 'Rider Dispatch')
+@section('hide_footer', '1')
 
 @section('content')
 @include('partials.map-assets')
 
-<div class="space-y-4">
-    <div class="flex flex-col gap-3 rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+<div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+    <div class="flex shrink-0 flex-col gap-3 rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <div class="mb-2 inline-flex items-center gap-1.5 rounded-md border border-border bg-smoke px-2.5 py-1 text-xs font-medium text-muted dark:border-gray-800 dark:bg-gray-900">
                 <span data-lucide="truck" class="h-3.5 w-3.5"></span>
@@ -17,6 +18,8 @@
 
         @if($canChooseBranch)
             <form method="GET" class="grid grid-cols-1 gap-2 sm:grid-cols-[16rem_auto]">
+                <input type="hidden" name="status" value="{{ $selectedStatus }}">
+                <input type="hidden" name="search" value="{{ $search }}">
                 <select name="branch_id" onchange="this.form.submit()"
                         class="h-11 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950 xl:h-10">
                     <option value="">All branches</option>
@@ -28,13 +31,13 @@
         @endif
     </div>
 
-    <div class="grid items-start gap-4 lg:grid-cols-[minmax(28rem,1fr)_minmax(20rem,26rem)]">
+    <div class="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,2fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:grid-rows-1">
 
         {{-- Live map. Polls rather than holding a socket open, so this needs no
              daemon and runs unchanged on shared hosting. --}}
         <section x-data="riderFleetMap({ endpoint: @js(route('admin.riders.locations', ['branch_id' => $selectedBranchId])) })"
-                 class="overflow-hidden rounded-xl border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div class="flex items-center justify-between gap-3 border-b border-border px-4 py-3 dark:border-gray-800">
+                 class="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div class="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3 dark:border-gray-800">
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Map</p>
                     <h2 class="mt-1 text-lg font-semibold">Riders on the road</h2>
@@ -45,8 +48,8 @@
                 </span>
             </div>
 
-            <div class="relative">
-                <div x-ref="map" class="h-[26rem] w-full bg-cream dark:bg-[#1c1510] lg:h-[34rem]"></div>
+            <div class="relative min-h-0 flex-1">
+                <div x-ref="map" class="absolute inset-0 h-full w-full bg-cream dark:bg-[#1c1510]"></div>
                 <div x-show="!ready" x-cloak
                      class="absolute inset-0 flex items-center justify-center text-xs text-muted">
                     Loading map…
@@ -54,19 +57,41 @@
             </div>
         </section>
 
-        <div class="space-y-4">
-            <section class="overflow-hidden rounded-xl border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div class="border-b border-border px-4 py-3 dark:border-gray-800">
-                    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Ready for delivery</p>
-                    <h2 class="mt-1 text-lg font-semibold">{{ $readyOrders->count() }} {{ \Illuminate\Support\Str::plural('order', $readyOrders->count()) }}</h2>
+        <div class="min-h-0 space-y-4 overflow-y-auto overscroll-contain lg:grid lg:grid-rows-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)] lg:gap-4 lg:space-y-0 lg:overflow-hidden">
+            <section class="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div class="shrink-0 border-b border-border px-4 py-3 dark:border-gray-800">
+                    <div class="flex items-center justify-between gap-2">
+                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Job orders</p>
+                        <h2 class="text-sm font-semibold">{{ $readyOrders->count() }} {{ \Illuminate\Support\Str::plural('order', $readyOrders->count()) }}</h2>
+                    </div>
+                    <form method="GET" class="mt-2 space-y-2">
+                        @if($selectedBranchId)
+                            <input type="hidden" name="branch_id" value="{{ $selectedBranchId }}">
+                        @endif
+                        <select name="status" aria-label="Job order status" onchange="this.form.submit()"
+                                class="w-full rounded-md border border-border bg-white px-2 py-2 text-sm dark:border-gray-800 dark:bg-gray-950">
+                            <option value="all" @selected($selectedStatus === 'all')>All statuses ({{ $statusCounts->sum() }})</option>
+                            @foreach($orderStatuses as $status)
+                                <option value="{{ $status }}" @selected($selectedStatus === $status)>{{ \App\Support\StatusBadge::label($status) }} ({{ $statusCounts[$status] ?? 0 }})</option>
+                            @endforeach
+                        </select>
+                        <div class="flex gap-2">
+                            <input type="search" name="search" value="{{ $search }}" maxlength="100"
+                                   placeholder="Search name, order # or address" aria-label="Search job orders"
+                                   class="min-w-0 flex-1 rounded-md border border-border bg-white px-2 py-2 text-sm dark:border-gray-800 dark:bg-gray-950">
+                            <button type="submit" class="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white">Search</button>
+                        </div>
+                    </form>
                 </div>
-                <ul class="divide-y divide-border dark:divide-gray-800">
+                <ul class="min-h-0 max-h-[40dvh] overflow-y-auto overscroll-contain divide-y divide-border dark:divide-gray-800 lg:max-h-none lg:flex-1">
                     @forelse($readyOrders as $order)
                         <li class="space-y-2 px-4 py-3">
                             <p class="text-sm font-medium">{{ $order->customer?->name }}</p>
                             <p class="font-mono text-xs text-muted">{{ $order->job_order_number }}</p>
+                            <span class="{{ \App\Support\StatusBadge::classes($order->status) }}">{{ \App\Support\StatusBadge::label($order->status) }}</span>
                             <p class="text-xs text-muted">{{ $order->branch?->name }} · {{ $order->pickupRequest?->delivery_address ?: $order->customer?->address }}</p>
                             <p class="text-xs text-muted">Balance: {{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $order->balance, 2) }}</p>
+                            @if($order->status === 'ready_for_delivery' && ! $order->released_at)
                             <form method="POST" action="{{ route('admin.riders.assign-delivery', $order) }}" class="flex gap-2">
                                 @csrf
                                 @method('PATCH')
@@ -78,21 +103,22 @@
                                 </select>
                                 <button type="submit" class="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white">Assign</button>
                             </form>
+                            @endif
                         </li>
                     @empty
-                        <li class="px-4 py-6 text-center text-sm text-muted">No orders ready for delivery.</li>
+                        <li class="px-4 py-6 text-center text-sm text-muted">No orders match your filters.</li>
                     @endforelse
                 </ul>
             </section>
 
             {{-- Roster --}}
-            <section class="overflow-hidden rounded-xl border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div class="border-b border-border px-4 py-3 dark:border-gray-800">
+            <section class="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div class="shrink-0 border-b border-border px-4 py-3 dark:border-gray-800">
                     <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Roster</p>
                     <h2 class="mt-1 text-lg font-semibold">{{ $riders->count() }} {{ \Illuminate\Support\Str::plural('rider', $riders->count()) }}</h2>
                 </div>
 
-                <ul class="divide-y divide-border dark:divide-gray-800">
+                <ul class="min-h-0 max-h-[40dvh] overflow-y-auto overscroll-contain divide-y divide-border dark:divide-gray-800 lg:max-h-none lg:flex-1">
                     @forelse($riders as $rider)
                         @php($live = $rider->hasLiveLocation() && $rider->is_sharing_location)
                         <li class="flex items-center gap-3 px-4 py-3">
@@ -117,13 +143,13 @@
             </section>
 
             {{-- Runs currently out --}}
-            <section class="overflow-hidden rounded-xl border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div class="border-b border-border px-4 py-3 dark:border-gray-800">
+            <section class="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div class="shrink-0 border-b border-border px-4 py-3 dark:border-gray-800">
                     <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">In progress</p>
                     <h2 class="mt-1 text-lg font-semibold">{{ $activeRuns->count() }} active {{ \Illuminate\Support\Str::plural('run', $activeRuns->count()) }}</h2>
                 </div>
 
-                <ul class="divide-y divide-border dark:divide-gray-800">
+                <ul class="min-h-0 max-h-[40dvh] overflow-y-auto overscroll-contain divide-y divide-border dark:divide-gray-800 lg:max-h-none lg:flex-1">
                     @forelse($activeRuns as $run)
                         <li class="px-4 py-3">
                             <div class="flex items-start justify-between gap-3">

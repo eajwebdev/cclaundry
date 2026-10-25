@@ -11,6 +11,7 @@ use App\Support\Activity;
 use App\Support\Geocoder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -19,8 +20,16 @@ use Illuminate\Validation\ValidationException;
  */
 class RiderDispatchController extends Controller
 {
+    private const ORDER_STATUSES = ['pending', 'washing', 'drying', 'folding', 'ready_for_pickup', 'ready_for_delivery', 'completed', 'cancelled'];
+
     public function index(Request $request)
     {
+        $filters = $request->validate([
+            'status' => ['nullable', Rule::in(['all', ...self::ORDER_STATUSES])],
+            'search' => ['nullable', 'string', 'max:100'],
+        ]);
+        $selectedStatus = $filters['status'] ?? 'ready_for_delivery';
+        $search = trim($filters['search'] ?? '');
         $user = $request->user();
         $canChooseBranch = $user->canManageAllBranches();
 
@@ -52,10 +61,19 @@ class RiderDispatchController extends Controller
             ->get();
 
         // Counter-created orders need delivery too, even without a pickup booking.
-        $readyOrders = JobOrder::query()
-            ->where('status', 'ready_for_delivery')
-            ->whereNull('released_at')
+        $ordersQuery = JobOrder::query()
             ->when($selectedBranchId, fn ($query) => $query->where('branch_id', $selectedBranchId))
+            ->when($search !== '', fn ($query) => $query->where(fn ($matches) => $matches
+                ->where('job_order_number', 'like', '%'.$search.'%')
+                ->orWhereHas('customer', fn ($customer) => $customer
+                    ->where('name', 'like', '%'.$search.'%')
+                    ->orWhere('address', 'like', '%'.$search.'%'))
+                ->orWhereHas('pickupRequest', fn ($run) => $run->where('delivery_address', 'like', '%'.$search.'%'))));
+        $statusCounts = (clone $ordersQuery)->selectRaw('status, COUNT(*) as aggregate')
+            ->groupBy('status')->pluck('aggregate', 'status');
+        $readyOrders = $ordersQuery
+            ->when($selectedStatus !== 'all', fn ($query) => $query->where('status', $selectedStatus))
+            ->when($selectedStatus === 'ready_for_delivery', fn ($query) => $query->whereNull('released_at'))
             ->with(['customer', 'branch:id,name', 'pickupRequest.rider:id,name'])
             ->orderByDesc('is_rush')
             ->orderBy('created_at')
@@ -68,6 +86,10 @@ class RiderDispatchController extends Controller
             'riders' => $riders,
             'activeRuns' => $activeRuns,
             'readyOrders' => $readyOrders,
+            'selectedStatus' => $selectedStatus,
+            'orderStatuses' => self::ORDER_STATUSES,
+            'statusCounts' => $statusCounts,
+            'search' => $search,
         ]);
     }
 

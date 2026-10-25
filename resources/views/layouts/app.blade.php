@@ -1,7 +1,8 @@
 @php($isPos = request()->routeIs('admin.job-orders.create', 'admin.job-orders.edit'))
+@php($isViewportLocked = $isPos || request()->routeIs('admin.riders.index'))
 @php($sidebarAutoCollapsed = $isPos)
 <!DOCTYPE html>
-<html lang="en" x-data x-init="$store.theme.init()" class="scroll-smooth {{ $isPos ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : '' }}" style="--color-primary: {{ $appPrimaryColor }};">
+<html lang="en" x-data x-init="$store.theme.init()" class="scroll-smooth {{ $isViewportLocked ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : '' }}" style="--color-primary: {{ $appPrimaryColor }};">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -37,7 +38,7 @@
     @endif
 </head>
 
-<body class="app-surface text-dark dark:text-gray-100 {{ $isPos ? 'fixed inset-0 h-full w-full overflow-hidden overscroll-none' : '' }}">
+<body class="app-surface text-dark dark:text-gray-100 {{ $isViewportLocked ? 'fixed inset-0 h-full w-full overflow-hidden overscroll-none' : '' }}">
     <div
         x-data="{
             sidebarOpen: false,
@@ -75,7 +76,7 @@
                 return this.sidebarOpen || (this.isDesktop && this.desktopSidebarOpen);
             }
         }"
-        class="{{ $isPos ? 'fixed inset-0 z-0 h-full w-full overflow-hidden' : 'min-h-screen' }} flex"
+        class="{{ $isViewportLocked ? 'fixed inset-0 z-0 h-full w-full overflow-hidden' : 'min-h-screen' }} flex"
     >
 
         @include('partials.sidebar')
