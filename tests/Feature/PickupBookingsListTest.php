@@ -182,6 +182,117 @@ class PickupBookingsListTest extends TestCase
         $this->assertSame('pending', $foreign->refresh()->status);
     }
 
+    public function test_staff_can_dispatch_a_manual_booking_without_a_tag_and_load_it_after_collection(): void
+    {
+        $this->manager->update(['access' => ['job_orders', 'pickup_requests']]);
+        $rider = $this->rider();
+        $this->actingAs($this->manager)->get(route('admin.job-orders.pickup-bookings.create'))
+            ->assertOk()->assertSee('Book a pickup')->assertSee($rider->name);
+
+        $this->post(route('admin.job-orders.pickup-bookings.store'), $this->manualBookingData(['rider_id' => $rider->id]))
+            ->assertSessionHasNoErrors()->assertSessionHas('success');
+
+        $booking = PickupRequest::sole();
+        $this->assertSame('confirmed', $booking->status);
+        $this->assertSame($rider->id, $booking->rider_id);
+        $this->assertSame($this->manager->id, $booking->handled_by);
+        $this->assertNull($booking->tag_code);
+        $this->assertNull($booking->job_order_id);
+        $this->assertNull($booking->estimated_total);
+        $this->assertSame($booking->pickup_address, $booking->delivery_address);
+
+        $this->actingAs($rider)->get(route('rider.index'))->assertOk()->assertSee($booking->reference_no);
+        $this->patch(route('rider.jobs.status', $booking), ['status' => 'picked_up', 'tag_code' => 'SHOP-123'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('SHOP-123', $booking->refresh()->tag_code);
+        $this->assertSame('picked_up', $booking->status);
+
+        $this->actingAs($this->manager)
+            ->get(route('admin.job-orders.create', ['tag_code' => 'SHOP-123']))
+            ->assertOk()->assertSee($booking->reference_no);
+    }
+
+    public function test_manual_booking_can_use_an_existing_customer_and_wait_for_a_rider(): void
+    {
+        $this->manager->update(['access' => ['job_orders']]);
+        $customer = $this->booking()->customer;
+        PickupRequest::query()->delete();
+        $data = $this->manualBookingData([
+            'customer_id' => $customer->id,
+            'delivery_preference' => 'branch_pickup',
+        ]);
+        unset($data['contact_name'], $data['contact_phone']);
+
+        $this->actingAs($this->manager)->post(route('admin.job-orders.pickup-bookings.store'), $data)
+            ->assertSessionHasNoErrors();
+        $booking = PickupRequest::sole();
+        $this->assertSame($customer->id, $booking->customer_id);
+        $this->assertSame($customer->name, $booking->contact_name);
+        $this->assertSame('pending', $booking->status);
+        $this->assertNull($booking->rider_id);
+        $this->assertNull($booking->delivery_address);
+        $this->assertSame(1, Customer::count());
+    }
+
+    public function test_manual_bookings_reuse_a_customer_with_the_same_normalized_phone(): void
+    {
+        $this->manager->update(['access' => ['job_orders']]);
+        $customer = $this->booking()->customer;
+        $this->actingAs($this->manager)->post(route('admin.job-orders.pickup-bookings.store'), $this->manualBookingData([
+            'contact_phone' => '+63 917 123 4567',
+        ]))->assertSessionHasNoErrors();
+        $this->assertSame(1, Customer::count());
+        $this->assertSame($customer->id, PickupRequest::latest('id')->first()->customer_id);
+    }
+
+    public function test_manual_bookings_reject_foreign_or_inactive_riders_and_customers(): void
+    {
+        $this->manager->update(['access' => ['job_orders']]);
+        $other = Branch::create(['name' => 'Other', 'code' => 'OTH', 'is_active' => true]);
+        $foreignCustomer = $this->booking(['branch_id' => $other->id])->customer;
+        $foreignRider = $this->rider($other);
+        $inactiveRider = $this->rider();
+        $inactiveRider->update(['status' => 'inactive']);
+        $this->actingAs($this->manager);
+        foreach ([$foreignRider, $inactiveRider, $this->manager] as $invalidRider) {
+            $this->post(route('admin.job-orders.pickup-bookings.store'), $this->manualBookingData(['rider_id' => $invalidRider->id]))
+                ->assertSessionHasErrors('rider_id');
+        }
+        $this->post(route('admin.job-orders.pickup-bookings.store'), $this->manualBookingData(['customer_id' => $foreignCustomer->id]))
+            ->assertSessionHasErrors('customer_id');
+        $this->post(route('admin.job-orders.pickup-bookings.store'), $this->manualBookingData(['branch_id' => $other->id]))
+            ->assertForbidden();
+        $this->assertSame(1, PickupRequest::count());
+    }
+
+    public function test_manual_booking_requires_order_access_and_valid_pickup_details(): void
+    {
+        $this->actingAs($this->manager)->get(route('admin.job-orders.pickup-bookings.create'))->assertForbidden();
+        $this->post(route('admin.job-orders.pickup-bookings.store'), $this->manualBookingData())->assertForbidden();
+        $this->manager->update(['access' => ['job_orders']]);
+        $this->post(route('admin.job-orders.pickup-bookings.store'), $this->manualBookingData([
+            'pickup_date' => today()->subDay()->toDateString(),
+            'pickup_slot' => 'invalid',
+            'pickup_address' => '',
+        ]))->assertSessionHasErrors(['pickup_date', 'pickup_slot', 'pickup_address']);
+        $this->assertSame(0, PickupRequest::count());
+        $this->assertSame(0, Customer::count());
+    }
+
+    private function manualBookingData(array $overrides = []): array
+    {
+        return array_merge([
+            'branch_id' => $this->branch->id,
+            'contact_name' => 'Phone Customer',
+            'contact_phone' => '09171234567',
+            'pickup_address' => '12 Guanzon Street',
+            'pickup_date' => today()->addDay()->toDateString(),
+            'pickup_slot' => '08_09',
+            'delivery_preference' => 'deliver',
+            'notes' => 'Booked through Facebook',
+        ], $overrides);
+    }
+
     private function rider(?Branch $branch = null): User
     {
         return User::factory()->create([

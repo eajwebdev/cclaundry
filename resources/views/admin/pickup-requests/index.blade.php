@@ -50,11 +50,15 @@
         <div>
             <div class="mb-2 inline-flex items-center gap-1.5 rounded-md border border-border bg-smoke px-2.5 py-1 text-xs font-medium text-muted dark:border-gray-800 dark:bg-gray-950">
                 <span data-lucide="truck" class="h-3.5 w-3.5"></span>
-                From the website
+                Website &amp; in-shop bookings
             </div>
             <h1 class="text-xl font-semibold tracking-normal">Pickup Bookings</h1>
-            <p class="text-sm text-muted">Online pickup &amp; delivery requests waiting to be collected and turned into job orders.</p>
+            <p class="text-sm text-muted">Pickup &amp; delivery requests waiting to be collected and turned into job orders.</p>
         </div>
+
+        @if(auth()->user()->hasMenuAccess('job_orders'))
+            <a href="{{ route('admin.job-orders.pickup-bookings.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-primary-deep px-4 py-2 text-sm font-semibold text-white">Book a pickup</a>
+        @endif
 
         @if($overdueCount > 0)
             <a href="{{ route('admin.pickup-requests.index', array_filter(['when' => 'overdue', 'view' => 'open', 'branch_id' => request('branch_id')])) }}"

@@ -250,6 +250,12 @@
                             {{-- How the laundry comes in. A house pickup is the rider's
                                  collected bag, loaded by its tag. --}}
                             <div class="flex w-full items-center gap-1.5 @5xl/steps:w-auto" role="group" aria-label="How does the laundry come in?">
+                                <a :href="@js(route('admin.job-orders.pickup-bookings.create')) + '?branch_id=' + branchId + (selectedCustomerId ? '&customer_id=' + selectedCustomerId : '')"
+                                   class="flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-border px-2.5 text-xs font-bold text-primary-deep hover:border-primary/50 dark:border-gray-700 dark:text-primary-soft"
+                                   title="Book a phone or Facebook pickup and assign a rider; add the bag tag after collection">
+                                    <span data-lucide="calendar-plus" class="h-4 w-4 shrink-0"></span>
+                                    <span>Book a pickup</span>
+                                </a>
                                 <span class="hidden shrink-0 text-[11px] font-bold text-muted @2xl/steps:inline @5xl/steps:hidden">How does the laundry come in?</span>
                                 <button type="button" @click="chooseWalkIn()" title="Walk-in drop-off: customer brings it to the shop"
                                         class="flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg border px-2.5 text-left transition tall:h-10 roomy:h-11 @5xl/steps:flex-none"
