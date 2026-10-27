@@ -245,6 +245,7 @@ class CycleController extends Controller
             $orders->getCollection()->map(fn (JobOrder $order) => [
                 $order->id,
                 $order->status,
+                $order->transaction_type,
                 $order->active_cycles_count,
                 $order->cycles_count,
                 $order->cycles->map(fn (CycleRecord $cycle) => [

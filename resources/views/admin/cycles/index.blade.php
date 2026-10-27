@@ -297,9 +297,19 @@
                             @endif
                         @endif
                     </div>
-                    <span class="shrink-0 text-xs {{ \App\Support\StatusBadge::classes($order->status) }}">
-                        {{ $statusLabels[$order->status] ?? str_replace('_', ' ', ucfirst($order->status)) }}
-                    </span>
+                    <div class="flex shrink-0 flex-col items-end gap-2">
+                        <span @class([
+                            'inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-semibold',
+                            'border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900/60 dark:bg-violet-500/10 dark:text-violet-300' => $order->transaction_type === 'delivery',
+                            'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-500/10 dark:text-sky-300' => $order->transaction_type !== 'delivery',
+                        ])>
+                            <span data-lucide="{{ $order->transaction_type === 'delivery' ? 'truck' : 'store' }}" class="h-3.5 w-3.5" aria-hidden="true"></span>
+                            {{ $order->transaction_type === 'delivery' ? 'E-bike delivery' : 'Store pickup' }}
+                        </span>
+                        <span class="text-xs {{ \App\Support\StatusBadge::classes($order->status) }}">
+                            {{ $statusLabels[$order->status] ?? str_replace('_', ' ', ucfirst($order->status)) }}
+                        </span>
+                    </div>
                 </div>
 
                 @include('admin.cycles.partials.dosing', ['order' => $order])
