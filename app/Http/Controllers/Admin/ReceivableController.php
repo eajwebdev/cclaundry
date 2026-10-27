@@ -16,7 +16,8 @@ use Illuminate\Validation\ValidationException;
 class ReceivableController extends Controller
 {
     private const BILLING_TYPES = ['regular', 'monthly_billing'];
-    private const STATUSES = ['pending', 'washing', 'drying', 'folding', 'ready_for_pickup', 'ready_for_delivery', 'completed'];
+
+    private const STATUSES = ['pending', 'washing', 'drying', 'folding', 'ready_for_pickup', 'ready_for_delivery', 'completed', 'cancelled'];
 
     public function index(Request $request)
     {
@@ -87,7 +88,11 @@ class ReceivableController extends Controller
         ]);
 
         DB::transaction(function () use ($validated, $jobOrder, $request) {
+            $jobOrder = JobOrder::query()->lockForUpdate()->findOrFail($jobOrder->id);
             $amount = (float) $validated['amount'];
+            if ($amount > (float) $jobOrder->balance) {
+                throw ValidationException::withMessages(['amount' => 'The remaining balance has changed. Refresh the page before recording payment.']);
+            }
             $collectedBranchId = $this->collectedBranchId($request, $jobOrder);
 
             $payment = Payment::create([
@@ -112,6 +117,7 @@ class ReceivableController extends Controller
 
             $running = (float) CustomerLedger::where('customer_id', $jobOrder->customer_id)
                 ->latest()
+                ->latest('id')
                 ->value('running_balance');
 
             CustomerLedger::create([
@@ -133,6 +139,47 @@ class ReceivableController extends Controller
         });
 
         return back()->with('success', 'Payment recorded successfully.');
+    }
+
+    public function approveRemoval(Request $request, JobOrder $jobOrder)
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+        $this->authorizeJobOrder($request, $jobOrder);
+
+        $validated = $request->validate([
+            'approved' => ['required', 'accepted'],
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        DB::transaction(function () use ($request, $jobOrder, $validated): void {
+            $jobOrder = JobOrder::query()->lockForUpdate()->findOrFail($jobOrder->id);
+            abort_unless($jobOrder->status === 'cancelled', 422, 'Only cancelled orders can be removed from receivables.');
+            $amount = (float) $jobOrder->balance;
+            if ($amount <= 0) {
+                throw ValidationException::withMessages(['reason' => 'This order has no remaining receivable to remove.']);
+            }
+
+            $running = (float) CustomerLedger::where('customer_id', $jobOrder->customer_id)
+                ->latest()->latest('id')->value('running_balance');
+            CustomerLedger::create([
+                'branch_id' => $jobOrder->branch_id,
+                'customer_id' => $jobOrder->customer_id,
+                'job_order_id' => $jobOrder->id,
+                'entry_type' => 'credit',
+                'amount' => $amount,
+                'running_balance' => max($running - $amount, 0),
+                'description' => "Approved removal of cancelled receivable {$jobOrder->job_order_number}: {$validated['reason']}",
+            ]);
+            $jobOrder->update(['balance' => 0]);
+
+            Activity::log($request, 'cancelled_receivable_removal_approved', $jobOrder, [
+                'job_order_number' => $jobOrder->job_order_number,
+                'amount' => $amount,
+                'reason' => $validated['reason'],
+            ], $jobOrder->branch_id);
+        });
+
+        return back()->with('success', 'Cancelled receivable removal approved. The unpaid balance has been cleared.');
     }
 
     private function authorizeJobOrder(Request $request, JobOrder $jobOrder): void

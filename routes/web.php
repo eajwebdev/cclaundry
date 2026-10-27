@@ -289,6 +289,7 @@ Route::middleware(['auth', 'not.rider', 'settings.completed', 'system.maintenanc
         });
         Route::middleware('menu.access:receivables')->group(function () {
             Route::get('/receivables', [ReceivableController::class, 'index'])->name('receivables.index');
+            Route::patch('/receivables/job-orders/{jobOrder}/approve-removal', [ReceivableController::class, 'approveRemoval'])->name('receivables.approve-removal');
             Route::post('/receivables/job-orders/{jobOrder}/payments', [ReceivableController::class, 'storePayment'])->name('receivables.payments.store');
         });
         Route::middleware('menu.access:riders')->group(function () {

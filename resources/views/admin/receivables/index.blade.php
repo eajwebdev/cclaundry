@@ -3,7 +3,10 @@
 @section('page_title', 'Receivables')
 
 @section('content')
-<div x-data="{ payOpen: null }" class="space-y-4">
+<div x-data="{ payOpen: null, removeOpen: null }" class="space-y-4">
+    @if($errors->any())
+        <div role="alert" class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $errors->first() }}</div>
+    @endif
     <div class="flex flex-col gap-3 rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 lg:flex-row lg:items-center lg:justify-between">
         <div>
             <div class="mb-2 inline-flex items-center gap-1.5 rounded-md border border-border bg-smoke px-2.5 py-1 text-xs font-medium text-muted dark:border-gray-800 dark:bg-gray-950">
@@ -98,6 +101,12 @@
                                 <button type="button" @click="payOpen = {{ $order->id }}" title="Record payment" aria-label="Record payment" class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-smoke dark:border-gray-700 dark:hover:bg-gray-800">
                                     <span data-lucide="payments" class="h-4 w-4"></span>
                                 </button>
+                                @if($order->status === 'cancelled' && auth()->user()->isAdmin())
+                                    <button type="button" @click="removeOpen = {{ $order->id }}" title="Approve receivable removal" aria-label="Approve receivable removal" class="ml-2 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-red-200 px-2 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-500/10">
+                                        <span data-lucide="trash" class="h-4 w-4"></span>
+                                        Approve removal
+                                    </button>
+                                @endif
                             </td>
                         </tr>
                     @empty
@@ -115,6 +124,28 @@
     </div>
 
     @foreach($receivables as $order)
+        @if($order->status === 'cancelled' && auth()->user()->isAdmin())
+            <div x-cloak x-show="removeOpen === {{ $order->id }}" x-transition @keydown.escape.window="removeOpen = null" role="dialog" aria-modal="true" aria-labelledby="remove-title-{{ $order->id }}" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                <div @click.outside="removeOpen = null" class="w-full max-w-md rounded-lg bg-white p-5 shadow-2xl dark:bg-gray-900">
+                    <h2 id="remove-title-{{ $order->id }}" class="text-lg font-semibold">Approve receivable removal</h2>
+                    <p class="mt-1 text-sm text-muted">{{ $order->job_order_number }} — {{ $order->customer?->name }}</p>
+                    <p class="mt-3 text-sm">Clear the remaining <strong>{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $order->balance, 2) }}</strong> for this cancelled order? The order and payment history will be kept. This is recorded as a balance adjustment, with your approval and reason.</p>
+                    <form method="POST" action="{{ route('admin.receivables.approve-removal', $order) }}" class="mt-4 space-y-4">
+                        @csrf
+                        @method('PATCH')
+                        <input type="hidden" name="approved" value="1">
+                        <div>
+                            <label for="removal-reason-{{ $order->id }}" class="mb-1.5 block text-sm font-medium">Reason for removal</label>
+                            <textarea id="removal-reason-{{ $order->id }}" name="reason" required maxlength="500" rows="3" class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950">{{ old('reason') }}</textarea>
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <button type="button" @click="removeOpen = null" class="h-10 rounded-md border border-border px-3 text-sm dark:border-gray-700">Keep receivable</button>
+                            <button type="submit" class="h-10 rounded-md bg-red-700 px-3 text-sm font-medium text-white hover:bg-red-800">Approve removal</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
         <div x-cloak x-show="payOpen === {{ $order->id }}" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
             <div @click.outside="payOpen = null" class="w-full max-w-md rounded-lg bg-white p-5 shadow-2xl dark:bg-gray-900">
                 <div class="mb-4 flex items-center justify-between">
