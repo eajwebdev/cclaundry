@@ -14,10 +14,12 @@ use App\Models\LaundryService;
 use App\Models\LaundryServiceCategory;
 use App\Models\Payment;
 use App\Models\PickupRequest;
+use App\Models\ServiceInventoryUsage;
 use App\Models\ServicePreset;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Support\Activity;
+use App\Support\FinishingSprayConsumption;
 use App\Support\InventoryConsumption;
 use App\Support\SmsNotifier;
 use Illuminate\Http\Request;
@@ -1085,12 +1087,13 @@ class JobOrderController extends Controller
         $serviceIds = collect($items)->pluck('laundry_service_id')->unique()->values();
 
         $services = LaundryService::query()
-            ->with('inventoryUsages.inventory')
+            ->with(['inventoryUsages.inventory', 'serviceCategory'])
             ->whereIn('id', $serviceIds)
             ->get()
             ->keyBy('id');
 
         $deductions = [];
+        $sprayInventories = [];
         $hasDetergentAddon = $services->contains('report_category', 'detergent');
         // Vinegar (for smelly laundry) takes the fabric conditioner's place.
         $hasFabconAddon = $services->contains(fn ($service) => in_array($service->report_category, ['fabcon', 'vinegar'], true));
@@ -1121,8 +1124,17 @@ class JobOrderController extends Controller
                     $hasPlasticBagUsage = true;
                 }
 
-                $deductions[$inventory->id] = ($deductions[$inventory->id] ?? 0)
-                    + InventoryConsumption::forOrderLine($service, $usage, (float) $item['quantity']);
+                if (FinishingSprayConsumption::isSpray($service)) {
+                    // A selected spray covers the laundry once, regardless of add-on quantity.
+                    if (! isset($sprayInventories[$inventory->id])) {
+                        $deductions[$inventory->id] = ($deductions[$inventory->id] ?? 0)
+                            + FinishingSprayConsumption::quantity($inventory, FinishingSprayConsumption::kilos($items, $services));
+                        $sprayInventories[$inventory->id] = true;
+                    }
+                } else {
+                    $deductions[$inventory->id] = ($deductions[$inventory->id] ?? 0)
+                        + InventoryConsumption::forOrderLine($service, $usage, (float) $item['quantity']);
+                }
             }
 
             // For Regular Laundry, ensure 1 plastic bag is consumed per load even if
@@ -1142,7 +1154,7 @@ class JobOrderController extends Controller
                     ->first();
 
                 if ($plasticInventory) {
-                    $virtualUsage = new \App\Models\ServiceInventoryUsage(['quantity' => 1]);
+                    $virtualUsage = new ServiceInventoryUsage(['quantity' => 1]);
                     $virtualUsage->setRelation('inventory', $plasticInventory);
 
                     $deductions[$plasticInventory->id] = ($deductions[$plasticInventory->id] ?? 0)

@@ -555,11 +555,11 @@ class ServiceInventoryIntegrationTest extends TestCase
         ]);
         $this->assertSame('sachet', $mystiqueStock->unit);
         $this->assertSame('sachet', $sunriseStock->unit);
-        $this->assertSame('use', $finishingSprayStock->unit);
+        $this->assertSame('ml', $finishingSprayStock->unit);
         $this->assertDatabaseHas('service_inventory_usages', [
             'laundry_service_id' => $finishingSpray->id,
             'inventory_id' => $finishingSprayStock->id,
-            'quantity' => 1,
+            'quantity' => 3.5,
         ]);
         $this->assertDatabaseMissing('service_inventory_usages', [
             'laundry_service_id' => $mystique->id,

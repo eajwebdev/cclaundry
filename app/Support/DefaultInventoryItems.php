@@ -15,7 +15,7 @@ class DefaultInventoryItems
             ['name' => 'Downy Mystique Fabric Conditioner', 'sku' => 'SUP-FABCON-MYSTIQUE', 'unit' => 'sachet', 'quantity' => 0, 'reorder_level' => 10, 'unit_cost' => 0],
             ['name' => 'Downy Sunrise Fabric Conditioner', 'sku' => 'SUP-FABCON-SUNRISE', 'unit' => 'sachet', 'quantity' => 0, 'reorder_level' => 10, 'unit_cost' => 0],
             ['name' => 'Vinegar', 'sku' => 'SUP-VINEGAR', 'unit' => 'ml', 'quantity' => 0, 'reorder_level' => 500, 'unit_cost' => 0],
-            ['name' => 'Finishing Spray', 'sku' => 'SUP-FINISHING-SPRAY', 'unit' => 'use', 'quantity' => 0, 'reorder_level' => 10, 'unit_cost' => 0],
+            ['name' => 'Finishing Spray', 'sku' => 'SUP-FINISHING-SPRAY', 'unit' => 'ml', 'quantity' => 0, 'reorder_level' => 10, 'unit_cost' => 0],
             ['name' => 'Bleach', 'sku' => 'SUP-BLEACH', 'unit' => 'liter', 'quantity' => 30, 'reorder_level' => 8, 'unit_cost' => 70],
             ['name' => 'Stain Remover', 'sku' => 'SUP-STAIN', 'unit' => 'liter', 'quantity' => 20, 'reorder_level' => 5, 'unit_cost' => 140],
             ['name' => 'Disinfectant', 'sku' => 'SUP-DISINFECT', 'unit' => 'liter', 'quantity' => 30, 'reorder_level' => 8, 'unit_cost' => 120],
@@ -57,6 +57,12 @@ class DefaultInventoryItems
                 'is_active' => true,
                 'deleted_at' => null,
             ];
+
+            // Legacy "use" stock cannot be relabeled as a measured volume.
+            if ($item['sku'] === 'SUP-FINISHING-SPRAY'
+                && ! in_array(strtolower($inventory->unit), ['ml', 'milliliter', 'milliliters'], true)) {
+                unset($attributes['unit']);
+            }
 
             // Initialize records created without opening stock, but never overwrite
             // quantities that have already participated in inventory movements.

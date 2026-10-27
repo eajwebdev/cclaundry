@@ -159,6 +159,9 @@
                 <a href="{{ route('admin.inventory.index', ['branch_id' => $service->branch_id ?: $selectedBranchId]) }}" target="_blank" class="text-xs font-medium text-primary hover:underline">View Inventory</a>
             </div>
             <p class="text-xs text-muted">Fixed recipes deduct this amount per sold quantity. With a Consumption Preset, attached detergent and softener rows use the guide instead.</p>
+            @if(\App\Support\FinishingSprayConsumption::isSpray($service))
+                <p class="mt-1 text-xs font-medium text-primary">When selected, finishing spray uses 3.5 mL per kilo of laundry on the order. Track its stock in mL or liters.</p>
+            @endif
             @if(\App\Support\InventoryConsumption::isRegularLaundry($service) && ! $service->dosing_profile)
                 <p class="mt-1 text-xs font-medium text-primary">Regular Laundry automatically uses the corrected 5&ndash;15 kg liquid guide for backward compatibility.</p>
             @endif

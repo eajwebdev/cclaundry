@@ -35,7 +35,7 @@ class DefaultServiceInventoryUsages
             'Tide Detergent' => ['Detergent Powder' => 0.10],
             'Downy Mystique' => ['Downy Mystique Fabric Conditioner' => 1],
             'Downy Sunrise' => ['Downy Sunrise Fabric Conditioner' => 1],
-            'Finishing Spray' => ['Finishing Spray' => 1],
+            'Finishing Spray' => ['Finishing Spray' => 3.5],
             'Vinegar' => ['Vinegar' => 1],
         ];
     }

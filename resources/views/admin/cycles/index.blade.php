@@ -430,20 +430,21 @@
                                     @if($cycle->ended_at) - {{ $cycle->ended_at->format('h:i A') }} @endif
                                 </p>
                                 <p class="truncate text-[10px] text-muted sm:text-xs">{{ $cycle->user?->name ?? 'System user' }}</p>
-                            </div>
-
-                            <div class="flex shrink-0 items-center gap-1">
                                 @if(! $cycle->ended_at)
-                                    <form method="POST" action="{{ route('admin.cycles.end', $cycle) }}">
+                                    <form method="POST" action="{{ route('admin.cycles.end', $cycle) }}" class="mt-2">
                                         @csrf
                                         @method('PATCH')
-                                        <button title="End cycle" aria-label="End cycle" class="inline-flex h-8 w-8 touch-manipulation items-center justify-center rounded-md border border-border hover:bg-white dark:border-gray-800 dark:hover:bg-gray-900 sm:h-9 sm:w-9 xl:h-10 xl:w-10">
-                                            <span data-lucide="check" class="h-3.5 w-3.5 sm:h-4 sm:w-4"></span>
+                                        <button title="End cycle" aria-label="End cycle" class="inline-flex min-h-11 touch-manipulation items-center justify-center gap-1.5 rounded-md border border-teal-200 px-3 text-xs font-semibold text-teal-700 hover:bg-teal-50 dark:border-teal-900/60 dark:text-teal-300 dark:hover:bg-teal-500/10">
+                                            <span data-lucide="check" class="h-4 w-4"></span>
+                                            End cycle
                                         </button>
                                     </form>
                                 @else
-                                    <span class="px-1.5 text-[11px] text-muted sm:text-xs">Done</span>
+                                    <span class="mt-2 inline-block text-[11px] text-muted sm:text-xs">Done</span>
                                 @endif
+                            </div>
+
+                            <div class="ml-3 flex shrink-0 self-start items-center gap-1">
 
                                 <form method="POST" action="{{ route('admin.cycles.destroy', $cycle) }}" x-data>
                                     @csrf
