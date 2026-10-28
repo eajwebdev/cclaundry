@@ -29,3 +29,6 @@ Thumbs.db
 # Local database import artefacts. These dumps carry real customer records
 # and staff password hashes, so they must never reach a remote.
 *.sql
+
+# Client scheduling reference.
+/public/Cane_Cotton_Scheduling_Screens_p4-7.pdf

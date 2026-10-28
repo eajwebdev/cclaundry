@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\PickupRequestController;
 use App\Http\Controllers\Admin\ReceivableController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RiderDispatchController;
+use App\Http\Controllers\Admin\SchedulingController;
 use App\Http\Controllers\Admin\SmsController;
 use App\Http\Controllers\Admin\SmsLogController;
 use App\Http\Controllers\Admin\StaffPickupBookingController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\GeocodingController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\PublicUploadController;
 use App\Http\Controllers\Rider\RiderController;
+use App\Http\Controllers\StaffScheduleController;
 use App\Http\Controllers\TrackingController;
 use App\Models\SystemSetting;
 use Illuminate\Support\Facades\Route;
@@ -153,10 +155,14 @@ Route::post('/logout', [LoginController::class, 'logout'])
 Route::post('/attendance-logout', [LoginController::class, 'attendanceLogout'])->name('attendance.logout');
 
 Route::middleware('attendance.employee')->group(function () {
+    Route::get('/time-clock/schedule', [StaffScheduleController::class, 'index'])->name('attendance.schedule');
+    Route::post('/time-clock/schedule/leave', [StaffScheduleController::class, 'requestLeave'])->name('attendance.schedule.leave');
+    Route::patch('/time-clock/schedule/notices/{notice}', [StaffScheduleController::class, 'readNotice'])->name('attendance.schedule.notices.read');
     Route::get('/time-clock', [AttendanceController::class, 'kiosk'])->name('attendance.kiosk');
     Route::get('/time-clock/connectivity', [AttendanceController::class, 'connectivity'])->name('attendance.connectivity');
     Route::get('/time-clock/challenge', [AttendanceController::class, 'challenge'])->name('attendance.challenge');
     Route::post('/time-clock/prepare', [AttendanceController::class, 'preparePublicAttendance'])->name('attendance.prepare');
+    Route::post('/time-clock/sync-punch', [AttendanceController::class, 'syncPunch'])->middleware('throttle:30,1')->name('attendance.sync-punch');
     Route::post('/time-clock/time-in', [AttendanceController::class, 'publicTimeIn'])->name('attendance.public-time-in');
     Route::post('/time-clock/time-out', [AttendanceController::class, 'publicTimeOut'])->name('attendance.public-time-out');
     Route::post('/time-clock/job-orders/scan', [AttendanceController::class, 'publicScanJobOrder'])->name('attendance.job-orders.scan');
@@ -217,6 +223,19 @@ Route::middleware(['auth', 'not.rider', 'settings.completed', 'system.maintenanc
     Route::post('/dashboard/assistant', [DashboardController::class, 'assistant'])->name('dashboard.assistant');
 
     Route::prefix('admin')->name('admin.')->group(function () {
+        Route::middleware('menu.access:scheduling')->prefix('scheduling')->name('scheduling.')->group(function () {
+            Route::get('/', [SchedulingController::class, 'index'])->name('index');
+            Route::post('/shifts', [SchedulingController::class, 'save'])->name('save');
+            Route::post('/publish', [SchedulingController::class, 'publish'])->name('publish');
+            Route::post('/copy', [SchedulingController::class, 'copy'])->name('copy');
+            Route::put('/settings', [SchedulingController::class, 'settings'])->name('settings');
+            Route::post('/holidays', [SchedulingController::class, 'holiday'])->name('holidays.store');
+            Route::delete('/holidays/{holiday}', [SchedulingController::class, 'removeHoliday'])->name('holidays.destroy');
+            Route::put('/employees/{employee}', [SchedulingController::class, 'employee'])->name('employee');
+            Route::patch('/leave/{leave}', [SchedulingController::class, 'reviewLeave'])->name('leave.review');
+            Route::patch('/overtime/{record}', [SchedulingController::class, 'reviewOvertime'])->name('overtime.review');
+        });
+
         Route::middleware('super.admin')->group(function () {
             Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
             Route::put('/billing/trial', [BillingController::class, 'updateTrial'])->name('billing.trial.update');

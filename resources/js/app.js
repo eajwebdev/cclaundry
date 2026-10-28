@@ -396,3 +396,6 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('alpine:init', () => {
     queueMicrotask(window.renderLucideIcons);
 });
+
+import './staff-scheduling';
+import './attendance-queue';

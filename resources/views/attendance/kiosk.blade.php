@@ -27,6 +27,7 @@
                 </div>
             </div>
             <div class="flex shrink-0 items-center gap-2">
+                <a href="{{ route('attendance.schedule') }}" title="My schedule" aria-label="My schedule" class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border dark:border-gray-800"><span data-lucide="calendar" class="h-4 w-4"></span></a>
                 <span class="hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold min-[390px]:inline-flex" :class="online ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'">
                     <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
                     <span x-text="online ? 'ONLINE' : 'OFFLINE'"></span>
@@ -44,6 +45,11 @@
             </div>
         </header>
 
+        <div x-cloak x-show="pendingPunches || queueError" class="shrink-0 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+            <span x-text="queueError || `${pendingPunches} punch(es) saved on this device, waiting to sync. Keep this page open or return with the same employee account.`"></span>
+            <button x-show="rejectedPunch" type="button" @click="discardRejectedPunch()" class="ml-2 font-semibold underline">Discard rejected punch</button>
+            <button type="button" @click="syncPendingPunches()" class="ml-2 font-semibold underline">Retry sync</button>
+        </div>
         <section
             class="grid min-h-0 flex-1 overflow-hidden sm:grid-cols-[minmax(0,1fr)_22rem] sm:grid-rows-1 lg:grid-cols-[minmax(0,1fr)_24rem]"
             :class="activeTab === 'tasks' ? 'grid-rows-[minmax(0,1fr)]' : 'grid-rows-[minmax(12rem,38dvh)_minmax(0,1fr)]'"
@@ -229,6 +235,10 @@
                 connectivityTimer: null,
                 cameraHelp: '',
                 employeeName: @js($employee->name),
+                punchQueue: null,
+                pendingPunches: 0,
+                queueError: '',
+                rejectedPunch: false,
                 branches: @js($branches->map(fn ($branch) => ['id' => (string) $branch->id, 'name' => $branch->name, 'address' => $branch->address ?: 'No branch address'])->values()),
                 selectedBranchId: @js((string) $workBranch->id),
                 branchName: @js($workBranch->name),
@@ -251,6 +261,8 @@
                     return this.selectedBranchId && this.cameraReady;
                 },
                 init() {
+                    this.punchQueue = window.attendancePunchQueue(@js($employee->id), @js(route('attendance.sync-punch')));
+                    this.syncPendingPunches();
                     this.startClock();
                     this.bindDeviceEvents();
                     this.checkConnectivity();
@@ -314,6 +326,7 @@
                         window.clearTimeout(timeout);
                     }
 
+                    if (this.online && this.punchQueue) await this.syncPendingPunches();
                     return this.online;
                 },
                 startClock() {
@@ -571,22 +584,40 @@
                         return;
                     }
 
-                    const response = await this.sendJson(url, {
-                        branch_id: this.selectedBranchId,
-                        face_image: this.proofImage,
-                    });
-
-                    this.submitting = false;
-
-                    if (!response.ok) {
-                        this.message = response.message;
-                        return;
+                    try {
+                        await this.punchQueue.enqueue({
+                            branch_id: this.selectedBranchId,
+                            face_image: this.proofImage,
+                            action: url === @js(route('attendance.public-time-in')) ? 'in' : 'out',
+                        });
+                        const result = await this.syncPendingPunches();
+                        this.lastResult = this.pendingPunches ? 'Punch saved on this device; waiting to sync.' : (result?.data?.message || 'Attendance saved.');
+                        this.message = this.queueError || this.lastResult;
+                        window.clearTimeout(this.resetTimer);
+                        this.resetTimer = window.setTimeout(() => this.resetClock(), 2500);
+                    } catch (error) {
+                        this.message = 'Could not save this punch on the device. Keep this page open and ask a manager for help.';
+                    } finally {
+                        this.submitting = false;
                     }
-
-                    this.lastResult = response.data.message;
-                    this.message = `${response.data.employee} ${actionLabel.toLowerCase()} at ${response.data.branch} - ${response.data.time}.`;
-                    window.clearTimeout(this.resetTimer);
-                    this.resetTimer = window.setTimeout(() => this.resetClock(), 1800);
+                },
+                async discardRejectedPunch() {
+                    if (window.confirm('Discard the first rejected punch from this device? Ask a manager to record a correction if it is still needed.')) {
+                        await this.punchQueue.discardRejected();
+                        await this.syncPendingPunches();
+                    }
+                },
+                async syncPendingPunches() {
+                    try {
+                        const result = await this.punchQueue.flush();
+                        this.pendingPunches = result.pending;
+                        this.queueError = result.message || '';
+                        this.rejectedPunch = result.rejected || false;
+                        return result;
+                    } catch {
+                        this.queueError = 'Device storage is unavailable. Attendance could not be queued.';
+                        return null;
+                    }
                 },
                 resetClock() {
                     this.proofImage = '';

@@ -10,9 +10,11 @@ use App\Models\DailyTaskCompletion;
 use App\Models\EmployeeAttendanceRecord;
 use App\Models\JobOrder;
 use App\Support\PublicUpload;
+use App\Support\StaffScheduling;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -199,6 +201,7 @@ class AttendanceController extends Controller
         $validated = $this->validatePublicAttendanceRequest($request);
         $employee = $this->employeeFromAttendanceSession();
         $branch = $this->branchForPublicSelection((int) $validated['branch_id']);
+        StaffScheduling::checkClockIn($employee, $branch->id);
         $record = $this->attendanceRecordForToday($employee, $branch);
 
         $record->update([
@@ -214,6 +217,92 @@ class AttendanceController extends Controller
         ]);
     }
 
+    public function syncPunch(Request $request)
+    {
+        $data = $request->validate([
+            'event_id' => ['required', 'uuid'], 'employee_id' => ['required', 'integer'],
+            'branch_id' => ['required', 'integer', 'exists:branches,id'],
+            'action' => ['required', 'in:in,out'], 'captured_at' => ['required', 'date'],
+            'face_image' => ['required', 'string', 'max:6000000'],
+        ]);
+        $employee = $this->employeeFromAttendanceSession();
+        abort_unless($employee->id === (int) $data['employee_id'], 403);
+        $capturedAt = Carbon::parse($data['captured_at'])->setTimezone(config('app.timezone'));
+        if ($capturedAt->lt(now()->subHours(48)) || $capturedAt->gt(now()->addMinutes(2))) {
+            throw ValidationException::withMessages(['captured_at' => 'Offline punches must be synced within 48 hours with the correct device time. Ask a manager to review this punch.']);
+        }
+        $branch = $this->branchForPublicSelection((int) $data['branch_id']);
+        $path = null;
+        try {
+            DB::transaction(function () use ($data, $employee, $branch, $capturedAt, &$path): void {
+                AttendanceEmployee::whereKey($employee->id)->lockForUpdate()->firstOrFail();
+                $event = DB::table('attendance_punch_events')->where('id', $data['event_id'])->first();
+                if ($event) {
+                    abort_unless((int) $event->attendance_employee_id === $employee->id, 403);
+
+                    return;
+                }
+                $record = EmployeeAttendanceRecord::firstOrCreate([
+                    'attendance_employee_id' => $employee->id, 'branch_id' => $branch->id, 'work_date' => $capturedAt->toDateString(),
+                ], ['clock_in' => [], 'clock_out' => []]);
+                $ins = $record->clock_in ?? [];
+                $outs = $record->clock_out ?? [];
+                // A delayed, genuine clock-out replaces a synthetic missing punch.
+                if ($data['action'] === 'out' && ($record->schedule_flags['missing_punch'] ?? false)) {
+                    array_pop($outs);
+                    $photos = $record->clock_out_photos ?? [];
+                    $locations = $record->clock_out_locations ?? [];
+                    array_pop($photos);
+                    array_pop($locations);
+                    $flags = $record->schedule_flags;
+                    unset($flags['missing_punch']);
+                    $record->fill(['clock_out' => $outs, 'clock_out_photos' => $photos, 'clock_out_locations' => $locations, 'schedule_flags' => $flags]);
+                }
+                if ($data['action'] === 'in') {
+                    StaffScheduling::checkClockIn($employee, $branch->id, $capturedAt);
+                    if (count($ins) > count($outs)) {
+                        throw ValidationException::withMessages(['action' => 'You are already clocked in. Sync earlier punches first.']);
+                    }
+                    $last = collect($outs)->last();
+                } else {
+                    if (count($ins) <= count($outs)) {
+                        throw ValidationException::withMessages(['action' => 'Clock in before clocking out.']);
+                    }
+                    $last = collect($ins)->last();
+                }
+                if ($last && $capturedAt->format('H:i:s') < $last) {
+                    throw ValidationException::withMessages(['captured_at' => 'Punches must be synced in time order.']);
+                }
+                $path = $this->storeAttendanceImage($data['face_image'], 'attendance-proofs');
+                $field = $data['action'] === 'in' ? 'clock_in' : 'clock_out';
+                $flags = $record->schedule_flags ?? [];
+                if ($capturedAt->lt(now()->subMinutes(2))) {
+                    $flags['device_time_synced'] = true;
+                }
+                $record->update([
+                    $field => [...($record->$field ?? []), $capturedAt->format('H:i:s')],
+                    $field.'_photos' => [...($record->{$field.'_photos'} ?? []), $path],
+                    'schedule_flags' => $flags,
+                ]);
+                if ($data['action'] === 'out') {
+                    StaffScheduling::flagClockOut($record, $capturedAt);
+                }
+                DB::table('attendance_punch_events')->insert([
+                    'id' => $data['event_id'], 'attendance_employee_id' => $employee->id,
+                    'employee_attendance_record_id' => $record->id, 'action' => $data['action'],
+                    'captured_at' => $capturedAt, 'created_at' => now(), 'updated_at' => now(),
+                ]);
+            });
+        } catch (\Throwable $exception) {
+            if ($path) {
+                PublicUpload::delete($path);
+            }
+            throw $exception;
+        }
+
+        return response()->json(['message' => 'Clock '.($data['action'] === 'in' ? 'in' : 'out').' saved.', 'employee' => $employee->name, 'branch' => $branch->name, 'time' => $capturedAt->format('h:i A')]);
+    }
+
     public function publicTimeOut(Request $request)
     {
         $validated = $this->validatePublicAttendanceRequest($request);
@@ -225,6 +314,8 @@ class AttendanceController extends Controller
             'clock_out' => [...($record->clock_out ?? []), now()->format('H:i:s')],
             'clock_out_photos' => [...($record->clock_out_photos ?? []), $this->storeAttendanceImage($validated['face_image'], 'attendance-proofs')],
         ]);
+
+        StaffScheduling::flagClockOut($record);
 
         return response()->json([
             'message' => "{$employee->name} timed out successfully.",

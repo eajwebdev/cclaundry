@@ -23,6 +23,7 @@ class Menu
             'petty_cash' => ['label' => 'Petty Cash', 'route' => 'admin.petty-cash.index', 'icon' => 'wallet'],
             'z_readings' => ['label' => 'Z Reading', 'route' => 'admin.z-readings.index', 'icon' => 'receipt'],
             'employees' => ['label' => 'Employees', 'route' => 'admin.employees.index', 'icon' => 'employees'],
+            'scheduling' => ['label' => 'Staff Scheduling', 'route' => 'admin.scheduling.index', 'icon' => 'attendance'],
             'attendance' => ['label' => 'Attendance Logs', 'route' => 'admin.attendance.index', 'icon' => 'attendance'],
             'daily_tasks' => ['label' => 'End-of-Day Tasks', 'route' => 'admin.daily-tasks.index', 'icon' => 'check'],
             'reports' => ['label' => 'Reports', 'route' => 'admin.reports.index', 'icon' => 'reports'],

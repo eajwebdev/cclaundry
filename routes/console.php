@@ -121,3 +121,6 @@ Artisan::command('riders:prune-pings', function () {
 
 // Runs nightly wherever the app's scheduler is already running.
 Schedule::command('riders:prune-pings')->dailyAt('03:30');
+
+Schedule::command('scheduling:maintain')->dailyAt('04:00');
+Schedule::command('scheduling:maintain --remind')->dailyAt('18:00');

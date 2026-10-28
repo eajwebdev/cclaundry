@@ -1,0 +1,26 @@
+<div x-cloak x-show="editorOpen" @keydown.escape.window="editorOpen = false" class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="shift-editor-title">
+    <form method="POST" action="{{ route('admin.scheduling.save') }}" @click.outside="editorOpen = false" class="my-auto w-full max-w-lg space-y-4 rounded-xl bg-white p-5 shadow-xl dark:bg-gray-900">
+        @csrf<input type="hidden" name="branch_id" value="{{ $branch->id }}">
+        <template x-for="(cell, i) in editing" :key="cell"><div><input type="hidden" :name="`cells[${i}][employee_id]`" :value="cell.split(':')[0]"><input type="hidden" :name="`cells[${i}][date]`" :value="cell.split(':')[1]"></div></template>
+        <div class="flex justify-between gap-3"><div><h2 id="shift-editor-title" class="text-lg font-semibold">Edit shift</h2><p class="text-xs text-muted" x-text="editing.length === 1 ? editing[0].split(':')[1] : `${editing.length} selected cells`"></p></div><button type="button" @click="editorOpen = false" aria-label="Close editor" class="px-2 text-xl">×</button></div>
+        <label class="block text-sm">Shift template<select name="template" x-model="form.template" @change="applyTemplate(form.template)" class="mt-1 w-full rounded-md border border-border bg-white p-2 dark:border-gray-700 dark:bg-gray-950">@foreach($templates as $key => $template)<option value="{{ $key }}">{{ $template['label'] }}</option>@endforeach</select></label>
+        <div x-show="form.starts_at !== null" class="grid grid-cols-2 gap-3">
+            <label class="text-sm">Start<input type="time" step="900" name="starts_at" x-model="form.starts_at" :disabled="form.starts_at === null" class="mt-1 w-full rounded-md border border-border bg-transparent p-2 dark:border-gray-700"></label>
+            <label class="text-sm">End<input type="time" step="900" name="ends_at" x-model="form.ends_at" :disabled="form.starts_at === null" class="mt-1 w-full rounded-md border border-border bg-transparent p-2 dark:border-gray-700"></label>
+            <label class="text-sm">Unpaid break starts<input type="time" step="900" name="break_starts_at" x-model="form.break_starts_at" :disabled="form.starts_at === null" class="mt-1 w-full rounded-md border border-border bg-transparent p-2 dark:border-gray-700"></label>
+            <label class="text-sm">Break minutes<input type="number" name="break_minutes" min="0" max="240" step="15" x-model="form.break_minutes" class="mt-1 w-full rounded-md border border-border bg-transparent p-2 dark:border-gray-700"></label>
+        </div>
+        <label class="block text-sm">Note<textarea name="note" x-model="form.note" rows="2" maxlength="1000" class="mt-1 w-full rounded-md border border-border bg-transparent p-2 dark:border-gray-700"></textarea></label>
+        <div x-show="paidHours > 8" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><span x-text="`${(paidHours - 8).toFixed(1)} h overtime · estimated at +25%`"></span><label class="mt-2 flex items-center gap-2"><input type="checkbox" name="overtime_confirmed" value="1" x-model="form.overtime_confirmed">Confirm planned overtime before publishing</label></div>
+        <p class="text-xs text-muted">Save creates a draft. Staff see the change after you publish the week.</p>
+        <div class="flex flex-wrap justify-between gap-2"><div class="flex gap-2"><button type="button" @click="copyCurrent()" class="rounded-md border border-border px-3 py-2 text-sm dark:border-gray-700">Copy shift</button><button type="button" @click="applyTemplate('unscheduled')" class="px-2 text-sm text-red-700">Clear</button></div><button class="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white">Save draft</button></div>
+    </form>
+</div>
+<div x-cloak x-show="publishOpen" @keydown.escape.window="publishOpen = false" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="publish-title">
+    <form method="POST" action="{{ route('admin.scheduling.publish') }}" @click.outside="publishOpen = false" class="w-full max-w-md space-y-4 rounded-xl bg-white p-5 shadow-xl dark:bg-gray-900">
+        @csrf<input type="hidden" name="branch_id" value="{{ $branch->id }}"><input type="hidden" name="date" value="{{ $date->toDateString() }}">
+        <h2 id="publish-title" class="text-lg font-semibold">Publish this week?</h2><p class="text-sm text-muted">Week of {{ $date->copy()->startOfWeek()->format('M j, Y') }}. Staff receive their published shifts and a notification. Only changed shifts trigger another notice.</p>
+        <label class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><input type="checkbox" name="coverage_confirmed" value="1" class="mt-1">I reviewed the coverage warnings and approve publishing if any time blocks are short.</label>
+        <p class="text-xs text-muted">Overtime must also be confirmed in each affected shift.</p><div class="flex justify-end gap-2"><button type="button" @click="publishOpen = false" class="px-3 py-2 text-sm">Keep draft</button><button class="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white">Publish week</button></div>
+    </form>
+</div>

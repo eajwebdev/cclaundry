@@ -219,6 +219,7 @@ class UserController extends Controller
                 'petty_cash',
                 'z_readings',
                 'employees',
+                'scheduling',
                 'attendance',
                 'daily_tasks',
                 'reports',
