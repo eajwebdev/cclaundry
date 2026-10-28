@@ -284,9 +284,6 @@ class AttendanceController extends Controller
                     $field.'_photos' => [...($record->{$field.'_photos'} ?? []), $path],
                     'schedule_flags' => $flags,
                 ]);
-                if ($data['action'] === 'out') {
-                    StaffScheduling::flagClockOut($record, $capturedAt);
-                }
                 DB::table('attendance_punch_events')->insert([
                     'id' => $data['event_id'], 'attendance_employee_id' => $employee->id,
                     'employee_attendance_record_id' => $record->id, 'action' => $data['action'],
@@ -314,8 +311,6 @@ class AttendanceController extends Controller
             'clock_out' => [...($record->clock_out ?? []), now()->format('H:i:s')],
             'clock_out_photos' => [...($record->clock_out_photos ?? []), $this->storeAttendanceImage($validated['face_image'], 'attendance-proofs')],
         ]);
-
-        StaffScheduling::flagClockOut($record);
 
         return response()->json([
             'message' => "{$employee->name} timed out successfully.",

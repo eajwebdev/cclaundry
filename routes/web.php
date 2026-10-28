@@ -233,7 +233,6 @@ Route::middleware(['auth', 'not.rider', 'settings.completed', 'system.maintenanc
             Route::delete('/holidays/{holiday}', [SchedulingController::class, 'removeHoliday'])->name('holidays.destroy');
             Route::put('/employees/{employee}', [SchedulingController::class, 'employee'])->name('employee');
             Route::patch('/leave/{leave}', [SchedulingController::class, 'reviewLeave'])->name('leave.review');
-            Route::patch('/overtime/{record}', [SchedulingController::class, 'reviewOvertime'])->name('overtime.review');
         });
 
         Route::middleware('super.admin')->group(function () {

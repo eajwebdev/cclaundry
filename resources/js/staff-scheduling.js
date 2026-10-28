@@ -2,11 +2,7 @@ window.staffScheduling = (cells, templates) => ({
     cells, templates, selected: [], editing: [], multi: false, pickedTemplate: null,
     editorOpen: false, settingsOpen: false, publishOpen: false,
     clipboard: null, pasteMode: false, holdTimer: null, held: false,
-    form: { template: 'opening', ...templates.opening, note: '', overtime_confirmed: false },
-    get paidHours() {
-        const minutes = t => t ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) : 0;
-        return this.form.starts_at ? Math.max(0, minutes(this.form.ends_at) - minutes(this.form.starts_at) - Number(this.form.break_minutes || 0)) / 60 : 0;
-    },
+    form: { template: 'opening', ...templates.opening, note: '' },
     cellClick(cell) {
         if (this.held) { this.held = false; return; }
         if (this.multi) {
@@ -14,13 +10,13 @@ window.staffScheduling = (cells, templates) => ({
             return;
         }
         this.editing = [cell];
-        this.form = { ...(this.cells[cell] || { template: 'opening', ...this.templates.opening, note: '', overtime_confirmed: false }) };
+        this.form = { ...(this.cells[cell] || { template: 'opening', ...this.templates.opening, note: '' }) };
         if (this.pasteMode && this.clipboard) this.form = { ...this.clipboard };
         else if (this.pickedTemplate) this.applyTemplate(this.pickedTemplate);
         this.editorOpen = true;
     },
     applyTemplate(key) {
-        this.form = { template: key, ...this.templates[key], note: this.form.note || '', overtime_confirmed: false };
+        this.form = { template: key, ...this.templates[key], note: this.form.note || '' };
     },
     chooseTemplate(key) {
         this.pickedTemplate = key;
@@ -29,7 +25,7 @@ window.staffScheduling = (cells, templates) => ({
     },
     editSelected() {
         this.editing = [...this.selected];
-        this.form = { ...(this.cells[this.selected[0]] || { template: 'opening', ...this.templates.opening, note: '', overtime_confirmed: false }) };
+        this.form = { ...(this.cells[this.selected[0]] || { template: 'opening', ...this.templates.opening, note: '' }) };
         this.editorOpen = true;
     },
     dropTemplate(event, cell) {
@@ -59,7 +55,7 @@ window.staffScheduling = (cells, templates) => ({
             window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
             this.editing = [cell]; this.form = data;
             this.form[field] = `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
-            this.form.overtime_confirmed = false; this.editorOpen = true;
+            this.editorOpen = true;
         };
         window.addEventListener('pointermove', move); window.addEventListener('pointerup', up, { once: true });
     },

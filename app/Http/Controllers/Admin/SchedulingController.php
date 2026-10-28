@@ -75,7 +75,7 @@ class SchedulingController extends Controller
             'template' => ['required', Rule::in(array_keys(Planner::templates()))],
             'starts_at' => ['nullable', 'date_format:H:i'], 'ends_at' => ['nullable', 'date_format:H:i'],
             'break_starts_at' => ['nullable', 'date_format:H:i'], 'break_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
-            'note' => ['nullable', 'string', 'max:1000'], 'overtime_confirmed' => ['nullable', 'boolean'],
+            'note' => ['nullable', 'string', 'max:1000'],
         ]);
         $data = $request->only(Planner::FIELDS);
         if (in_array($validated['template'], ['rest', 'leave', 'unscheduled'], true)) {
@@ -90,7 +90,6 @@ class SchedulingController extends Controller
             }
         }
         $data['break_minutes'] = (int) ($data['break_minutes'] ?? 0);
-        $data['overtime_confirmed'] = $request->boolean('overtime_confirmed');
         DB::transaction(function () use ($validated, $branch, $data, $request) {
             foreach ($validated['cells'] as $cell) {
                 $employee = AttendanceEmployee::where('branch_id', $branch->id)->where('status', 'active')->lockForUpdate()->findOrFail($cell['employee_id']);
@@ -129,9 +128,6 @@ class SchedulingController extends Controller
             $count = 0;
             foreach ($shifts as $shift) {
                 $data = Planner::snapshot($shift);
-                if (Planner::paidHours($data) > 8 && ! $shift->overtime_confirmed) {
-                    throw ValidationException::withMessages(['schedule' => 'Confirm or shorten overtime for '.$shift->employee->name.' on '.$shift->work_date->toDateString().'.']);
-                }
                 if (! Planner::isDraft($shift)) {
                     continue;
                 }
@@ -196,7 +192,7 @@ class SchedulingController extends Controller
         $data = $request->validate([
             'opens_at' => ['required', 'date_format:H:i'], 'closes_at' => ['required', 'date_format:H:i', 'after:opens_at'],
             'minimum_staff' => ['required', 'integer', 'min:0', 'max:100'], 'minimum_riders' => ['required', 'integer', 'min:0', 'max:100'],
-            'early_minutes' => ['required', 'integer', 'min:0', 'max:120'], 'grace_minutes' => ['required', 'integer', 'min:0', 'max:60'], 'overtime_minutes' => ['required', 'integer', 'min:0', 'max:120'],
+            'early_minutes' => ['required', 'integer', 'min:0', 'max:120'], 'grace_minutes' => ['required', 'integer', 'min:0', 'max:60'],
         ]);
         Planner::settings($branch->id)->fill($data)->save();
         Activity::log($request, 'schedule_settings_updated', $branch, $data, $branch->id);
@@ -227,14 +223,14 @@ class SchedulingController extends Controller
     {
         $branch = $this->branch($request, true);
         abort_unless((int) $employee->branch_id === (int) $branch->id, 403);
-        $data = $request->validate(['schedule_role' => ['required', Rule::in(['all_around', 'part_time', 'rider'])], 'hourly_rate' => ['nullable', 'numeric', 'min:0', 'max:100000']]);
+        $data = $request->validate(['schedule_role' => ['required', Rule::in(['all_around', 'part_time', 'rider'])], 'daily_rate' => ['nullable', 'numeric', 'min:0', 'max:100000']]);
         if (! $request->user()->isSuperAdmin()) {
-            unset($data['hourly_rate']);
+            unset($data['daily_rate']);
         }
         $employee->update($data);
         Activity::log($request, 'schedule_employee_updated', $employee, [
             'schedule_role' => $data['schedule_role'],
-            'hourly_rate_updated' => array_key_exists('hourly_rate', $data),
+            'daily_rate_updated' => array_key_exists('daily_rate', $data),
         ], $branch->id);
 
         return back()->with('success', 'Employee scheduling details saved.');
@@ -252,7 +248,7 @@ class SchedulingController extends Controller
             $leave->update(['status' => $request->decision, 'reviewed_by' => $request->user()->id, 'reviewed_at' => now()]);
             if ($request->decision === 'approved') {
                 for ($day = $leave->starts_on->copy(); $day->lte($leave->ends_on); $day->addDay()) {
-                    $data = ['template' => 'leave', 'starts_at' => null, 'ends_at' => null, 'break_starts_at' => null, 'break_minutes' => 0, 'note' => 'Approved '.$leave->type, 'overtime_confirmed' => false];
+                    $data = ['template' => 'leave', 'starts_at' => null, 'ends_at' => null, 'break_starts_at' => null, 'break_minutes' => 0, 'note' => 'Approved '.$leave->type];
                     $shift = ScheduleShift::updateOrCreate(['attendance_employee_id' => $leave->attendance_employee_id, 'work_date' => $day->toDateString()], $data + ['branch_id' => $branch->id]);
                     // Approved leave is immediately authoritative, including an already published week.
                     $shift->update(['published_data' => Planner::snapshot($shift), 'published_at' => now()]);
@@ -263,26 +259,5 @@ class SchedulingController extends Controller
         });
 
         return back()->with('success', 'Leave request '.$request->decision.'.');
-    }
-
-    public function reviewOvertime(Request $request, EmployeeAttendanceRecord $record)
-    {
-        $branch = $this->branch($request, true);
-        abort_unless((int) $record->branch_id === (int) $branch->id, 403);
-        $data = $request->validate(['approved_minutes' => ['required', 'integer', 'min:0', 'max:1440']]);
-        DB::transaction(function () use ($record, $request, $data, $branch) {
-            $record = EmployeeAttendanceRecord::lockForUpdate()->findOrFail($record->id);
-            $flags = $record->schedule_flags ?? [];
-            abort_unless(isset($flags['unapproved_overtime_minutes']), 422);
-            if ($data['approved_minutes'] > $flags['unapproved_overtime_minutes']) {
-                throw ValidationException::withMessages(['approved_minutes' => 'Approved overtime cannot exceed recorded overtime.']);
-            }
-            $flags['approved_overtime_minutes'] = $data['approved_minutes'];
-            $flags['overtime_reviewed_by'] = $request->user()->id;
-            $record->update(['schedule_flags' => $flags]);
-            Activity::log($request, 'schedule_overtime_reviewed', $record, $data, $branch->id);
-        });
-
-        return back()->with('success', 'Overtime review saved.');
     }
 }

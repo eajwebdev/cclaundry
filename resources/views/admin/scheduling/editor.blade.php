@@ -11,7 +11,6 @@
             <label class="text-sm">Break minutes<input type="number" name="break_minutes" min="0" max="240" step="15" x-model="form.break_minutes" class="mt-1 w-full rounded-md border border-border bg-transparent p-2 dark:border-gray-700"></label>
         </div>
         <label class="block text-sm">Note<textarea name="note" x-model="form.note" rows="2" maxlength="1000" class="mt-1 w-full rounded-md border border-border bg-transparent p-2 dark:border-gray-700"></textarea></label>
-        <div x-show="paidHours > 8" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><span x-text="`${(paidHours - 8).toFixed(1)} h overtime · estimated at +25%`"></span><label class="mt-2 flex items-center gap-2"><input type="checkbox" name="overtime_confirmed" value="1" x-model="form.overtime_confirmed">Confirm planned overtime before publishing</label></div>
         <p class="text-xs text-muted">Save creates a draft. Staff see the change after you publish the week.</p>
         <div class="flex flex-wrap justify-between gap-2"><div class="flex gap-2"><button type="button" @click="copyCurrent()" class="rounded-md border border-border px-3 py-2 text-sm dark:border-gray-700">Copy shift</button><button type="button" @click="applyTemplate('unscheduled')" class="px-2 text-sm text-red-700">Clear</button></div><button class="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white">Save draft</button></div>
     </form>
@@ -21,6 +20,6 @@
         @csrf<input type="hidden" name="branch_id" value="{{ $branch->id }}"><input type="hidden" name="date" value="{{ $date->toDateString() }}">
         <h2 id="publish-title" class="text-lg font-semibold">Publish this week?</h2><p class="text-sm text-muted">Week of {{ $date->copy()->startOfWeek()->format('M j, Y') }}. Staff receive their published shifts and a notification. Only changed shifts trigger another notice.</p>
         <label class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><input type="checkbox" name="coverage_confirmed" value="1" class="mt-1">I reviewed the coverage warnings and approve publishing if any time blocks are short.</label>
-        <p class="text-xs text-muted">Overtime must also be confirmed in each affected shift.</p><div class="flex justify-end gap-2"><button type="button" @click="publishOpen = false" class="px-3 py-2 text-sm">Keep draft</button><button class="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white">Publish week</button></div>
+        <div class="flex justify-end gap-2"><button type="button" @click="publishOpen = false" class="px-3 py-2 text-sm">Keep draft</button><button class="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white">Publish week</button></div>
     </form>
 </div>

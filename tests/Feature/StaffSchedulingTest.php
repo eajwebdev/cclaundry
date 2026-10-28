@@ -35,7 +35,7 @@ class StaffSchedulingTest extends TestCase
         $this->travelTo(now()->setDate(2026, 11, 9)->setTime(8, 0));
         SystemSetting::create(['business_name' => 'Laundry', 'currency' => 'PHP', 'is_completed' => true]);
         $this->branch = Branch::create(['name' => 'Guanzon', 'code' => 'G', 'is_active' => true]);
-        $this->employee = AttendanceEmployee::create(['branch_id' => $this->branch->id, 'first_name' => 'Staff', 'last_name' => 'A', 'username' => 'staff-a', 'password' => bcrypt('123456'), 'status' => 'active', 'hourly_rate' => 123.45]);
+        $this->employee = AttendanceEmployee::create(['branch_id' => $this->branch->id, 'first_name' => 'Staff', 'last_name' => 'A', 'username' => 'staff-a', 'password' => bcrypt('123456'), 'status' => 'active', 'daily_rate' => 123.45]);
         $this->owner = User::factory()->create(['role' => 'super_admin']);
         $this->actingAs($this->owner);
     }
@@ -60,9 +60,9 @@ class StaffSchedulingTest extends TestCase
             $this->get(route('admin.scheduling.index', ['view' => $view, 'date' => '2026-11-09']))->assertOk()->assertSee('Staff Scheduling');
         }
         $admin = User::factory()->create(['role' => 'admin', 'access' => ['scheduling']]);
-        $this->actingAs($admin)->get(route('admin.scheduling.index'))->assertOk()->assertDontSee('123.45')->assertDontSee('Rate/hour');
-        $this->put(route('admin.scheduling.employee', $this->employee), ['branch_id' => $this->branch->id, 'schedule_role' => 'rider', 'hourly_rate' => 999])->assertSessionHasNoErrors();
-        $this->assertEquals(123.45, $this->employee->fresh()->hourly_rate);
+        $this->actingAs($admin)->get(route('admin.scheduling.index'))->assertOk()->assertDontSee('123.45')->assertDontSee('Rate/day');
+        $this->put(route('admin.scheduling.employee', $this->employee), ['branch_id' => $this->branch->id, 'schedule_role' => 'rider', 'daily_rate' => 999])->assertSessionHasNoErrors();
+        $this->assertEquals(123.45, $this->employee->fresh()->daily_rate);
     }
 
     public function test_staff_only_see_published_snapshot_until_changes_are_republished(): void
@@ -80,17 +80,28 @@ class StaffSchedulingTest extends TestCase
         $this->assertDatabaseCount('schedule_notices', 2);
     }
 
-    public function test_overtime_and_coverage_must_be_confirmed_before_publishing(): void
+    public function test_long_shifts_publish_without_overtime_and_cost_one_daily_rate(): void
     {
         $this->saveShift(overrides: ['ends_at' => '18:00'])->assertSessionHasNoErrors();
-        $this->publish()->assertSessionHasErrors('schedule');
-        $this->assertNull(ScheduleShift::sole()->published_at);
-        $this->saveShift(overrides: ['ends_at' => '18:00', 'overtime_confirmed' => 1]);
         $this->post(route('admin.scheduling.publish'), ['branch_id' => $this->branch->id, 'date' => '2026-11-09'])->assertSessionHasErrors('coverage_confirmed');
         $this->publish()->assertSessionHasNoErrors();
         $data = Planner::snapshot(ScheduleShift::sole());
         $this->assertEquals(9, Planner::paidHours($data));
-        $this->assertEquals(925, Planner::cost($data, 100));
+        $this->assertEquals(100, Planner::cost($data, 100));
+        $data['ends_at'] = '14:00';
+        $this->assertEquals(100, Planner::cost($data, 100));
+        $data['starts_at'] = null;
+        $this->assertEquals(0, Planner::cost($data, 100));
+        $this->get(route('admin.scheduling.index'))->assertOk()->assertDontSee('Confirm planned overtime')->assertDontSee('OT · +25%');
+    }
+
+    public function test_legacy_overtime_field_does_not_turn_a_published_shift_into_a_draft(): void
+    {
+        $this->saveShift();
+        $this->publish();
+        $shift = ScheduleShift::sole();
+        $shift->update(['published_data' => $shift->published_data + ['overtime_confirmed' => true]]);
+        $this->assertFalse(Planner::isDraft($shift->fresh()));
     }
 
     public function test_breaks_reduce_coverage_and_paid_hours(): void
@@ -197,9 +208,8 @@ class StaffSchedulingTest extends TestCase
         $this->travelTo(now()->setTime(18, 1));
         $this->postJson(route('attendance.sync-punch'), $data)->assertOk();
         $record = EmployeeAttendanceRecord::sole();
-        $this->assertEquals(60, $record->schedule_flags['unapproved_overtime_minutes']);
-        $this->patch(route('admin.scheduling.overtime.review', $record), ['branch_id' => $this->branch->id, 'approved_minutes' => 30])->assertSessionHasNoErrors();
-        $this->assertEquals(30, $record->fresh()->schedule_flags['approved_overtime_minutes']);
+        $this->assertSame(['18:00:00'], $record->clock_out);
+        $this->assertArrayNotHasKey('unapproved_overtime_minutes', $record->schedule_flags);
     }
 
     public function test_bulk_save_rolls_back_if_any_cell_is_on_approved_leave(): void
@@ -228,7 +238,7 @@ class StaffSchedulingTest extends TestCase
         ])->assertOk();
         $this->assertSame(['17:20:00'], $record->fresh()->clock_out);
         $this->assertArrayNotHasKey('missing_punch', $record->fresh()->schedule_flags);
-        $this->assertEquals(20, $record->fresh()->schedule_flags['unapproved_overtime_minutes']);
+        $this->assertArrayNotHasKey('unapproved_overtime_minutes', $record->fresh()->schedule_flags);
     }
 
     public function test_offline_sync_rejects_another_employee_and_stale_device_time(): void

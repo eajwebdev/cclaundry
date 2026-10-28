@@ -13,7 +13,7 @@ use Illuminate\Validation\ValidationException;
 
 class StaffScheduling
 {
-    public const FIELDS = ['template', 'starts_at', 'ends_at', 'break_starts_at', 'break_minutes', 'note', 'overtime_confirmed'];
+    public const FIELDS = ['template', 'starts_at', 'ends_at', 'break_starts_at', 'break_minutes', 'note'];
 
     public static function templates(): array
     {
@@ -40,14 +40,13 @@ class StaffScheduling
             $data[$field] = $data[$field] ? substr($data[$field], 0, 5) : null;
         }
         $data['break_minutes'] = (int) $data['break_minutes'];
-        $data['overtime_confirmed'] = (bool) $data['overtime_confirmed'];
 
         return $data;
     }
 
     public static function isDraft(ScheduleShift $shift): bool
     {
-        return self::snapshot($shift) !== $shift->published_data;
+        return self::snapshot($shift) !== ($shift->published_data === null ? null : array_intersect_key($shift->published_data, array_flip(self::FIELDS)));
     }
 
     public static function paidHours(array $shift): float
@@ -61,16 +60,14 @@ class StaffScheduling
 
     public static function cost(array $shift, float $rate): float
     {
-        $hours = self::paidHours($shift);
-
-        return round((min(8, $hours) + max(0, $hours - 8) * 1.25) * $rate, 2);
+        return self::paidHours($shift) > 0 ? round($rate, 2) : 0.0;
     }
 
     public static function settings(int $branchId): ScheduleSetting
     {
         return ScheduleSetting::firstOrNew(['branch_id' => $branchId], [
             'opens_at' => '08:00', 'closes_at' => '19:00', 'minimum_staff' => 2, 'minimum_riders' => 0,
-            'early_minutes' => 15, 'grace_minutes' => 5, 'overtime_minutes' => 15,
+            'early_minutes' => 15, 'grace_minutes' => 5,
         ]);
     }
 
@@ -125,22 +122,6 @@ class StaffScheduling
         $allowed = Carbon::parse($capturedAt->toDateString().' '.$start)->subMinutes(self::settings($branchId)->early_minutes);
         if ($capturedAt->lt($allowed)) {
             throw ValidationException::withMessages(['schedule' => 'Clock-in opens at '.$allowed->format('g:i A').'. Earlier clock-in needs a manager to record it.']);
-        }
-    }
-
-    public static function flagClockOut(EmployeeAttendanceRecord $record, ?Carbon $capturedAt = null): void
-    {
-        $capturedAt ??= now();
-        $shift = self::publishedShift($record->attendance_employee_id, $record->work_date->toDateString(), $record->branch_id);
-        if (! ($end = $shift?->published_data['ends_at'] ?? null)) {
-            return;
-        }
-        $endsAt = Carbon::parse($record->work_date->toDateString().' '.$end);
-        if ($capturedAt->gt($endsAt->copy()->addMinutes(self::settings($record->branch_id)->overtime_minutes))) {
-            $flags = $record->schedule_flags ?? [];
-            $flags['unapproved_overtime_minutes'] = (int) $endsAt->diffInMinutes($capturedAt);
-            unset($flags['overtime_reviewed_by'], $flags['approved_overtime_minutes']);
-            $record->update(['schedule_flags' => $flags]);
         }
     }
 

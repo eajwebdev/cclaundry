@@ -52,7 +52,6 @@
                     @forelse($employees as $person)
                         @php($personShifts = $byCell->filter(fn ($shift) => $shift->attendance_employee_id === $person->id))
                         @php($hours = $personShifts->sum(fn ($shift) => $planner::paidHours($planner::snapshot($shift))))
-                        @php($overtime = $personShifts->sum(fn ($shift) => max(0, $planner::paidHours($planner::snapshot($shift)) - 8)))
                         <tr><th class="p-3 align-top"><span class="font-semibold">{{ $person->name }}</span><span class="mt-1 block text-xs font-normal text-muted">{{ str_replace('_', ' ', ucfirst($person->schedule_role)) }}</span></th>
                         @foreach($days as $day)
                             @php($cell = $person->id.':'.$day->toDateString())
@@ -65,14 +64,13 @@
                                         @php($data = $planner::snapshot($shift))
                                         <span class="block font-semibold">{{ $templates[$data['template']]['label'] }}</span>
                                         @if($data['starts_at'])<span class="mt-1 block text-xs tabular-nums">{{ $data['starts_at'] }}–{{ $data['ends_at'] }}</span><span class="block text-[10px] text-muted">Break {{ $data['break_minutes'] }} min</span>@endif
-                                        @if($planner::paidHours($data) > 8)<span class="mt-1 inline-block rounded bg-red-100 px-1 text-[10px] font-semibold text-red-700">{{ number_format($planner::paidHours($data) - 8, 1) }}h OT {{ $data['overtime_confirmed'] ? '✓' : '· confirm' }}</span>@endif
                                         @if($data['note'])<span class="mt-1 block break-words text-[10px] text-muted">{{ $data['note'] }}</span>@endif
                                         <span class="mt-1 block text-[9px] uppercase tracking-wide text-muted">{{ $planner::isDraft($shift) ? 'Draft' : 'Published' }}@if($data['starts_at'] && ($data['starts_at'] !== $templates[$data['template']]['starts_at'] || $data['ends_at'] !== $templates[$data['template']]['ends_at'])) · Custom ✎@endif</span>
                                     @else <span class="text-xs text-muted">{{ $canEdit ? '+ Add shift' : 'Not scheduled' }}</span> @endif
                                 </button>
                             </td>
                         @endforeach
-                        <td class="p-3 align-top"><span class="font-semibold">{{ number_format($hours, 1) }} h</span>@if($overtime > 0)<span class="block text-xs text-red-600">{{ number_format($overtime, 1) }} OT · +25%</span>@endif @if($showCosts)<span class="mt-1 block text-xs text-muted">{{ $person->hourly_rate ? ($appSettings?->currency ?? 'PHP').' '.number_format($personShifts->sum(fn ($shift) => $planner::cost($planner::snapshot($shift), (float) $person->hourly_rate)), 2) : 'Set hourly rate' }}</span>@endif</td></tr>
+                        <td class="p-3 align-top"><span class="font-semibold">{{ number_format($hours, 1) }} h</span> @if($showCosts)<span class="mt-1 block text-xs text-muted">{{ $person->daily_rate ? ($appSettings?->currency ?? 'PHP').' '.number_format($personShifts->sum(fn ($shift) => $planner::cost($planner::snapshot($shift), (float) $person->daily_rate)), 2) : 'Set daily rate' }}</span>@endif</td></tr>
                     @empty<tr><td colspan="9" class="p-8 text-center text-muted">Add active employees to this branch in Employees to start scheduling.</td></tr>@endforelse
                 </tbody>
                 <tfoot class="border-t border-border bg-smoke text-xs dark:border-gray-800 dark:bg-gray-950"><tr><th class="p-3">Coverage<br><span class="font-normal text-muted">15-min blocks</span></th>@foreach($days as $day)@php($short = collect($coverage[$day->toDateString()])->where('short', true)->count())<td class="p-3 {{ $short ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300' }}">{{ $short ? '⚠ '.$short.' short blocks' : '✓ Covered' }}</td>@endforeach<td class="p-3 font-semibold">{{ number_format($byCell->sum(fn ($shift) => $planner::paidHours($planner::snapshot($shift))), 1) }} h</td></tr></tfoot>

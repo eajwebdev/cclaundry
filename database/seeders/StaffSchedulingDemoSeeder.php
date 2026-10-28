@@ -22,10 +22,10 @@ class StaffSchedulingDemoSeeder extends Seeder
 
         DB::transaction(function () use ($branch, $week, &$employeesCreated, &$shiftsCreated): void {
             foreach ([
-                ['Alex', 'Santos', 'all_around', 80],
-                ['Bea', 'Cruz', 'all_around', 85],
-                ['Chris', 'Tan', 'part_time', 75],
-                ['Drew', 'Reyes', 'rider', 80],
+                ['Alex', 'Santos', 'all_around', 640],
+                ['Bea', 'Cruz', 'all_around', 680],
+                ['Chris', 'Tan', 'part_time', 600],
+                ['Drew', 'Reyes', 'rider', 640],
             ] as $index => [$firstName, $lastName, $role, $rate]) {
                 $employee = AttendanceEmployee::withTrashed()->firstOrCreate([
                     'username' => 'demo-schedule-'.$branch->id.'-'.strtolower($firstName),
@@ -37,7 +37,7 @@ class StaffSchedulingDemoSeeder extends Seeder
                     'password' => Hash::make(Str::random(40)),
                     'status' => 'active',
                     'schedule_role' => $role,
-                    'hourly_rate' => $rate,
+                    'daily_rate' => $rate,
                 ]);
                 $employeesCreated += $employee->wasRecentlyCreated ? 1 : 0;
                 if ($employee->trashed() || $employee->status !== 'active' || (int) $employee->branch_id !== (int) $branch->id) {
@@ -69,7 +69,6 @@ class StaffSchedulingDemoSeeder extends Seeder
                         'branch_id' => $branch->id,
                         'template' => $template,
                         'note' => 'Sample schedule for preview.',
-                        'overtime_confirmed' => false,
                     ]);
                     if ($shift->wasRecentlyCreated) {
                         $shiftsCreated++;
