@@ -39,7 +39,7 @@
                 @foreach(['last_week' => 'Copy last week', 'month' => 'Repeat for month'] as $mode => $label)
                     <form method="POST" action="{{ route('admin.scheduling.copy') }}" @submit="if (!window.confirm('Copy this pattern into draft cells? Holidays, approved leave and published shifts will be skipped.')) $event.preventDefault()">@csrf<input type="hidden" name="branch_id" value="{{ $branch->id }}"><input type="hidden" name="date" value="{{ $date->toDateString() }}"><input type="hidden" name="mode" value="{{ $mode }}"><button class="rounded-lg border border-border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">{{ $label }}</button></form>
                 @endforeach
-                <button @click="settingsOpen = !settingsOpen" class="rounded-lg border border-border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">Settings & staff</button>
+                <button type="button" @click="settingsOpen = true" :aria-expanded="settingsOpen" aria-controls="schedule-settings-dialog" class="rounded-lg border border-border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">Settings & staff</button>
             </div>
             <div class="flex items-center gap-3"><span class="text-xs font-medium text-muted">{{ $draftCount ? $draftCount.' draft changes · not sent' : 'Published / no draft changes' }}</span><button @click="publishOpen = true" class="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white">Publish week</button></div>
         </div>
