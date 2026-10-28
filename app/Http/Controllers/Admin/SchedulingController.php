@@ -11,6 +11,7 @@ use App\Models\ScheduleLeaveRequest;
 use App\Models\ScheduleShift;
 use App\Support\Activity;
 use App\Support\StaffScheduling as Planner;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -33,6 +34,20 @@ class SchedulingController extends Controller
     }
 
     public function index(Request $request)
+    {
+        return view('admin.scheduling.index', $this->scheduleData($request));
+    }
+
+    public function pdf(Request $request)
+    {
+        $data = $this->scheduleData($request);
+        $filename = 'schedule-'.Str::slug($data['branch']->name).'-'.$data['view'].'-'.$data['start']->toDateString().'.pdf';
+
+        return Pdf::loadView('admin.scheduling.pdf', $data)->setOption('isFontSubsettingEnabled', true)->setPaper('a4', 'landscape')
+            ->stream($filename)->header('Cache-Control', 'private, no-store');
+    }
+
+    private function scheduleData(Request $request): array
     {
         $request->validate(['date' => ['nullable', 'date_format:Y-m-d'], 'view' => ['nullable', Rule::in(['day', 'week', 'month'])], 'employee_id' => ['nullable', 'integer']]);
         $branch = $this->branch($request);
@@ -63,7 +78,7 @@ class SchedulingController extends Controller
         $showCosts = $request->user()->isSuperAdmin();
         $templates = Planner::templates();
 
-        return view('admin.scheduling.index', compact('branch', 'branches', 'date', 'view', 'start', 'end', 'days', 'employees', 'allEmployees', 'byCell', 'byDay', 'coverage', 'settings', 'holidays', 'leaveRequests', 'attendance', 'canEdit', 'showCosts', 'templates'));
+        return compact('branch', 'branches', 'date', 'view', 'start', 'end', 'days', 'employees', 'allEmployees', 'byCell', 'byDay', 'coverage', 'settings', 'holidays', 'leaveRequests', 'attendance', 'canEdit', 'showCosts', 'templates');
     }
 
     public function save(Request $request)

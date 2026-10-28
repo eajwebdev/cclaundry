@@ -12,10 +12,13 @@
 <div x-data="staffScheduling(@js($cellData), @js($templates))" class="space-y-4">
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div><p class="text-xs font-semibold uppercase tracking-widest text-primary">People & shifts</p><h1 class="mt-1 text-2xl font-semibold">Staff Scheduling</h1><p class="mt-1 text-sm text-muted">Plan coverage, publish shifts and review time off.</p></div>
-        <div class="flex items-center gap-2 rounded-lg border border-border bg-white p-1 dark:border-gray-800 dark:bg-gray-900">
+        <div class="flex flex-wrap items-center gap-2">
+            <a href="{{ route('admin.scheduling.pdf', ['branch_id' => $branch->id, 'date' => $date->toDateString(), 'view' => $view, 'employee_id' => request('employee_id')]) }}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-sm font-medium dark:border-gray-700 dark:bg-gray-900"><span data-lucide="printer" class="h-4 w-4"></span>Print / PDF</a>
+            <div class="flex items-center gap-2 rounded-lg border border-border bg-white p-1 dark:border-gray-800 dark:bg-gray-900">
             @foreach(['day' => 'Day', 'week' => 'Week', 'month' => 'Month'] as $key => $label)
                 <a href="{{ route('admin.scheduling.index', array_merge(request()->only('branch_id', 'date', 'employee_id'), ['view' => $key])) }}" @class(['rounded-md px-4 py-2 text-sm font-medium', 'bg-primary text-white' => $view === $key, 'hover:bg-smoke dark:hover:bg-gray-800' => $view !== $key])>{{ $label }}</a>
             @endforeach
+            </div>
         </div>
     </div>
     @if($errors->any())<div role="alert" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{{ $errors->first() }}</div>@endif

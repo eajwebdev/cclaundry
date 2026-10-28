@@ -225,6 +225,7 @@ Route::middleware(['auth', 'not.rider', 'settings.completed', 'system.maintenanc
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::middleware('menu.access:scheduling')->prefix('scheduling')->name('scheduling.')->group(function () {
             Route::get('/', [SchedulingController::class, 'index'])->name('index');
+            Route::get('/pdf', [SchedulingController::class, 'pdf'])->name('pdf');
             Route::post('/shifts', [SchedulingController::class, 'save'])->name('save');
             Route::post('/publish', [SchedulingController::class, 'publish'])->name('publish');
             Route::post('/copy', [SchedulingController::class, 'copy'])->name('copy');

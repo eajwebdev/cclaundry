@@ -12,11 +12,14 @@ use App\Models\ScheduleShift;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Support\StaffScheduling as Planner;
+use Barryvdh\DomPDF\PDF;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use Tests\TestCase;
 
 class StaffSchedulingTest extends TestCase
@@ -249,5 +252,43 @@ class StaffSchedulingTest extends TestCase
         $data['captured_at'] = now()->subDays(3)->toIso8601String();
         $this->postJson(route('attendance.sync-punch'), $data)->assertUnprocessable();
         $this->assertDatabaseCount('employee_attendance_records', 0);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_schedule_pdf_renders_for_day_week_and_month(): void
+    {
+        $this->saveShift()->assertSessionHasNoErrors();
+        foreach (['day', 'week', 'month'] as $view) {
+            $response = $this->get(route('admin.scheduling.pdf', ['date' => '2026-11-09', 'view' => $view, 'branch_id' => $this->branch->id]));
+            $response->assertOk()->assertHeader('Content-Type', 'application/pdf');
+            $this->assertStringStartsWith('%PDF-', $response->getContent());
+            $this->assertStringContainsString('inline;', $response->headers->get('Content-Disposition'));
+        }
+    }
+
+    public function test_pdf_respects_employee_filter_and_manager_branch_scope(): void
+    {
+        $this->saveShift();
+        $other = Branch::create(['name' => 'Other', 'code' => 'OTHER', 'is_active' => true]);
+        AttendanceEmployee::create(['branch_id' => $other->id, 'first_name' => 'Private', 'last_name' => 'Employee', 'username' => 'private', 'password' => 'x', 'status' => 'active']);
+        $manager = User::factory()->create(['role' => 'branch_manager', 'branch_id' => $this->branch->id, 'access' => ['scheduling']]);
+        $this->actingAs($manager);
+        $pdf = \Mockery::mock(PDF::class);
+        $pdf->shouldReceive('setOption')->once()->with('isFontSubsettingEnabled', true)->andReturnSelf();
+        $pdf->shouldReceive('setPaper')->once()->with('a4', 'landscape')->andReturnSelf();
+        $pdf->shouldReceive('stream')->once()->andReturn(response('%PDF-test', 200, ['Content-Type' => 'application/pdf']));
+        \Barryvdh\DomPDF\Facade\Pdf::shouldReceive('loadView')->once()->with('admin.scheduling.pdf', \Mockery::on(function ($data) {
+            $this->assertEquals($this->branch->id, $data['branch']->id);
+            $this->assertSame([$this->employee->id], $data['employees']->pluck('id')->all());
+            $html = view('admin.scheduling.pdf', $data)->render();
+            $this->assertStringContainsString('Staff A', $html);
+            $this->assertStringNotContainsString('Private Employee', $html);
+            $this->assertStringNotContainsString('123.45', $html);
+            $this->assertStringContainsString('Draft', $html);
+
+            return true;
+        }))->andReturn($pdf);
+        $this->get(route('admin.scheduling.pdf', ['branch_id' => $other->id, 'employee_id' => $this->employee->id, 'date' => '2026-11-09']))->assertOk();
     }
 }
