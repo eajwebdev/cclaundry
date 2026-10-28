@@ -19,9 +19,10 @@ class StaffScheduling
     {
         return [
             'opening' => ['label' => 'Opening', 'starts_at' => '08:00', 'ends_at' => '17:00', 'break_starts_at' => '12:00', 'break_minutes' => 60],
+            'mid' => ['label' => 'Mid shift', 'starts_at' => '09:00', 'ends_at' => '18:00', 'break_starts_at' => '13:00', 'break_minutes' => 60],
             'closing' => ['label' => 'Closing', 'starts_at' => '10:00', 'ends_at' => '19:00', 'break_starts_at' => '14:00', 'break_minutes' => 60],
             'sunday' => ['label' => 'Sunday', 'starts_at' => '10:00', 'ends_at' => '17:00', 'break_starts_at' => '13:00', 'break_minutes' => 60],
-            'rider' => ['label' => 'Rider', 'starts_at' => '11:00', 'ends_at' => '19:00', 'break_starts_at' => '15:00', 'break_minutes' => 60],
+            'rider' => ['label' => 'Rider', 'starts_at' => '08:00', 'ends_at' => '19:00', 'break_starts_at' => '15:00', 'break_minutes' => 60],
             'rest' => ['label' => 'Rest day', 'starts_at' => null, 'ends_at' => null, 'break_starts_at' => null, 'break_minutes' => 0],
             'leave' => ['label' => 'Approved leave', 'starts_at' => null, 'ends_at' => null, 'break_starts_at' => null, 'break_minutes' => 0],
             'unscheduled' => ['label' => 'Not scheduled', 'starts_at' => null, 'ends_at' => null, 'break_starts_at' => null, 'break_minutes' => 0],

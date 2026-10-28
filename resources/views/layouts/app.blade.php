@@ -76,13 +76,13 @@
                 return this.sidebarOpen || (this.isDesktop && this.desktopSidebarOpen);
             }
         }"
-        class="{{ $isViewportLocked ? 'fixed inset-0 z-0 h-full w-full overflow-hidden' : 'min-h-screen' }} flex"
+        class="{{ $isViewportLocked ? 'fixed inset-0 z-0 h-full w-full overflow-hidden' : 'min-h-dvh' }} flex"
     >
 
         @include('partials.sidebar')
 
         <div
-            class="flex-1 flex min-w-0 flex-col h-full overflow-hidden transition-[padding] duration-200 {{ $sidebarAutoCollapsed ? 'xl:pl-0' : 'xl:pl-64' }}"
+            class="flex-1 flex min-w-0 flex-col {{ $isViewportLocked ? 'h-full' : 'min-h-dvh' }} overflow-hidden transition-[padding] duration-200 {{ $sidebarAutoCollapsed ? 'xl:pl-0' : 'xl:pl-64' }}"
             :class="desktopSidebarOpen ? 'xl:!pl-64' : 'xl:!pl-0'"
         >
             @include('partials.topbar')

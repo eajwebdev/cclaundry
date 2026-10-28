@@ -9,6 +9,8 @@ Deployment
 
 Planning
 
+The Rider template defaults to 08:00–19:00. Mid shift is 09:00–18:00 with a one-hour break at 13:00. Template changes apply when assigning a shift; existing schedules keep their saved times.
+
 Day, Week and Month use the same shift data. The week grid scrolls horizontally on phones. Click a cell to edit, drag a template onto a cell, select multiple cells before applying a template, or long-press a populated cell to copy it. Day view exposes draggable start/end handles and breaks, snapped to 15 minutes; dragging opens the editor for validation and saving. Drafts and published shifts have different colors.
 
 Shifts are within one calendar day; overnight shifts are not supported by this reference. Paid hours deduct the configured unpaid break. Each scheduled working day costs one fixed daily rate, regardless of shift length. Rest days and leave have no scheduled work cost. Scheduling does not calculate overtime, add premiums for long shifts, or require overtime approval. Estimates and rates are only rendered for the owner. These are planning estimates, not a replacement for payroll; holidays flag premium-pay review rather than applying unprovided payroll rules.
