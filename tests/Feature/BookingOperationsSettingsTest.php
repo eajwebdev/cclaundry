@@ -195,13 +195,13 @@ class BookingOperationsSettingsTest extends TestCase
         ])->assertSessionHasErrors('pickup_slot');
     }
 
-    public function test_pickup_windows_must_end_by_six_and_cannot_overlap(): void
+    public function test_pickup_windows_must_end_by_seven_and_cannot_overlap(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'access' => ['settings']]);
 
         $this->actingAs($admin)
             ->put(route('admin.settings.update'), $this->settingsPayload([
-                'pickup_windows' => [['start' => '17:00', 'end' => '19:00']],
+                'pickup_windows' => [['start' => '19:00', 'end' => '19:30']],
             ]))
             ->assertSessionHasErrors('pickup_windows.0.end');
 
@@ -219,12 +219,12 @@ class BookingOperationsSettingsTest extends TestCase
 
         $this->assertNull(BranchSetting::query()->where('branch_id', $this->branch->id)->value('pickup_windows'));
 
-        // A window ending at 6:00 PM (18:00) is accepted.
+        // A window ending at 7:00 PM (19:00) is accepted.
         $this->actingAs($admin)
             ->put(route('admin.settings.update'), $this->settingsPayload([
                 'pickup_windows' => [
                     ['start' => '08:00', 'end' => '09:00'],
-                    ['start' => '17:00', 'end' => '18:00'],
+                    ['start' => '18:00', 'end' => '19:00'],
                 ],
             ]))
             ->assertSessionHasNoErrors();
@@ -235,7 +235,9 @@ class BookingOperationsSettingsTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.settings.edit', ['branch_id' => $this->branch->id]))
             ->assertOk()
-            ->assertSee('Pickup &amp; Delivery Windows', false);
+            ->assertSee('Pickup &amp; Delivery Windows', false)
+            ->assertSee('value="19:00"', false)
+            ->assertSee('Every window must end by 7:00 PM.');
     }
 
     public function test_renaming_the_add_ons_category_keeps_its_items_as_add_ons(): void

@@ -44,8 +44,8 @@ class Booking
      */
     public const ADDON_CATEGORY = 'Add-ons';
 
-    /** No pickup or delivery window may run past this: the vans are back by 6 PM. */
-    public const LATEST_WINDOW_END = '18:00';
+    /** No pickup or delivery window may run past this time. */
+    public const LATEST_WINDOW_END = '19:00';
 
     /**
      * The collection windows a branch uses until it sets its own under
