@@ -25,7 +25,7 @@ class Menu
             'employees' => ['label' => 'Employees', 'route' => 'admin.employees.index', 'icon' => 'employees'],
             'scheduling' => ['label' => 'Staff Scheduling', 'route' => 'admin.scheduling.index', 'icon' => 'attendance'],
             'attendance' => ['label' => 'Attendance Logs', 'route' => 'admin.attendance.index', 'icon' => 'attendance'],
-            'daily_tasks' => ['label' => 'End-of-Day Tasks', 'route' => 'admin.daily-tasks.index', 'icon' => 'check'],
+            'daily_tasks' => ['label' => 'Tasks', 'route' => 'admin.daily-tasks.index', 'icon' => 'check'],
             'reports' => ['label' => 'Reports', 'route' => 'admin.reports.index', 'icon' => 'reports'],
             'branches' => ['label' => 'Branches', 'route' => 'admin.branches.index', 'icon' => 'branches'],
             'users' => ['label' => 'Users', 'route' => 'admin.users.index', 'icon' => 'users'],

@@ -57,6 +57,7 @@ class FinancialReconciliation
             ->whereDate('movement_date', '<=', $dateTo);
 
         $cashIn = round((float) (clone $movements)->where('direction', 'in')->sum('amount'), 2);
+        $bankDeposits = round((float) (clone $movements)->where('type', 'bank_deposit')->where('direction', 'out')->sum('amount'), 2);
         $cashOut = round((float) (clone $movements)->where('direction', 'out')->sum('amount'), 2);
 
         $cashlessFunding = AccountsPayable::query()
@@ -88,7 +89,7 @@ class FinancialReconciliation
         $storeBankExpenses = round((float) ($expenseSummary->store_bank ?? 0), 2);
         $expectedCashDrawer = round($cashCollections + $cashIn - $storeCashExpenses - $cashOut, 2);
         $expectedGcash = round($gcashCollections + (float) ($cashlessFunding['gcash'] ?? 0) - (float) ($cashlessRepayments['gcash'] ?? 0) - $storeGcashExpenses, 2);
-        $expectedBank = round($bankCollections + (float) ($cashlessFunding['bank'] ?? 0) - (float) ($cashlessRepayments['bank'] ?? 0) - $storeBankExpenses, 2);
+        $expectedBank = round($bankCollections + $bankDeposits + (float) ($cashlessFunding['bank'] ?? 0) - (float) ($cashlessRepayments['bank'] ?? 0) - $storeBankExpenses, 2);
 
         $unpaidBalance = round((float) JobOrder::query()
             ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
@@ -123,6 +124,7 @@ class FinancialReconciliation
             'owner_paid_expenses' => round((float) ($expenseSummary->owner_paid ?? 0), 2),
             'cash_in' => $cashIn,
             'cash_out' => $cashOut,
+            'bank_deposits' => $bankDeposits,
             'expected_cash_drawer' => $expectedCashDrawer,
             'gcash_owner_funding' => (float) ($cashlessFunding['gcash'] ?? 0),
             'bank_owner_funding' => (float) ($cashlessFunding['bank'] ?? 0),

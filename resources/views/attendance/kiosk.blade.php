@@ -120,46 +120,60 @@
                 <div x-cloak x-show="activeTab === 'tasks'" class="flex min-h-0 flex-1 flex-col">
                     <div class="mb-2 flex shrink-0 items-center justify-between rounded-xl bg-primary px-3 py-2.5 text-white">
                         <div>
-                            <p class="text-sm font-bold">End-of-Day Tasks</p>
+                            <p class="text-sm font-bold">Tasks</p>
                             <p class="text-[10px] text-white/75">{{ \Illuminate\Support\Carbon::parse($workDate)->format('M d, Y') }}</p>
                         </div>
                         <span class="rounded-full bg-white/15 px-2.5 py-1 text-xs font-bold">{{ $dailyTasks->filter(fn ($task) => $task->completions->isNotEmpty())->count() }}/{{ $dailyTasks->count() }} done</span>
                     </div>
 
-                    <div class="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1">
-                        @forelse($dailyTasks as $task)
-                            @php($completion = $task->completions->first())
-                            <div class="rounded-xl border border-border bg-white p-2.5 shadow-sm dark:border-gray-800 dark:bg-gray-950">
-                                <button type="button" @click="openTaskId = openTaskId === {{ $task->id }} ? null : {{ $task->id }}; refreshIcons()" class="flex w-full items-center justify-between gap-3 text-left">
-                                    <span class="flex min-w-0 items-center gap-2.5">
-                                        <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg {{ $completion ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700' }}">
-                                            <span data-lucide="{{ $completion ? 'check' : 'attendance' }}" class="h-4 w-4"></span>
-                                        </span>
-                                        <span class="min-w-0">
-                                            <span class="block truncate text-sm font-semibold">{{ $task->name }}</span>
-                                            <span class="block text-[10px] text-muted">{{ $completion ? 'Completed '.$completion->completed_at?->format('h:i A') : 'Tap to upload proof' }}</span>
-                                        </span>
-                                    </span>
-                                    <span class="text-xs font-bold {{ $completion ? 'text-green-700' : 'text-amber-700' }}">{{ $completion ? 'DONE' : 'PENDING' }}</span>
-                                </button>
 
-                                <form x-cloak x-show="openTaskId === {{ $task->id }}" x-transition method="POST" action="{{ route('attendance.daily-tasks.complete', $task) }}" enctype="multipart/form-data" class="mt-2 space-y-2 border-t border-border pt-2 dark:border-gray-800">
-                                    @csrf
-                                    @if($completion)
-                                        <a href="{{ \App\Support\PublicUpload::url($completion->photo_path) }}" target="_blank" class="block text-xs font-semibold text-primary">View current proof</a>
-                                    @endif
-                                    <input type="file" name="photo" accept="image/*" capture="environment" required class="w-full rounded-lg border border-border bg-white px-2 py-2 text-xs dark:border-gray-800 dark:bg-gray-900">
-                                    <div class="grid grid-cols-[1fr_auto] gap-2">
-                                        <input name="remarks" placeholder="Optional remarks" class="h-10 min-w-0 rounded-lg border border-border bg-white px-3 text-xs dark:border-gray-800 dark:bg-gray-900">
-                                        <button class="inline-flex h-10 items-center justify-center rounded-lg bg-primary px-4 text-xs font-bold text-white">
-                                            Upload
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        @empty
-                            <div class="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted dark:border-gray-800">No tasks configured.</div>
-                        @endforelse
+                    <div x-data="{ category: 'all' }" class="flex min-h-0 flex-1 flex-col">
+                        <div class="mb-3 flex shrink-0 flex-wrap gap-2" role="group" aria-label="Task schedule">
+                            @foreach(['all' => 'All'] + \App\Models\DailyTask::CATEGORIES as $key => $label)
+                                <button type="button" @click="category = @js($key)" :aria-pressed="category === @js($key)" :class="category === @js($key) ? 'bg-primary text-white' : 'bg-smoke text-muted'" class="rounded-md border border-border px-3 py-2 text-xs font-semibold dark:border-gray-800">{{ $label }}</button>
+                            @endforeach
+                        </div>
+                        <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1">
+                            @foreach(\App\Models\DailyTask::CATEGORIES as $categoryKey => $categoryLabel)
+                                <section x-show="category === 'all' || category === @js($categoryKey)" class="space-y-3">
+                                    <h2 class="mb-2 text-sm font-bold">{{ $categoryLabel }}</h2>
+                                    <p class="mb-2 text-xs text-muted">{{ match ($categoryKey) { 'weekly' => 'One completion per week, Monday to Sunday.', 'monthly' => 'One completion per calendar month.', default => 'One completion per day.' } }}</p>
+                                    @forelse($dailyTasks->where('category', $categoryKey) as $task)
+                                        @php($completion = $task->completions->first())
+                                        <div class="rounded-xl border border-border bg-white p-2.5 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+                                            <button type="button" @click="openTaskId = openTaskId === {{ $task->id }} ? null : {{ $task->id }}; refreshIcons()" class="flex w-full items-center justify-between gap-3 text-left">
+                                                <span class="flex min-w-0 items-center gap-2.5">
+                                                    <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg {{ $completion ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700' }}">
+                                                        <span data-lucide="{{ $completion ? 'check' : 'attendance' }}" class="h-4 w-4"></span>
+                                                    </span>
+                                                    <span class="min-w-0">
+                                                        <span class="block truncate text-sm font-semibold">{{ $task->name }}</span>
+                                                        <span class="block text-[10px] text-muted">{{ $completion ? 'Completed '.$completion->completed_at?->format('M d, h:i A') : 'Tap to upload proof' }}</span>
+                                                    </span>
+                                                </span>
+                                                <span class="text-xs font-bold {{ $completion ? 'text-green-700' : 'text-amber-700' }}">{{ $completion ? 'DONE' : 'PENDING' }}</span>
+                                            </button>
+
+                                            <form x-cloak x-show="openTaskId === {{ $task->id }}" x-transition method="POST" action="{{ route('attendance.daily-tasks.complete', $task) }}" enctype="multipart/form-data" class="mt-2 space-y-2 border-t border-border pt-2 dark:border-gray-800">
+                                                @csrf
+                                                @if($completion)
+                                                    <a href="{{ \App\Support\PublicUpload::url($completion->photo_path) }}" target="_blank" class="block text-xs font-semibold text-primary">View current proof</a>
+                                                @endif
+                                                <input type="file" name="photo" accept="image/*" capture="environment" required class="w-full rounded-lg border border-border bg-white px-2 py-2 text-xs dark:border-gray-800 dark:bg-gray-900">
+                                                <div class="grid grid-cols-[1fr_auto] gap-2">
+                                                    <input name="remarks" placeholder="Optional remarks" class="h-10 min-w-0 rounded-lg border border-border bg-white px-3 text-xs dark:border-gray-800 dark:bg-gray-900">
+                                                    <button class="inline-flex h-10 items-center justify-center rounded-lg bg-primary px-4 text-xs font-bold text-white">
+                                                        Upload
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    @empty
+                                        <div class="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted dark:border-gray-800">No tasks configured.</div>
+                                    @endforelse
+                                </section>
+                            @endforeach
+                        </div>
                     </div>
                 </div>
 

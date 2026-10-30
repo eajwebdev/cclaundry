@@ -72,7 +72,7 @@
                                     <span data-lucide="laundry" class="h-3.5 w-3.5"></span>
                                     {{ number_format((int) ($branch->machine_count ?? 0)) }}
                                 </span>
-                                <p class="mt-1 text-xs text-muted">{{ $branch->dailyTasks->count() }} daily task{{ $branch->dailyTasks->count() === 1 ? '' : 's' }}</p>
+                                <p class="mt-1 text-xs text-muted">{{ $branch->dailyTasks->count() }} task{{ $branch->dailyTasks->count() === 1 ? '' : 's' }}</p>
                             </td>
                             <td class="px-4 py-3">{{ $branch->users_count }}</td>
                             <td class="px-4 py-3">
@@ -150,13 +150,20 @@
 
                     <section class="rounded-lg border border-border p-4 dark:border-gray-800">
                         <div class="mb-3">
-                            <h3 class="text-base font-semibold">End-of-Day Tasks</h3>
-                            <p class="text-sm text-muted">Set the tasks this branch must comply with every day.</p>
+                            <h3 class="text-base font-semibold">Tasks</h3>
+                            <p class="text-sm text-muted">Set opening, closing, weekly, and monthly tasks for this branch.</p>
                         </div>
 
                         <form method="POST" action="{{ route('admin.branches.daily-tasks.store', $branch) }}" class="space-y-2">
                             @csrf
                             <input name="name" placeholder="Task name" required class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+                            <label class="block text-xs text-muted">Schedule
+                                <select name="category" required class="mt-1 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+                                    @foreach(\App\Models\DailyTask::CATEGORIES as $category => $label)
+                                        <option value="{{ $category }}" @selected('end_of_day' === $category)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
                             <div class="flex flex-wrap items-center justify-between gap-2">
                                 <label class="inline-flex items-center gap-2 text-sm text-muted">
                                     <input type="checkbox" name="requires_photo" value="1" checked class="rounded border-border text-primary">
@@ -177,6 +184,13 @@
                                         @csrf
                                         @method('PUT')
                                         <input name="name" value="{{ $task->name }}" required class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+                                        <label class="block text-xs text-muted">Schedule
+                                            <select name="category" required class="mt-1 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+                                                @foreach(\App\Models\DailyTask::CATEGORIES as $category => $label)
+                                                    <option value="{{ $category }}" @selected($task->category === $category)>{{ $label }}</option>
+                                                @endforeach
+                                            </select>
+                                        </label>
                                         <div class="flex flex-wrap items-center justify-between gap-2">
                                             <label class="inline-flex items-center gap-2 text-sm text-muted">
                                                 <input type="checkbox" name="requires_photo" value="1" @checked($task->requires_photo) class="rounded border-border text-primary">
@@ -200,7 +214,7 @@
                                 </div>
                             @empty
                                 <div class="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted dark:border-gray-800">
-                                    No daily tasks set for this branch yet.
+                                    No tasks set for this branch yet.
                                 </div>
                             @endforelse
                         </div>

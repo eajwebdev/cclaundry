@@ -7,7 +7,6 @@ use App\Models\Branch;
 use App\Models\BranchExpense;
 use App\Models\Customer;
 use App\Models\DailyTask;
-use App\Models\DailyTaskCompletion;
 use App\Models\EmployeeAttendanceRecord;
 use App\Models\Inventory;
 use App\Models\JobOrder;
@@ -1423,7 +1422,7 @@ class DashboardController extends Controller
             'top_customers' => 'Top customers',
             'branch_compare' => 'Branch comparison',
             'attendance_today' => 'Attendance today',
-            'eod_tasks' => 'End-of-day tasks',
+            'eod_tasks' => 'Tasks',
             'z_reading' => 'Latest Z Reading variance',
         ];
     }
@@ -1612,10 +1611,11 @@ class DashboardController extends Controller
 
         return [
             'title' => 'Petty Cash Movement',
-            'summary' => 'Deposits increase branch cash; withdrawals reduce branch cash.',
+            'summary' => 'Cash In adds drawer cash. Cash Out and Bank Deposit reduce drawer cash; bank deposits also increase the expected bank balance.',
             'metrics' => [
-                ['label' => 'Deposits', 'value' => '+ '.$this->money($currency, $cashIn)],
-                ['label' => 'Withdrawals', 'value' => '- '.$this->money($currency, $cashOut)],
+                ['label' => 'Cash In', 'value' => '+ '.$this->money($currency, $cashIn)],
+                ['label' => 'Cash Out (including bank deposits)', 'value' => '- '.$this->money($currency, $cashOut)],
+                ['label' => 'Bank Deposits', 'value' => $this->money($currency, (float) (clone $movements)->where('type', 'bank_deposit')->sum('amount'))],
                 ['label' => 'Net Movement', 'value' => $this->money($currency, $cashIn - $cashOut)],
             ],
         ];
@@ -1787,20 +1787,26 @@ class DashboardController extends Controller
 
     private function dailyTaskAssistant(?int $branchId): array
     {
-        $tasks = DailyTask::query()
-            ->when($branchId, fn ($query) => $query->where(fn ($query) => $query
-                ->whereNull('branch_id')
-                ->orWhere('branch_id', $branchId)))
-            ->where('is_active', true)
-            ->count();
-        $completed = DailyTaskCompletion::query()->when($branchId, fn ($query) => $query->where('branch_id', $branchId))->whereDate('work_date', today())->count();
+        $workDate = today()->toDateString();
+        $branches = $branchId ? collect([$branchId]) : Branch::query()->where('is_active', true)->pluck('id');
+        $tasks = 0;
+        $completed = 0;
+        foreach ($branches as $taskBranchId) {
+            $branchTasks = DailyTask::query()
+                ->where(fn ($query) => $query->whereNull('branch_id')->orWhere('branch_id', $taskBranchId))
+                ->where('is_active', true)
+                ->withCompletionsForDate((int) $taskBranchId, $workDate)
+                ->get()->each->retainPeriodCompletion($workDate);
+            $tasks += $branchTasks->count();
+            $completed += $branchTasks->filter(fn ($task) => $task->completions->isNotEmpty())->count();
+        }
 
         return [
-            'title' => 'End-of-Day Tasks',
-            'summary' => 'Completions are counted for today only.',
+            'title' => 'Tasks',
+            'summary' => 'Daily tasks count for today; weekly tasks for the current Monday–Sunday week; monthly tasks for this calendar month.',
             'metrics' => [
                 ['label' => 'Required Active Tasks', 'value' => number_format($tasks)],
-                ['label' => 'Completed Today', 'value' => number_format($completed)],
+                ['label' => 'Completed This Period', 'value' => number_format($completed)],
                 ['label' => 'Remaining', 'value' => number_format(max(0, $tasks - $completed))],
             ],
         ];

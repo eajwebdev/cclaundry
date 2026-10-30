@@ -163,7 +163,8 @@
             <table style="margin-top:4px;">
                 <tr><td>Cash Collections + Cash In</td><td class="right">{{ $money($cashOnHand) }}</td></tr>
                 <tr><td>Store Cash Expenses</td><td class="right">{{ $money($storeCashExpenses) }}</td></tr>
-                <tr><td>Cash Withdrawals</td><td class="right">{{ $money(data_get($details, 'expense_breakdown.money_movements.cash_out', 0)) }}</td></tr>
+                <tr><td>Cash Out (including bank deposits)</td><td class="right">{{ $money(data_get($details, 'expense_breakdown.money_movements.cash_out', 0)) }}</td></tr>
+                <tr><td>Bank Deposits Included Above</td><td class="right">{{ $money(data_get($details, 'expense_breakdown.money_movements.bank_deposits', 0)) }}</td></tr>
                 <tr class="yellow"><td>Expected Cash Drawer</td><td class="right">{{ $money($reading->expected_cash_drawer_amount) }}</td></tr>
                 <tr><td>Store GCash Expenses</td><td class="right">{{ $money($storeGcashExpenses) }}</td></tr>
                 <tr><td>Store Bank Expenses</td><td class="right">{{ $money($storeBankExpenses) }}</td></tr>

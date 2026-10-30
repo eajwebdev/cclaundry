@@ -127,7 +127,7 @@
             @endforeach
         </div>
         <p class="mt-3 text-xs text-muted">
-            Drawer = cash collected + cash deposits/owner cash funding - store-cash expenses - cash withdrawals/remittances/payable repayments.
+            Drawer = cash collected + cash in/owner cash funding - store-cash expenses - cash out (including bank deposits, remittances, and payable repayments). Bank deposits transfer drawer cash to the bank without creating sales.
         </p>
     </div>
 

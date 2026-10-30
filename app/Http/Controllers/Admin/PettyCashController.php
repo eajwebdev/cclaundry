@@ -35,19 +35,20 @@ class PettyCashController extends Controller
 
         $baseQuery = MoneyMovement::query()
             ->with(['branch', 'recorder'])
-            ->when(! $canChooseBranch, fn ($query) => $query->where('branch_id', $user->branch_id))
-            ->when($canChooseBranch && $request->filled('branch_id'), fn ($query) => $query->where('branch_id', $request->branch_id))
-            ->when($request->filled('movement_date'), fn ($query) => $query->whereDate('movement_date', $businessDate))
+            ->where('branch_id', $branch->id)
+            ->whereDate('movement_date', $businessDate)
             ->when($request->filled('type') && array_key_exists($request->type, MoneyMovement::typeOptions()), function ($query) use ($request) {
                 $query->where(fn ($query) => $query
                     ->where('type', $request->type)
-                    ->orWhereIn('type', $request->type === 'deposit'
-                        ? ['owner_cash_in', 'cash_float_in']
-                        : ['sales_withdrawal', 'bank_deposit', 'cash_out']));
+                    ->orWhereIn('type', match ($request->type) {
+                        'deposit' => ['owner_cash_in', 'cash_float_in'],
+                        'withdraw' => ['sales_withdrawal', 'cash_out'],
+                        default => [],
+                    }));
             });
 
         $summary = (clone $baseQuery)
-            ->selectRaw("COALESCE(SUM(CASE WHEN direction = 'in' THEN amount ELSE 0 END), 0) as cash_in, COALESCE(SUM(CASE WHEN direction = 'out' THEN amount ELSE 0 END), 0) as cash_out")
+            ->selectRaw("COALESCE(SUM(CASE WHEN direction = 'in' THEN amount ELSE 0 END), 0) as cash_in, COALESCE(SUM(CASE WHEN direction = 'out' THEN amount ELSE 0 END), 0) as cash_out, COALESCE(SUM(CASE WHEN type = 'bank_deposit' THEN amount ELSE 0 END), 0) as bank_deposits")
             ->first();
 
         $movements = $baseQuery
@@ -77,7 +78,8 @@ class PettyCashController extends Controller
             'movement_date' => ['required', 'date'],
             'type' => ['required', 'string', 'in:'.implode(',', array_keys(MoneyMovement::typeOptions()))],
             'amount' => ['required', 'numeric', 'min:0.01', 'max:999999999.99'],
-            'reference_no' => ['nullable', 'string', 'max:255'],
+            'reference_no' => ['required_if:type,bank_deposit', 'nullable', 'string', 'max:255'],
+            'bank_name' => ['required_if:type,bank_deposit', 'nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -92,6 +94,7 @@ class PettyCashController extends Controller
             'direction' => MoneyMovement::typeOptions()[$validated['type']]['direction'],
             'amount' => round((float) $validated['amount'], 2),
             'reference_no' => $validated['reference_no'] ?? null,
+            'bank_name' => $validated['type'] === 'bank_deposit' ? $validated['bank_name'] : null,
             'description' => $validated['description'] ?? null,
         ]);
 

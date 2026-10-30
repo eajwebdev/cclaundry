@@ -7,16 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 class MoneyMovement extends Model
 {
     public const TYPES = [
-        'withdraw' => ['label' => 'Withdraw', 'direction' => 'out'],
-        'deposit' => ['label' => 'Deposit', 'direction' => 'in'],
+        'bank_deposit' => ['label' => 'Bank Deposit', 'direction' => 'out'],
+        'withdraw' => ['label' => 'Cash Out', 'direction' => 'out'],
+        'deposit' => ['label' => 'Cash In', 'direction' => 'in'],
     ];
 
     public const LEGACY_TYPES = [
-        'owner_cash_in' => ['label' => 'Deposit', 'direction' => 'in'],
-        'cash_float_in' => ['label' => 'Deposit', 'direction' => 'in'],
-        'sales_withdrawal' => ['label' => 'Withdraw', 'direction' => 'out'],
-        'bank_deposit' => ['label' => 'Withdraw', 'direction' => 'out'],
-        'cash_out' => ['label' => 'Withdraw', 'direction' => 'out'],
+        'owner_cash_in' => ['label' => 'Cash In', 'direction' => 'in'],
+        'cash_float_in' => ['label' => 'Cash In', 'direction' => 'in'],
+        'sales_withdrawal' => ['label' => 'Cash Out', 'direction' => 'out'],
+        'cash_out' => ['label' => 'Cash Out', 'direction' => 'out'],
     ];
 
     protected $fillable = [
@@ -27,6 +27,7 @@ class MoneyMovement extends Model
         'direction',
         'amount',
         'reference_no',
+        'bank_name',
         'description',
     ];
 

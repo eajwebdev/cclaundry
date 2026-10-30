@@ -459,6 +459,7 @@ class ZReadingController extends Controller
                 'money_movements' => [
                     'cash_in' => $financial['cash_in'],
                     'cash_out' => $financial['cash_out'],
+                    'bank_deposits' => $financial['bank_deposits'],
                     'items' => $moneyMovements->map(fn (MoneyMovement $movement) => [
                         'id' => $movement->id,
                         'type' => $movement->type,
@@ -466,6 +467,7 @@ class ZReadingController extends Controller
                         'direction' => $movement->direction,
                         'amount' => round((float) $movement->amount, 2),
                         'reference_no' => $movement->reference_no,
+                        'bank_name' => $movement->bank_name,
                         'description' => $movement->description,
                         'recorded_by' => $movement->recorder?->name,
                     ])->values()->all(),

@@ -700,7 +700,7 @@ class ExampleTest extends TestCase
             ->actingAs($manager)
             ->get(route('admin.daily-tasks.index'))
             ->assertOk()
-            ->assertSee('No end-of-day tasks configured for this branch.')
+            ->assertSee('No tasks configured for this branch.')
             ->assertDontSee('Machine tub cleaning')
             ->assertDontSee('Store cleaning');
 

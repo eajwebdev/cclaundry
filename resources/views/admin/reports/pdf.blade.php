@@ -79,7 +79,7 @@
     </div>
 
     <h2>Financial Reconciliation</h2>
-    <p class="muted">Authoritative formula: cash collected + cash deposits/owner cash funding - store-cash expenses - cash withdrawals/remittances/payable repayments.</p>
+    <p class="muted">Authoritative formula: cash collected + cash in/owner cash funding - store-cash expenses - cash out (including bank deposits, remittances, and payable repayments). Bank deposits transfer drawer cash to the bank without creating sales.</p>
     <table class="report">
         <thead><tr><th>Metric</th><th class="right">Amount</th><th>Drawer Treatment</th></tr></thead>
         <tbody>

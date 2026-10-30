@@ -8,6 +8,7 @@ use App\Models\DailyTask;
 use App\Models\DailyTaskCompletion;
 use App\Support\PublicUpload;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class DailyTaskController extends Controller
 {
@@ -16,7 +17,8 @@ class DailyTaskController extends Controller
         $user = $request->user();
         $canChooseBranch = $user->isAdmin();
         $branchId = $canChooseBranch ? ($request->integer('branch_id') ?: Branch::where('is_active', true)->value('id')) : $user->branch_id;
-        $workDate = $request->date ?: today()->toDateString();
+        $validated = $request->validate(['date' => ['nullable', 'date']]);
+        $workDate = isset($validated['date']) ? Carbon::parse($validated['date'])->toDateString() : today()->toDateString();
 
         $branches = Branch::query()
             ->where('is_active', true)
@@ -25,14 +27,12 @@ class DailyTaskController extends Controller
             ->get();
 
         $tasks = DailyTask::query()
-            ->with(['completions' => fn ($query) => $query
-                ->with(['completer', 'employeeCompleter'])
-                ->where('branch_id', $branchId)
-                ->whereDate('work_date', $workDate)])
+            ->withCompletionsForDate((int) $branchId, $workDate)
             ->where('is_active', true)
             ->where(fn ($query) => $query->whereNull('branch_id')->orWhere('branch_id', $branchId))
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->each->retainPeriodCompletion($workDate);
 
         return view('admin.daily-tasks.index', compact('branches', 'canChooseBranch', 'branchId', 'workDate', 'tasks'));
     }
@@ -52,6 +52,9 @@ class DailyTaskController extends Controller
 
         abort_if($task->branch_id !== null && (int) $task->branch_id !== (int) $validated['branch_id'], 403);
 
+        abort_unless($task->is_active, 404);
+        $validated['work_date'] = $task->periodDate($validated['work_date']);
+
         $path = $request->file('photo')->store('daily-tasks', PublicUpload::DISK);
         $existing = DailyTaskCompletion::query()
             ->where('daily_task_id', $task->id)
@@ -59,16 +62,23 @@ class DailyTaskController extends Controller
             ->whereDate('work_date', $validated['work_date'])
             ->first();
 
-        if ($existing?->photo_path) {
-            PublicUpload::delete($existing->photo_path);
+        $oldPhoto = $existing?->photo_path;
+        $completion = $existing ?? new DailyTaskCompletion;
+        $completion->fill([
+            'daily_task_id' => $task->id,
+            'branch_id' => $validated['branch_id'],
+            'work_date' => $validated['work_date'],
+            'completed_by' => $request->user()->id,
+            'completed_by_employee_id' => null,
+            'photo_path' => $path,
+            'remarks' => $validated['remarks'] ?? null,
+            'completed_at' => now(),
+        ])->save();
+
+        if ($oldPhoto) {
+            PublicUpload::delete($oldPhoto);
         }
 
-        DailyTaskCompletion::updateOrCreate(
-            ['daily_task_id' => $task->id, 'branch_id' => $validated['branch_id'], 'work_date' => $validated['work_date']],
-            ['completed_by' => $request->user()->id, 'photo_path' => $path, 'remarks' => $validated['remarks'] ?? null, 'completed_at' => now()]
-        );
-
-        return back()->with('success', 'Daily task completed with photo proof.');
+        return back()->with('success', 'Task completed with photo proof.');
     }
-
 }

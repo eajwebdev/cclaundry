@@ -324,7 +324,7 @@ class ReportController extends Controller
                 'store_gcash' => $financial['store_gcash_expenses'],
                 'store_bank' => $financial['store_bank_expenses'],
                 'owner' => $financial['owner_paid_expenses'],
-                'money_movements' => ['cash_in' => $financial['cash_in'], 'cash_out' => $financial['cash_out']],
+                'money_movements' => ['cash_in' => $financial['cash_in'], 'cash_out' => $financial['cash_out'], 'bank_deposits' => $financial['bank_deposits']],
                 'items' => $expenses->map(fn (BranchExpense $expense) => [
                     'title' => $expense->title, 'category' => $expense->category,
                     'payment_method' => $expense->payment_method, 'paid_from' => $expense->paid_from,

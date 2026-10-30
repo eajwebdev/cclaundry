@@ -39,14 +39,12 @@ class AttendanceController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'address']);
         $dailyTasks = DailyTask::query()
-            ->with(['completions' => fn ($query) => $query
-                ->with(['completer', 'employeeCompleter'])
-                ->where('branch_id', $workBranch->id)
-                ->whereDate('work_date', $workDate)])
+            ->withCompletionsForDate($workBranch->id, $workDate)
             ->where('is_active', true)
             ->where(fn ($query) => $query->whereNull('branch_id')->orWhere('branch_id', $workBranch->id))
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->each->retainPeriodCompletion($workDate);
 
         $employee->setRelation('branch', $workBranch);
 
@@ -354,7 +352,8 @@ class AttendanceController extends Controller
             'remarks' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $workDate = today()->toDateString();
+        abort_unless($task->is_active, 404);
+        $workDate = $task->periodDate(today()->toDateString());
         $path = PublicUpload::store($request->file('photo'), 'daily-tasks');
         $existing = DailyTaskCompletion::query()
             ->where('daily_task_id', $task->id)
@@ -362,22 +361,24 @@ class AttendanceController extends Controller
             ->whereDate('work_date', $workDate)
             ->first();
 
-        if ($existing?->photo_path) {
-            PublicUpload::delete($existing->photo_path);
+        $oldPhoto = $existing?->photo_path;
+        $completion = $existing ?? new DailyTaskCompletion;
+        $completion->fill([
+            'daily_task_id' => $task->id,
+            'branch_id' => $workBranch->id,
+            'work_date' => $workDate,
+            'completed_by' => null,
+            'completed_by_employee_id' => $employee->id,
+            'photo_path' => $path,
+            'remarks' => $validated['remarks'] ?? null,
+            'completed_at' => now(),
+        ])->save();
+
+        if ($oldPhoto) {
+            PublicUpload::delete($oldPhoto);
         }
 
-        DailyTaskCompletion::updateOrCreate(
-            ['daily_task_id' => $task->id, 'branch_id' => $workBranch->id, 'work_date' => $workDate],
-            [
-                'completed_by' => null,
-                'completed_by_employee_id' => $employee->id,
-                'photo_path' => $path,
-                'remarks' => $validated['remarks'] ?? null,
-                'completed_at' => now(),
-            ]
-        );
-
-        return back()->with('success', 'End-of-day proof uploaded successfully.');
+        return back()->with('success', 'Task proof uploaded successfully.');
     }
 
     public function publicScanJobOrder(Request $request)

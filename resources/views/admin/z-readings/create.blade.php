@@ -109,7 +109,7 @@
         <div class="rounded-lg border border-border bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <p class="text-xs font-medium text-muted">Expected Cash Drawer</p>
             <p class="mt-1 text-lg font-semibold">{{ $currency }} {{ number_format((float) $summary['expected_cash_drawer_amount'], 2) }}</p>
-            <p class="mt-0.5 hidden text-xs text-muted xl:block">Cash collections and deposits less cash expenses and withdrawals.</p>
+            <p class="mt-0.5 hidden text-xs text-muted xl:block">Cash collections plus cash in, less cash expenses, cash out, and bank deposits.</p>
         </div>
         <div class="rounded-lg border border-border bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <p class="text-xs font-medium text-muted">Expected GCash</p>
@@ -339,7 +339,9 @@
                             <div class="flex justify-between"><span class="text-muted">Owner-paid expenses (not counted)</span><span class="font-medium">{{ $currency }} {{ number_format((float) data_get($summary, 'expense_breakdown.owner', 0), 2) }}</span></div>
                         @endif
                         <div class="flex justify-between"><span class="text-muted">Cash added</span><span class="font-medium">{{ $currency }} {{ number_format((float) data_get($summary, 'expense_breakdown.money_movements.cash_in', 0), 2) }}</span></div>
-                        <div class="flex justify-between"><span class="text-muted">Cash withdrawn</span><span class="font-medium">- {{ $currency }} {{ number_format((float) data_get($summary, 'expense_breakdown.money_movements.cash_out', 0), 2) }}</span></div>
+                        <div class="flex justify-between"><span class="text-muted">Cash out (including bank deposits)</span><span class="font-medium">- {{ $currency }} {{ number_format((float) data_get($summary, 'expense_breakdown.money_movements.cash_out', 0), 2) }}</span></div>
+                        <div class="flex justify-between"><span class="text-muted">Bank deposits included above</span><span class="font-medium">{{ $currency }} {{ number_format((float) data_get($summary, 'expense_breakdown.money_movements.bank_deposits', 0), 2) }}</span></div>
+                        <p class="text-xs text-muted">Bank deposits transfer drawer cash to the bank and are included in the expected bank balance.</p>
                         <div class="flex justify-between"><span class="text-muted">Expected GCash net balance</span><span class="font-medium">{{ $currency }} {{ number_format((float) $summary['expected_gcash_amount'], 2) }}</span></div>
                         <div class="flex justify-between"><span class="text-muted">Expected Bank net balance</span><span class="font-medium">{{ $currency }} {{ number_format((float) $summary['expected_bank_amount'], 2) }}</span></div>
                         <div class="rounded-md bg-smoke px-2 py-1.5 text-xs text-muted dark:bg-gray-950">

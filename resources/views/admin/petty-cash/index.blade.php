@@ -17,10 +17,10 @@
                 Cash flow
             </div>
             <h1 class="text-xl font-semibold tracking-normal">Petty Cash</h1>
-            <p class="text-sm text-muted">Track cash deposits and withdrawals for the branch drawer.</p>
+            <p class="text-sm text-muted">Track cash added, cash removed, and daily bank deposits for the branch drawer.</p>
         </div>
 
-        <div class="grid grid-cols-3 gap-2 sm:min-w-[28rem]">
+        <div class="grid grid-cols-2 gap-2 sm:min-w-[28rem]">
             <div class="rounded-lg border border-border bg-smoke p-3 dark:border-gray-800 dark:bg-gray-950">
                 <p class="text-xs font-medium text-muted">Cash In</p>
                 <p class="mt-1 text-base font-semibold">{{ $currency }} {{ number_format($cashIn, 2) }}</p>
@@ -30,10 +30,19 @@
                 <p class="mt-1 text-base font-semibold">{{ $currency }} {{ number_format($cashOut, 2) }}</p>
             </div>
             <div class="rounded-lg border border-border bg-smoke p-3 dark:border-gray-800 dark:bg-gray-950">
-                <p class="text-xs font-medium text-muted">Net</p>
+                <p class="text-xs font-medium text-muted">Bank deposits (included in Cash Out)</p>
+                <p class="mt-1 text-base font-semibold">{{ $currency }} {{ number_format((float) ($summary->bank_deposits ?? 0), 2) }}</p>
+            </div>
+            <div class="rounded-lg border border-border bg-smoke p-3 dark:border-gray-800 dark:bg-gray-950">
+                <p class="text-xs font-medium text-muted">Net drawer movement</p>
                 <p class="mt-1 text-base font-semibold {{ ($cashIn - $cashOut) < 0 ? 'text-red-600' : 'text-emerald-600' }}">{{ $currency }} {{ number_format($cashIn - $cashOut, 2) }}</p>
             </div>
         </div>
+    </div>
+
+    <div class="rounded-lg border border-border bg-white p-4 text-sm dark:border-gray-800 dark:bg-gray-900">
+        <p><strong>Daily cash workflow:</strong> Record opening float as Cash In. Customer cash payments enter the drawer through POS payments. Record purchases under Expenses. Use Cash Out for other cash removed, and Bank Deposit when cash is deposited at the bank.</p>
+        <p class="mt-2 text-muted">Expected drawer = cash payments + cash in − cash expenses − cash out (including bank deposits). Bank deposits transfer money to the bank and do not create sales. Record each movement once, then count the remaining cash in Z Reading.</p>
     </div>
 
     <form method="GET" action="{{ route('admin.petty-cash.index') }}" class="grid gap-2 rounded-lg border border-border bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900 md:grid-cols-[1fr_1fr_1fr_auto]">
@@ -71,18 +80,21 @@
                 </div>
                 <div>
                     <h2 class="text-base font-semibold">New Petty Cash Voucher</h2>
-                    <p class="text-sm text-muted">Record a branch cash deposit or withdrawal.</p>
+                    <p class="text-sm text-muted">Record cash in, cash out, or a bank deposit.</p>
                 </div>
             </div>
 
-            <form method="POST" action="{{ route('admin.petty-cash.store') }}" class="space-y-3">
+            <form method="POST" action="{{ route('admin.petty-cash.store') }}" x-data="{ movementType: @js(old('type', 'bank_deposit')) }" class="space-y-3">
                 @csrf
                 <input type="hidden" name="branch_id" value="{{ $branch->id }}">
-                <input type="hidden" name="movement_date" value="{{ $businessDate }}">
+                <label class="block">
+                    <span class="text-xs font-medium text-muted">Movement Date</span>
+                    <input type="date" name="movement_date" value="{{ old('movement_date', $businessDate) }}" required class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+                </label>
 
                 <label class="block">
                     <span class="text-xs font-medium text-muted">Voucher Type</span>
-                    <select name="type" required class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+                    <select name="type" x-model="movementType" required class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
                         @foreach($movementTypes as $type => $meta)
                             <option value="{{ $type }}">{{ $meta['label'] }}</option>
                         @endforeach
@@ -91,17 +103,22 @@
 
                 <label class="block">
                     <span class="text-xs font-medium text-muted">Amount</span>
-                    <input name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="0.00" class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+                    <input name="amount" value="{{ old('amount') }}" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="0.00" class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+                </label>
+
+                <label x-show="movementType === 'bank_deposit'" class="block">
+                    <span class="text-xs font-medium text-muted">Bank / Account</span>
+                    <input name="bank_name" value="{{ old('bank_name') }}" :required="movementType === 'bank_deposit'" maxlength="255" placeholder="Bank name and account identifier" class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
                 </label>
 
                 <label class="block">
-                    <span class="text-xs font-medium text-muted">Reference No.</span>
-                    <input name="reference_no" maxlength="255" placeholder="OR or remittance reference..." class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+                    <span class="text-xs font-medium text-muted">Reference No. (required for bank deposits)</span>
+                    <input name="reference_no" value="{{ old('reference_no') }}" :required="movementType === 'bank_deposit'" maxlength="255" placeholder="Deposit slip or remittance reference..." class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
                 </label>
 
                 <label class="block">
                     <span class="text-xs font-medium text-muted">Purpose / Notes</span>
-                    <input name="description" maxlength="255" placeholder="What is this movement for?" class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+                    <input name="description" value="{{ old('description') }}" maxlength="255" placeholder="What is this movement for?" class="mt-1 h-10 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
                 </label>
 
                 <button type="submit" class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-white hover:opacity-90">
@@ -136,7 +153,7 @@
                                     <p class="text-xs text-muted">{{ $movement->movement_date?->format('M d, Y') }}{{ $movement->description ? ' - '.$movement->description : '' }}</p>
                                 </td>
                                 <td class="px-4 py-3">{{ $movement->branch?->name }}</td>
-                                <td class="px-4 py-3">{{ $movement->reference_no ?: 'N/A' }}</td>
+                                <td class="px-4 py-3">{{ $movement->reference_no ?: 'N/A' }}<p class="text-xs text-muted">{{ $movement->bank_name }}</p></td>
                                 <td class="px-4 py-3 text-right font-semibold {{ $movement->direction === 'in' ? 'text-emerald-600' : 'text-red-600' }}">
                                     {{ $movement->direction === 'in' ? '+' : '-' }} {{ $currency }} {{ number_format((float) $movement->amount, 2) }}
                                 </td>

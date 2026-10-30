@@ -14,6 +14,7 @@ use App\Support\MachineClass;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class BranchController extends Controller
 {
@@ -126,7 +127,7 @@ class BranchController extends Controller
 
         DailyTask::create($validated);
 
-        return back()->with('success', 'Branch end-of-day task added successfully.');
+        return back()->with('success', 'Branch task added successfully.');
     }
 
     public function updateTask(Request $request, Branch $branch, DailyTask $task)
@@ -134,12 +135,15 @@ class BranchController extends Controller
         $this->authorizeBranchTask($branch, $task);
 
         $validated = $request->validate($this->taskRules($branch, $task));
+        if (isset($validated['category']) && $validated['category'] !== $task->category && $task->completions()->exists()) {
+            throw ValidationException::withMessages(['category' => 'Create a new task to change the schedule of a task with completion history.']);
+        }
         $validated['requires_photo'] = $request->boolean('requires_photo');
         $validated['is_active'] = $request->boolean('is_active');
 
         $task->update($validated);
 
-        return back()->with('success', 'Branch end-of-day task updated successfully.');
+        return back()->with('success', 'Branch task updated successfully.');
     }
 
     public function destroyTask(Branch $branch, DailyTask $task)
@@ -147,7 +151,7 @@ class BranchController extends Controller
         $this->authorizeBranchTask($branch, $task);
         $task->update(['is_active' => false]);
 
-        return back()->with('success', 'Branch end-of-day task removed.');
+        return back()->with('success', 'Branch task removed.');
     }
 
     private function rules(?Branch $branch = null): array
@@ -216,6 +220,7 @@ class BranchController extends Controller
 
         return [
             'name' => ['required', 'string', 'max:255', $nameRule],
+            'category' => ['sometimes', 'required', Rule::in(array_keys(DailyTask::CATEGORIES))],
             'requires_photo' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
         ];
