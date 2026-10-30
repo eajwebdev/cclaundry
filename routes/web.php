@@ -288,6 +288,9 @@ Route::middleware(['auth', 'not.rider', 'settings.completed', 'system.maintenanc
             Route::patch('/job-orders/{jobOrder}/release', [JobOrderController::class, 'release'])->name('job-orders.release');
             Route::post('/job-orders/{jobOrder}/payments', [ReceivableController::class, 'storePayment'])->name('job-orders.payments.store');
             Route::patch('/job-orders/{jobOrder}/cancel', [JobOrderController::class, 'cancel'])->name('job-orders.cancel');
+            Route::post('/job-orders/{jobOrder}/reuse-payments', [\App\Http\Controllers\Admin\PaymentReplacementController::class, 'store'])->name('job-orders.reuse-payments');
+            Route::patch('/job-orders/{jobOrder}/archive', [JobOrderController::class, 'archive'])->name('job-orders.archive');
+            Route::patch('/job-orders/{jobOrder}/restore-archive', [JobOrderController::class, 'restoreArchive'])->name('job-orders.restore-archive');
             Route::delete('/job-orders/{jobOrder}', [JobOrderController::class, 'destroy'])->name('job-orders.destroy');
         });
         Route::middleware('menu.access:pickup_requests')->group(function () {

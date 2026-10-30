@@ -35,9 +35,13 @@ class JobOrderController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
+        $showArchived = $request->input('status') === 'archived';
+        abort_if($showArchived && ! $user->isAdmin(), 403);
         [$dateFrom, $dateTo] = $this->dateRange($request);
 
-        $ordersQuery = JobOrder::with(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'creator', 'releaseLog.user', 'items', 'payments.receiver', 'payments.collectedBranch', 'pickupRequest'])
+        $ordersQuery = JobOrder::query()
+            ->when($showArchived, fn ($query) => $query->whereNotNull('archived_at'), fn ($query) => $query->whereNull('archived_at'))
+            ->with(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'creator', 'releaseLog.user', 'items', 'payments.receiver', 'payments.collectedBranch', 'pickupRequest'])
             ->when($user->role !== 'super_admin' && $user->role !== 'admin', fn ($q) => $q->where('branch_id', $user->branch_id))
             ->when($dateFrom, fn ($q) => $q->whereDate('created_at', '>=', $dateFrom))
             ->when($dateTo, fn ($q) => $q->whereDate('created_at', '<=', $dateTo))
@@ -75,6 +79,7 @@ class JobOrderController extends Controller
             'statusCounts' => $statusCounts,
             'statuses' => self::STATUSES,
             'currentStatus' => $statusFilter,
+            'showArchived' => $showArchived,
         ]);
     }
 
@@ -84,8 +89,13 @@ class JobOrderController extends Controller
 
         $jobOrder->load(['branch.setting', 'processingBranch', 'currentBranch', 'releaseBranch', 'customer', 'creator', 'releaseLog.user', 'items.service', 'payments.receiver', 'payments.collectedBranch', 'cycles.user', 'pickupRequest']);
 
+        $jobOrder->loadMissing('replacementJobOrder');
+
         return view('admin.job-orders.show', [
             'order' => $jobOrder,
+            'voidedPayments' => $request->user()->isAdmin()
+                ? Payment::withoutGlobalScope('not_voided')->where('job_order_id', $jobOrder->id)->whereNotNull('voided_at')->get()
+                : collect(),
             'settings' => SystemSetting::current(),
         ]);
     }
@@ -331,6 +341,7 @@ class JobOrderController extends Controller
     public function edit(Request $request, JobOrder $jobOrder)
     {
         $this->authorizeJobOrder($request, $jobOrder);
+        abort_if($jobOrder->archived_at, 422, 'Restore this job order before editing it.');
 
         $jobOrder->load(['branch', 'processingBranch', 'customer', 'items.service', 'payments']);
         $user = $request->user();
@@ -652,6 +663,7 @@ class JobOrderController extends Controller
     public function update(Request $request, JobOrder $jobOrder)
     {
         $this->authorizeJobOrder($request, $jobOrder);
+        abort_if($jobOrder->archived_at, 422, 'Restore this job order before editing it.');
 
         $validated = $request->validate([
             'customer_id' => ['required', 'exists:customers,id'],
@@ -698,6 +710,8 @@ class JobOrderController extends Controller
         $validated['items'] = $this->applyVinegarRules($validated['items'], $selectedServices);
 
         return DB::transaction(function () use ($request, $validated, $selectedServices, $jobOrder) {
+            $jobOrder = JobOrder::query()->lockForUpdate()->findOrFail($jobOrder->id);
+            abort_if($jobOrder->archived_at, 422, 'Restore this job order before editing it.');
             $previousProcessingBranchId = (int) ($jobOrder->processing_branch_id ?: $jobOrder->branch_id);
             $inventoryWasDeducted = (bool) $jobOrder->inventory_deducted_at;
             $validated['processing_branch_id'] = $this->resolveProcessingBranchId($jobOrder->branch, $validated['processing_branch_id'] ?? null, $request->user());
@@ -861,6 +875,44 @@ class JobOrderController extends Controller
         return back()->with('success', 'Job order cancelled successfully.');
     }
 
+    public function archive(Request $request, JobOrder $jobOrder)
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+
+        DB::transaction(function () use ($request, $jobOrder) {
+            $order = JobOrder::query()->lockForUpdate()->findOrFail($jobOrder->id);
+            abort_unless($order->status === 'cancelled', 422, 'Only cancelled job orders can be archived.');
+            abort_if($order->archived_at, 422, 'This job order is already archived.');
+            $order->update(['archived_at' => now(), 'archived_by' => $request->user()->id]);
+            Activity::log($request, 'job_order_archived', $order, [
+                'job_order_number' => $order->job_order_number,
+                'archived_at' => $order->archived_at->toIso8601String(),
+            ], $order->branch_id);
+        });
+
+        return redirect()->route('admin.job-orders.index')->with('success', 'Cancelled job order archived. Its records have been preserved.');
+    }
+
+    public function restoreArchive(Request $request, JobOrder $jobOrder)
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+
+        DB::transaction(function () use ($request, $jobOrder) {
+            $order = JobOrder::query()->lockForUpdate()->findOrFail($jobOrder->id);
+            abort_unless($order->archived_at, 422, 'This job order is not archived.');
+            $snapshot = [
+                'job_order_number' => $order->job_order_number,
+                'archived_at' => $order->archived_at->toIso8601String(),
+                'archived_by' => $order->archived_by,
+            ];
+            $order->update(['archived_at' => null, 'archived_by' => null]);
+            Activity::log($request, 'job_order_archive_restored', $order, $snapshot, $order->branch_id);
+        });
+
+        return redirect()->route('admin.job-orders.index', ['status' => 'cancelled', 'date_range' => $jobOrder->created_at->toDateString()])
+            ->with('success', 'Job order restored to the cancelled list.');
+    }
+
     public function destroy(Request $request, JobOrder $jobOrder)
     {
         abort_unless($request->user()?->role === 'super_admin', 403);
@@ -955,7 +1007,7 @@ class JobOrderController extends Controller
 
     private function nextPaymentNumber(): string
     {
-        return 'PAY-'.now()->format('Ymd').'-'.str_pad((string) (Payment::whereDate('created_at', today())->count() + 1), 4, '0', STR_PAD_LEFT);
+        return 'PAY-'.now()->format('Ymd').'-'.str_pad((string) (Payment::withoutGlobalScope('not_voided')->whereDate('created_at', today())->count() + 1), 4, '0', STR_PAD_LEFT);
     }
 
     private function authorizeJobOrder(Request $request, JobOrder $jobOrder): void
@@ -1413,6 +1465,10 @@ class JobOrderController extends Controller
 
         if ($from || $to) {
             return [$from, $to];
+        }
+
+        if ($request->input('status') === 'archived') {
+            return [null, null];
         }
 
         return [today()->toDateString(), today()->toDateString()];

@@ -9,9 +9,9 @@ class JobOrder extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['branch_id', 'processing_branch_id', 'current_branch_id', 'release_branch_id', 'customer_id', 'created_by', 'job_order_number', 'status', 'transaction_type', 'is_rush', 'subtotal', 'discount', 'tax', 'total', 'paid_amount', 'balance', 'notes', 'completed_at', 'production_completed_at', 'production_accepted_at', 'inventory_deducted_at', 'returned_to_branch_at', 'released_at'];
+    protected $fillable = ['branch_id', 'processing_branch_id', 'current_branch_id', 'release_branch_id', 'customer_id', 'created_by', 'job_order_number', 'status', 'transaction_type', 'is_rush', 'subtotal', 'discount', 'tax', 'total', 'paid_amount', 'balance', 'notes', 'completed_at', 'production_completed_at', 'production_accepted_at', 'inventory_deducted_at', 'returned_to_branch_at', 'released_at', 'archived_at', 'archived_by', 'replacement_job_order_id'];
 
-    protected $casts = ['is_rush' => 'boolean', 'subtotal' => 'decimal:2', 'discount' => 'decimal:2', 'tax' => 'decimal:2', 'total' => 'decimal:2', 'paid_amount' => 'decimal:2', 'balance' => 'decimal:2', 'completed_at' => 'datetime', 'production_completed_at' => 'datetime', 'production_accepted_at' => 'datetime', 'inventory_deducted_at' => 'datetime', 'returned_to_branch_at' => 'datetime', 'released_at' => 'datetime'];
+    protected $casts = ['is_rush' => 'boolean', 'subtotal' => 'decimal:2', 'discount' => 'decimal:2', 'tax' => 'decimal:2', 'total' => 'decimal:2', 'paid_amount' => 'decimal:2', 'balance' => 'decimal:2', 'completed_at' => 'datetime', 'production_completed_at' => 'datetime', 'production_accepted_at' => 'datetime', 'inventory_deducted_at' => 'datetime', 'returned_to_branch_at' => 'datetime', 'released_at' => 'datetime', 'archived_at' => 'datetime'];
 
     public function branch() { return $this->belongsTo(Branch::class); }
     public function processingBranch() { return $this->belongsTo(Branch::class, 'processing_branch_id'); }
@@ -26,6 +26,8 @@ class JobOrder extends Model
             ->where('action', 'job_order_released')
             ->latestOfMany();
     }
+
+    public function replacementJobOrder() { return $this->belongsTo(self::class, 'replacement_job_order_id'); }
 
     public function items() { return $this->hasMany(JobOrderItem::class); }
     public function payments() { return $this->hasMany(Payment::class); }

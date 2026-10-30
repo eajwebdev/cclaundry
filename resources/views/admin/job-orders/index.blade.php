@@ -101,10 +101,16 @@
                 <span data-lucide="jobOrders" class="h-3.5 w-3.5"></span>
                 {{ in_array(auth()->user()->role, ['branch_manager', 'cashier'], true) ? 'Cashier POS' : 'Laundry operations' }}
             </div>
-            <h1 class="text-xl font-semibold">Job Orders</h1>
-            <p class="text-sm text-muted">Create, filter, review, and edit laundry transactions.</p>
+            <h1 class="text-xl font-semibold">{{ $showArchived ? 'Archived Job Orders' : 'Job Orders' }}</h1>
+            <p class="text-sm text-muted">{{ $showArchived ? 'Cancelled orders kept for reference. Restore an order to return it to the cancelled list.' : 'Create, filter, review, and edit laundry transactions.' }}</p>
         </div>
         <div class="flex flex-wrap gap-2">
+            @if(auth()->user()->isAdmin())
+                <a href="{{ route('admin.job-orders.index', $showArchived ? [] : ['status' => 'archived']) }}" class="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:bg-smoke dark:border-gray-800 dark:hover:bg-gray-950">
+                    <span data-lucide="archive" class="h-4 w-4"></span>
+                    {{ $showArchived ? 'Current orders' : 'Archived' }}
+                </a>
+            @endif
             <a href="{{ route('admin.job-orders.create') }}" class="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:opacity-90">
                 <span data-lucide="plus" class="h-4 w-4"></span>
                 New POS
@@ -117,6 +123,9 @@
             <input name="search" value="{{ request('search') }}" placeholder="Search JO or customer..." class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
             <select name="status" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
                 <option value="">All status</option>
+                @if(auth()->user()->isAdmin())
+                    <option value="archived" @selected($showArchived)>Archived</option>
+                @endif
                 <option value="active" @selected(request('status') === 'active')>In Process</option>
                 <option value="released" @selected(request('status') === 'released')>Released to Customer</option>
                 @foreach($statuses as $status)
@@ -446,9 +455,11 @@
                             <a href="{{ route('admin.job-orders.show', $order) }}" title="View" aria-label="View job order" class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-smoke dark:border-gray-700 dark:hover:bg-gray-800">
                                 <span data-lucide="eye" class="h-4 w-4"></span>
                             </a>
+                            @unless($order->archived_at)
                             <a href="{{ route('admin.job-orders.edit', $order) }}" title="Edit" aria-label="Edit job order" class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-smoke dark:border-gray-700 dark:hover:bg-gray-800">
                                 <span data-lucide="settings" class="h-4 w-4"></span>
                             </a>
+                            @endunless
                             <button type="button" @click="paymentOpen = {{ $order->id }}" title="Payment history" aria-label="View payment history" class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-smoke dark:border-gray-700 dark:hover:bg-gray-800">
                                 <span data-lucide="payments" class="h-4 w-4"></span>
                             </button>
@@ -477,6 +488,7 @@
                                     <span data-lucide="x" class="h-4 w-4"></span>
                                 </button>
                             @endunless
+                            @include('admin.job-orders.partials.archive-action', ['order' => $order])
                             @if(auth()->user()?->role === 'super_admin')
                                 <form method="POST" action="{{ route('admin.job-orders.destroy', $order) }}" class="inline">
                                     @csrf

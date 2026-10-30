@@ -97,16 +97,28 @@
 
         <div class="flex gap-2">
             <a href="{{ route('admin.job-orders.index') }}" class="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-medium hover:bg-smoke dark:border-gray-800 dark:hover:bg-gray-950">Back</a>
+            @include('admin.job-orders.partials.archive-action', ['order' => $order])
+            @unless($order->archived_at)
             <a href="{{ route('admin.job-orders.edit', $order) }}" class="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:bg-smoke dark:border-gray-800 dark:hover:bg-gray-950">
                 <span data-lucide="settings" class="h-4 w-4"></span>
                 Edit
             </a>
+            @endunless
             <button type="button" @click="receiptOpen = true" class="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:opacity-90">
                 <span data-lucide="receipt" class="h-4 w-4"></span>
                 Receipt
             </button>
         </div>
     </div>
+
+    @if($order->archived_at)
+        <div class="rounded-lg border border-border bg-smoke px-4 py-3 text-sm dark:border-gray-800 dark:bg-gray-900">
+            <span class="font-semibold">Archived {{ $order->archived_at->format('M d, Y h:i A') }}.</span>
+            This cancelled order is kept for reference. Its payment and inventory history is preserved.
+        </div>
+    @endif
+
+    @include('admin.job-orders.partials.payment-replacement')
 
     <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div class="space-y-4">
@@ -135,6 +147,17 @@
 
             <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h2 class="mb-3 text-sm font-semibold">Payments</h2>
+                @if($voidedPayments->isNotEmpty())
+                    <details class="mb-3 rounded-md border border-border p-3 text-xs dark:border-gray-800">
+                        <summary class="cursor-pointer font-semibold text-muted">Voided duplicate payments (excluded from totals)</summary>
+                        @foreach($voidedPayments as $voidedPayment)
+                            <div class="mt-2 border-t border-border pt-2 dark:border-gray-800">
+                                <p class="font-medium">{{ $voidedPayment->payment_number }} · {{ $settings->currency ?? 'PHP' }} {{ number_format((float) $voidedPayment->amount, 2) }}</p>
+                                <p class="mt-1 text-muted">{{ $voidedPayment->voided_at->format('M d, Y h:i A') }} · {{ $voidedPayment->void_reason }}</p>
+                            </div>
+                        @endforeach
+                    </details>
+                @endif
                 <div class="space-y-2">
                     @forelse($order->payments as $payment)
                         <div class="flex items-center justify-between rounded-md border border-border p-3 text-sm dark:border-gray-800">

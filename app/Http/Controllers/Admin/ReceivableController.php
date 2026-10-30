@@ -209,6 +209,6 @@ class ReceivableController extends Controller
 
     private function nextPaymentNumber(): string
     {
-        return 'PAY-'.now()->format('Ymd').'-'.str_pad((string) (Payment::whereDate('created_at', today())->count() + 1), 4, '0', STR_PAD_LEFT);
+        return 'PAY-'.now()->format('Ymd').'-'.str_pad((string) (Payment::withoutGlobalScope('not_voided')->whereDate('created_at', today())->count() + 1), 4, '0', STR_PAD_LEFT);
     }
 }

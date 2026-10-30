@@ -10,6 +10,7 @@ import riderOutboxStore from './rider-outbox';
 import Swal from 'sweetalert2';
 import {
     Activity,
+    Archive,
     ArrowLeft,
     ArrowUp,
     ArrowDown,
@@ -158,6 +159,7 @@ window.toast = Swal.mixin({
 
 const icons = {
     activity: Activity,
+    archive: Archive,
     arrowLeft: ArrowLeft,
     'arrow-left': ArrowLeft,
     'arrow-up': ArrowUp,
