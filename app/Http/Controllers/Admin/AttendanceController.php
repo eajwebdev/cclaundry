@@ -348,13 +348,13 @@ class AttendanceController extends Controller
         abort_if($task->branch_id !== null && (int) $task->branch_id !== (int) $workBranch->id, 403);
 
         $validated = $request->validate([
-            'photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'photo' => [$task->requires_photo ? 'required' : 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'remarks' => ['nullable', 'string', 'max:500'],
         ]);
 
         abort_unless($task->is_active, 404);
         $workDate = $task->periodDate(today()->toDateString());
-        $path = PublicUpload::store($request->file('photo'), 'daily-tasks');
+        $path = $request->hasFile('photo') ? PublicUpload::store($request->file('photo'), 'daily-tasks') : null;
         $existing = DailyTaskCompletion::query()
             ->where('daily_task_id', $task->id)
             ->where('branch_id', $workBranch->id)
@@ -369,16 +369,16 @@ class AttendanceController extends Controller
             'work_date' => $workDate,
             'completed_by' => null,
             'completed_by_employee_id' => $employee->id,
-            'photo_path' => $path,
+            'photo_path' => $path ?? $oldPhoto,
             'remarks' => $validated['remarks'] ?? null,
             'completed_at' => now(),
         ])->save();
 
-        if ($oldPhoto) {
+        if ($oldPhoto && $path) {
             PublicUpload::delete($oldPhoto);
         }
 
-        return back()->with('success', 'Task proof uploaded successfully.');
+        return back()->with('success', 'Task completed successfully.');
     }
 
     public function publicScanJobOrder(Request $request)

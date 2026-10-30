@@ -183,14 +183,14 @@ class CustomerController extends Controller
         return [
             'branch_id' => ['nullable', 'exists:branches,id'],
             'name' => ['required', 'string', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:50'],
+            'phone' => ['required', 'string', 'max:50'],
             'email' => [
                 'nullable',
                 'email',
                 'max:255',
                 Rule::unique('customers', 'email')->ignore($customer?->id),
             ],
-            'address' => ['nullable', 'string'],
+            'address' => ['required', 'string'],
             'unpaid_limit' => ['nullable', 'numeric', 'min:0'],
             'is_active' => ['nullable', 'boolean'],
             'redirect_to' => ['nullable', Rule::in(['pos'])],

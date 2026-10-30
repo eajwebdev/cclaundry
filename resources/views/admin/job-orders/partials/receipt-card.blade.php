@@ -200,7 +200,7 @@
             </tr>
         </thead>
         <tbody>
-            @foreach($order->items as $item)
+            @foreach($order->items->filter(fn ($item) => $item->appearsOnReceipt()) as $item)
                 <tr class="border-b border-dashed border-border">
                     <td class="py-2">
                         <p class="font-medium">{{ $item->description }}</p>

@@ -148,7 +148,7 @@
                                                     </span>
                                                     <span class="min-w-0">
                                                         <span class="block truncate text-sm font-semibold">{{ $task->name }}</span>
-                                                        <span class="block text-[10px] text-muted">{{ $completion ? 'Completed '.$completion->completed_at?->format('M d, h:i A') : 'Tap to upload proof' }}</span>
+                                                        <span class="block text-[10px] text-muted">{{ $completion ? 'Completed '.$completion->completed_at?->format('M d, h:i A') : ($task->requires_photo ? 'Tap to upload proof' : 'Tap to complete') }}</span>
                                                     </span>
                                                 </span>
                                                 <span class="text-xs font-bold {{ $completion ? 'text-green-700' : 'text-amber-700' }}">{{ $completion ? 'DONE' : 'PENDING' }}</span>
@@ -156,14 +156,14 @@
 
                                             <form x-cloak x-show="openTaskId === {{ $task->id }}" x-transition method="POST" action="{{ route('attendance.daily-tasks.complete', $task) }}" enctype="multipart/form-data" class="mt-2 space-y-2 border-t border-border pt-2 dark:border-gray-800">
                                                 @csrf
-                                                @if($completion)
+                                                @if($completion?->photo_path)
                                                     <a href="{{ \App\Support\PublicUpload::url($completion->photo_path) }}" target="_blank" class="block text-xs font-semibold text-primary">View current proof</a>
                                                 @endif
-                                                <input type="file" name="photo" accept="image/*" capture="environment" required class="w-full rounded-lg border border-border bg-white px-2 py-2 text-xs dark:border-gray-800 dark:bg-gray-900">
+                                                <input type="file" name="photo" accept="image/*" capture="environment" @required($task->requires_photo) class="w-full rounded-lg border border-border bg-white px-2 py-2 text-xs dark:border-gray-800 dark:bg-gray-900">
                                                 <div class="grid grid-cols-[1fr_auto] gap-2">
                                                     <input name="remarks" placeholder="Optional remarks" class="h-10 min-w-0 rounded-lg border border-border bg-white px-3 text-xs dark:border-gray-800 dark:bg-gray-900">
                                                     <button class="inline-flex h-10 items-center justify-center rounded-lg bg-primary px-4 text-xs font-bold text-white">
-                                                        Upload
+                                                        {{ $task->requires_photo ? 'Upload' : 'Mark Done' }}
                                                     </button>
                                                 </div>
                                             </form>

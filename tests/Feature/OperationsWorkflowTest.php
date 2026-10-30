@@ -139,4 +139,69 @@ class OperationsWorkflowTest extends TestCase
         $this->get(route('admin.daily-tasks.index'))
             ->assertOk()->assertViewHas('tasks', fn ($tasks) => $tasks->first()->completions->isEmpty());
     }
+    public function test_cash_filters_reject_malformed_dates_and_types_without_crashing(): void
+    {
+        $manager = $this->manager();
+        foreach ([['movement_date' => 'not-a-date'], ['movement_date' => ['bad']], ['type' => ['bank_deposit']]] as $filter) {
+            $this->actingAs($manager)->getJson(route('admin.petty-cash.index', $filter))->assertUnprocessable();
+        }
+    }
+
+    public function test_tasks_without_required_photos_can_be_completed_in_admin_and_kiosk(): void
+    {
+        Storage::fake('uploads');
+        $manager = $this->manager();
+        $this->actingAs($manager)->post(route('admin.branches.daily-tasks.store', $manager->branch_id), [
+            'name' => 'Opening check', 'category' => 'start_of_day', 'requires_photo' => '0',
+        ])->assertSessionHasNoErrors()->assertRedirect();
+        $task = DailyTask::where('name', 'Opening check')->firstOrFail();
+        $this->assertFalse($task->requires_photo);
+        $this->post(route('admin.daily-tasks.complete', $task), [
+            'branch_id' => $manager->branch_id, 'work_date' => today()->toDateString(), 'remarks' => 'Ready',
+        ])->assertSessionHasNoErrors()->assertRedirect();
+        $this->assertDatabaseHas('daily_task_completions', ['daily_task_id' => $task->id, 'photo_path' => null]);
+        $this->get(route('admin.daily-tasks.index'))->assertOk()->assertDontSee('alt="Opening check proof"', false);
+        // Adding optional proof and then updating remarks must retain that proof.
+        $this->post(route('admin.daily-tasks.complete', $task), [
+            'branch_id' => $manager->branch_id, 'work_date' => today()->toDateString(), 'photo' => UploadedFile::fake()->image('optional.jpg'),
+        ])->assertSessionHasNoErrors()->assertRedirect();
+        $proof = DailyTaskCompletion::where('daily_task_id', $task->id)->firstOrFail()->photo_path;
+        $this->post(route('admin.daily-tasks.complete', $task), [
+            'branch_id' => $manager->branch_id, 'work_date' => today()->toDateString(), 'remarks' => 'Updated',
+        ])->assertSessionHasNoErrors()->assertRedirect();
+        $this->assertSame($proof, DailyTaskCompletion::where('daily_task_id', $task->id)->firstOrFail()->photo_path);
+        Storage::disk('uploads')->assertExists($proof);
+
+        $employee = AttendanceEmployee::create([
+            'branch_id' => $manager->branch_id, 'first_name' => 'Juan', 'last_name' => 'Cruz',
+            'username' => 'optional-photo', 'password' => bcrypt('password'), 'status' => 'active',
+        ]);
+        $kioskTask = DailyTask::create(['branch_id' => $manager->branch_id, 'name' => 'Kiosk check', 'requires_photo' => false, 'is_active' => true]);
+        $this->withSession(['attendance_employee_id' => $employee->id])
+            ->post(route('attendance.daily-tasks.complete', $kioskTask), ['remarks' => 'Done'])
+            ->assertSessionHasNoErrors()->assertRedirect();
+        $this->assertDatabaseHas('daily_task_completions', ['daily_task_id' => $kioskTask->id, 'photo_path' => null]);
+        $this->get(route('attendance.kiosk'))->assertOk();
+        $requiredTask = DailyTask::create(['branch_id' => $manager->branch_id, 'name' => 'Required proof', 'requires_photo' => true, 'is_active' => true]);
+        $this->post(route('attendance.daily-tasks.complete', $requiredTask))->assertSessionHasErrors('photo');
+    }
+
+    public function test_the_same_checklist_name_can_be_used_in_different_schedules_but_not_duplicated_in_one_schedule(): void
+    {
+        $manager = $this->manager();
+        foreach (['start_of_day', 'end_of_day'] as $category) {
+            $this->actingAs($manager)->post(route('admin.branches.daily-tasks.store', $manager->branch_id), [
+                'name' => 'Count cash drawer', 'category' => $category,
+            ])->assertSessionHasNoErrors()->assertRedirect();
+        }
+        $this->post(route('admin.branches.daily-tasks.store', $manager->branch_id), [
+            'name' => 'Count cash drawer', 'category' => 'start_of_day',
+        ])->assertSessionHasErrors('name');
+        $closing = DailyTask::where('category', 'end_of_day')->firstOrFail();
+        $this->put(route('admin.branches.daily-tasks.update', [$manager->branch_id, $closing]), [
+            'name' => 'Count cash drawer', 'category' => 'start_of_day', 'is_active' => true,
+        ])->assertSessionHasErrors('name');
+        $this->assertSame(2, DailyTask::where('name', 'Count cash drawer')->count());
+    }
+
 }

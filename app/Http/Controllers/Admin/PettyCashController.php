@@ -7,11 +7,17 @@ use App\Models\Branch;
 use App\Models\MoneyMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 
 class PettyCashController extends Controller
 {
     public function index(Request $request)
     {
+        $request->validate([
+            'movement_date' => ['nullable', 'date'],
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
+            'type' => ['nullable', 'string', Rule::in(array_keys(MoneyMovement::typeOptions()))],
+        ]);
         $user = $request->user();
         $canChooseBranch = $user->canManageAllBranches();
         $businessDate = $request->date('movement_date')?->toDateString() ?: today()->toDateString();

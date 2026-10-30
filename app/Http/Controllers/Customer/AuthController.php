@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
@@ -55,6 +56,15 @@ class AuthController extends Controller
             return back()
                 ->withInput()
                 ->withErrors(['phone' => 'That mobile number already has an account. Please sign in instead.']);
+        }
+
+        // Claiming a walk-in record can reuse its address; a new customer must
+        // provide one, just as they must at the counter.
+        $validated['address'] = filled($validated['address'] ?? null)
+            ? $validated['address']
+            : $existing?->address;
+        if (blank($validated['address'])) {
+            throw ValidationException::withMessages(['address' => 'The address field is required.']);
         }
 
         $customer = DB::transaction(function () use ($existing, $validated, $phone) {

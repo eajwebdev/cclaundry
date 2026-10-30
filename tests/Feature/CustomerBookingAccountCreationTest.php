@@ -196,4 +196,36 @@ class CustomerBookingAccountCreationTest extends TestCase
             ->assertSee('View all my bookings')
             ->assertDontSee('Account Required');
     }
+    public function test_new_portal_customers_need_an_address_but_existing_customers_can_reuse_their_saved_address(): void
+    {
+        $payload = [
+            'name' => 'Portal Customer', 'phone' => '09198887766', 'branch_id' => $this->branch->id,
+            'password' => 'supersecret123', 'password_confirmation' => 'supersecret123', 'terms' => '1',
+        ];
+        foreach ([null, '', '   '] as $address) {
+            $this->postJson(route('customer.register.submit'), $payload + ['address' => $address])
+                ->assertUnprocessable()->assertJsonValidationErrors('address');
+            $this->assertDatabaseCount('customers', 0);
+        }
+        $existing = \App\Models\Customer::create([
+            'branch_id' => $this->branch->id, 'name' => 'Portal Customer',
+            'phone' => '09198887766', 'address' => 'Saved Street Address', 'is_active' => true,
+        ]);
+        $this->post(route('customer.register.submit'), $payload)->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame('Saved Street Address', $existing->fresh()->address);
+        $this->assertTrue($existing->fresh()->hasPortalAccount());
+        $this->assertDatabaseCount('customers', 1);
+    }
+
+    public function test_new_portal_customer_can_register_with_all_required_details_and_no_email(): void
+    {
+        $this->post(route('customer.register.submit'), [
+            'name' => 'New Portal Customer', 'phone' => '09195556677', 'branch_id' => $this->branch->id,
+            'address' => '123 Main Street', 'password' => 'supersecret123',
+            'password_confirmation' => 'supersecret123', 'terms' => '1',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('customers', ['name' => 'New Portal Customer', 'address' => '123 Main Street', 'email' => null]);
+        $this->assertTrue(auth('customer')->check());
+    }
+
 }

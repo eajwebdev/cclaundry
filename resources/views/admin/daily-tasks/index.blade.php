@@ -48,15 +48,17 @@
                                 <div class="mb-3 flex items-start justify-between gap-3">
                                     <div>
                                         <h2 class="font-semibold">{{ $task->name }}</h2>
-                                        <p class="text-xs text-muted">{{ $completion ? 'Completed '.$completion->completed_at?->format('M d, h:i A').' by '.$completedBy : 'Pending photo proof' }}</p>
+                                        <p class="text-xs text-muted">{{ $completion ? 'Completed '.$completion->completed_at?->format('M d, h:i A').' by '.$completedBy : ($task->requires_photo ? 'Pending photo proof' : 'Pending completion') }}</p>
                                     </div>
                                     <span class="{{ \App\Support\StatusBadge::classes($completion ? 'completed' : 'pending') }}">{{ $completion ? 'Done' : 'Pending' }}</span>
                                 </div>
 
                                 @if($completion)
-                                    <a href="{{ \App\Support\PublicUpload::url($completion->photo_path) }}" target="_blank" class="mb-3 block overflow-hidden rounded-md border border-border dark:border-gray-800">
-                                        <img src="{{ \App\Support\PublicUpload::url($completion->photo_path) }}" alt="{{ $task->name }} proof" class="h-44 w-full object-cover">
-                                    </a>
+                                    @if($completion->photo_path)
+                                        <a href="{{ \App\Support\PublicUpload::url($completion->photo_path) }}" target="_blank" class="mb-3 block overflow-hidden rounded-md border border-border dark:border-gray-800">
+                                            <img src="{{ \App\Support\PublicUpload::url($completion->photo_path) }}" alt="{{ $task->name }} proof" class="h-44 w-full object-cover">
+                                        </a>
+                                    @endif
                                     @if($completion->remarks)
                                         <p class="mb-3 rounded-md bg-smoke p-2 text-sm text-muted dark:bg-gray-950">{{ $completion->remarks }}</p>
                                     @endif
@@ -66,9 +68,9 @@
                                     @csrf
                                     <input type="hidden" name="branch_id" value="{{ $branchId }}">
                                     <input type="hidden" name="work_date" value="{{ $workDate }}">
-                                    <input type="file" name="photo" accept="image/*" required class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-950">
+                                    <input type="file" name="photo" accept="image/*" @required($task->requires_photo) class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-950">
                                     <textarea name="remarks" rows="2" placeholder="Remarks" class="w-full rounded-md border border-border bg-white px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-950"></textarea>
-                                    <button class="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:opacity-90"><span data-lucide="check" class="h-4 w-4"></span>{{ $completion ? 'Replace Proof' : 'Mark Done' }}</button>
+                                    <button class="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:opacity-90"><span data-lucide="check" class="h-4 w-4"></span>{{ $completion ? ($task->requires_photo ? 'Replace Proof' : 'Update Completion') : 'Mark Done' }}</button>
                                 </form>
                             </div>
                         @empty

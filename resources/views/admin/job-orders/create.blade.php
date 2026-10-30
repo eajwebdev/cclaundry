@@ -829,12 +829,15 @@
         <div x-cloak x-show="quickCustomerOpen" x-transition.opacity @keydown.escape.window="quickCustomerOpen = false"
              class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
              role="dialog" aria-modal="true" aria-labelledby="quick-customer-title" @click.self="quickCustomerOpen = false">
-            <div x-ref="quickCustomer" class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-6 dark:bg-gray-900">
+            <div x-ref="quickCustomer" class="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-2xl border border-border bg-white p-5 shadow-2xl sm:p-6 dark:border-gray-800 dark:bg-gray-900">
                 <div class="mb-4 flex items-center justify-between">
-                    <h2 id="quick-customer-title" class="inline-flex items-center gap-2 font-serif text-lg font-bold">
-                        <span data-lucide="user-plus" class="h-5 w-5 text-primary"></span>
-                        New customer
-                    </h2>
+                    <div class="flex items-center gap-3">
+                        <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><span data-lucide="user-plus" class="h-5 w-5"></span></span>
+                        <div>
+                            <h2 id="quick-customer-title" class="text-lg font-semibold tracking-tight">New customer</h2>
+                            <p class="mt-0.5 text-xs text-muted">Keep their contact details ready for every visit.</p>
+                        </div>
+                    </div>
                     <button type="button" @click="quickCustomerOpen = false" class="rounded-lg p-2 hover:bg-smoke dark:hover:bg-gray-800" aria-label="Close">
                         <span data-lucide="x" class="h-5 w-5"></span>
                     </button>
@@ -846,6 +849,7 @@
                     'customer' => new \App\Models\Customer(['branch_id' => $branchId, 'billing_type' => 'regular', 'is_active' => true, 'unpaid_limit' => 0]),
                     'redirectTo' => 'pos',
                     'branchModel' => 'branchId',
+                    'cancelAction' => 'quickCustomerOpen = false',
                 ])
             </div>
         </div>

@@ -120,7 +120,7 @@ class BranchController extends Controller
     {
         $this->authorizeBranch($branch);
 
-        $validated = $request->validate($this->taskRules($branch));
+        $validated = $request->validate($this->taskRules($request, $branch));
         $validated['branch_id'] = $branch->id;
         $validated['requires_photo'] = $request->boolean('requires_photo', true);
         $validated['is_active'] = $request->boolean('is_active', true);
@@ -134,7 +134,7 @@ class BranchController extends Controller
     {
         $this->authorizeBranchTask($branch, $task);
 
-        $validated = $request->validate($this->taskRules($branch, $task));
+        $validated = $request->validate($this->taskRules($request, $branch, $task));
         if (isset($validated['category']) && $validated['category'] !== $task->category && $task->completions()->exists()) {
             throw ValidationException::withMessages(['category' => 'Create a new task to change the schedule of a task with completion history.']);
         }
@@ -207,11 +207,14 @@ class BranchController extends Controller
         abort_unless((int) $task->branch_id === (int) $branch->id, 403);
     }
 
-    private function taskRules(Branch $branch, ?DailyTask $task = null): array
+    private function taskRules(Request $request, Branch $branch, ?DailyTask $task = null): array
     {
+        $category = $request->input('category', $task?->category ?? 'end_of_day');
+        $category = is_string($category) ? $category : '';
         $nameRule = Rule::unique('daily_tasks', 'name')
             ->where(fn ($query) => $query
                 ->where('branch_id', $branch->id)
+                ->where('category', $category)
                 ->where('is_active', true));
 
         if ($task) {

@@ -106,8 +106,8 @@
                 </div>
 
                 <div>
-                    <label for="address" class="cc-label">Default Pickup Address <span class="font-semibold text-cc-muted">(optional)</span></label>
-                    <textarea id="address" name="address" rows="2" autocomplete="street-address" placeholder="House / Street / Barangay"
+                    <label for="address" class="cc-label">Default Pickup Address <span class="text-cc-brown">*</span></label>
+                    <textarea id="address" name="address" required rows="2" autocomplete="street-address" placeholder="House / Street / Barangay"
                               class="cc-input mt-1.5">{{ old('address', data_get($recent, 'pickup_address')) }}</textarea>
                     @error('address') <p class="cc-error">{{ $message }}</p> @enderror
                 </div>

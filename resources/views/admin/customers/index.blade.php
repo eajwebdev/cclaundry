@@ -263,11 +263,17 @@
         </section>
     </dialog>
 
-    <div x-cloak x-show="createOpen" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div @click.outside="createOpen = false" class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-5 shadow-2xl dark:bg-gray-900">
+    <div x-cloak x-show="createOpen" x-transition.opacity @keydown.escape.window="createOpen = false" role="dialog" aria-modal="true" aria-labelledby="create-customer-title" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+        <div @click.outside="createOpen = false" class="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-2xl border border-border bg-white p-5 shadow-2xl sm:p-6 dark:border-gray-800 dark:bg-gray-900">
             <div class="mb-4 flex items-center justify-between">
-                <h2 class="inline-flex items-center gap-2 text-lg font-semibold"><span data-lucide="customers" class="h-4 w-4 text-primary"></span>Add Customer</h2>
-                <button type="button" @click="createOpen = false" class="rounded-md p-2 hover:bg-smoke dark:hover:bg-gray-800"><span data-lucide="x" class="h-4 w-4"></span></button>
+                <div class="flex items-center gap-3">
+                    <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><span data-lucide="user-plus" class="h-5 w-5"></span></span>
+                    <div>
+                        <h2 id="create-customer-title" class="text-lg font-semibold tracking-tight">Add Customer</h2>
+                        <p class="mt-0.5 text-xs text-muted">Keep their contact details ready for every visit.</p>
+                    </div>
+                </div>
+                <button type="button" @click="createOpen = false" aria-label="Close customer form" class="rounded-lg p-2 text-muted transition hover:bg-smoke hover:text-dark dark:hover:bg-gray-800 dark:hover:text-white"><span data-lucide="x" class="h-4 w-4"></span></button>
             </div>
 
             @include('admin.customers.partials.form', [
@@ -279,11 +285,17 @@
     </div>
 
     @foreach($customers as $customer)
-        <div x-cloak x-show="editOpen === {{ $customer->id }}" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div @click.outside="editOpen = null" class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-5 shadow-2xl dark:bg-gray-900">
+        <div x-cloak x-show="editOpen === {{ $customer->id }}" x-transition.opacity @keydown.escape.window="editOpen = null" role="dialog" aria-modal="true" aria-labelledby="edit-customer-title-{{ $customer->id }}" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+            <div @click.outside="editOpen = null" class="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-2xl border border-border bg-white p-5 shadow-2xl sm:p-6 dark:border-gray-800 dark:bg-gray-900">
                 <div class="mb-4 flex items-center justify-between">
-                    <h2 class="inline-flex items-center gap-2 text-lg font-semibold"><span data-lucide="settings" class="h-4 w-4 text-primary"></span>Edit Customer</h2>
-                    <button type="button" @click="editOpen = null" class="rounded-md p-2 hover:bg-smoke dark:hover:bg-gray-800"><span data-lucide="x" class="h-4 w-4"></span></button>
+                    <div class="flex items-center gap-3">
+                        <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><span data-lucide="pencil" class="h-5 w-5"></span></span>
+                        <div>
+                            <h2 id="edit-customer-title-{{ $customer->id }}" class="text-lg font-semibold tracking-tight">Edit Customer</h2>
+                            <p class="mt-0.5 text-xs text-muted">Update contact details and store settings.</p>
+                        </div>
+                    </div>
+                    <button type="button" @click="editOpen = null" aria-label="Close customer form" class="rounded-lg p-2 text-muted transition hover:bg-smoke hover:text-dark dark:hover:bg-gray-800 dark:hover:text-white"><span data-lucide="x" class="h-4 w-4"></span></button>
                 </div>
 
                 @include('admin.customers.partials.form', [
@@ -300,8 +312,8 @@
 @push('scripts')
 <script>
     window.customerRecords = () => ({
-        createOpen: false,
-        editOpen: null,
+        createOpen: @js($errors->any() && old('_customer_form') === 'create'),
+        editOpen: @js($errors->any() && ctype_digit((string) old('_customer_form', '')) ? (int) old('_customer_form') : null),
         historyOpen: false,
         historyName: '',
         historyUrl: '',

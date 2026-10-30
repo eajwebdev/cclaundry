@@ -166,6 +166,7 @@
                             </label>
                             <div class="flex flex-wrap items-center justify-between gap-2">
                                 <label class="inline-flex items-center gap-2 text-sm text-muted">
+                                    <input type="hidden" name="requires_photo" value="0">
                                     <input type="checkbox" name="requires_photo" value="1" checked class="rounded border-border text-primary">
                                     Requires photo
                                 </label>
@@ -193,6 +194,7 @@
                                         </label>
                                         <div class="flex flex-wrap items-center justify-between gap-2">
                                             <label class="inline-flex items-center gap-2 text-sm text-muted">
+                                                <input type="hidden" name="requires_photo" value="0">
                                                 <input type="checkbox" name="requires_photo" value="1" @checked($task->requires_photo) class="rounded border-border text-primary">
                                                 Requires photo
                                             </label>
