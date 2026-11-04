@@ -10,9 +10,13 @@ class JobOrderItem extends Model
 
     protected $casts = ['quantity' => 'decimal:2', 'unit_price' => 'decimal:2', 'total' => 'decimal:2'];
 
-    /** Standard detergent and conditioner are included in the laundry service. */
+    /** Hide vinegar and the standard products included in the laundry service. */
     public function appearsOnReceipt(): bool
     {
+        if ($this->service_category === 'vinegar' || preg_match('/^vinegar\b/i', trim((string) $this->description))) {
+            return false;
+        }
+
         if ((float) $this->total !== 0.0 || ! in_array($this->service_category, [null, 'other', 'detergent', 'fabcon'], true)) {
             return true;
         }

@@ -57,13 +57,23 @@ class ReceiptProductVisibilityTest extends TestCase
         foreach (['admin.job-orders.receipt', 'admin.cycles.receipt'] as $route) {
             $this->get(route($route, $order))->assertOk()
                 ->assertSee('Regular Laundry')->assertSee('Ariel Detergent')->assertSee('Downy Mystique')
-                ->assertSee('Finishing Spray')->assertSee('Vinegar')
+                ->assertSee('Finishing Spray')->assertDontSee('Vinegar')
                 ->assertDontSee('Mrs. Bloom')->assertDontSee('Mrs-Bloom')
                 ->assertDontSee('Yen Yen')->assertDontSee('YenYen')->assertSee('180.00');
         }
         $this->assertSame(9, $order->items()->count());
         $this->assertSame('180.00', $order->fresh()->total);
     }
+    public function test_receipts_hide_vinegar_with_legacy_or_renamed_descriptions(): void
+    {
+        foreach ([
+            ['description' => 'Vinegar (100 ml)'],
+            ['description' => 'Odor treatment', 'service_category' => 'vinegar'],
+        ] as $attributes) {
+            $this->assertFalse((new \App\Models\JobOrderItem($attributes))->appearsOnReceipt());
+        }
+    }
+
     public function test_receipts_keep_charged_products_and_services_even_when_names_start_with_a_standard_brand(): void
     {
         $charged = new \App\Models\JobOrderItem(['description' => 'Mrs. Bloom Detergent', 'service_category' => 'detergent', 'unit_price' => 20, 'total' => 20]);
