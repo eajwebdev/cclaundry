@@ -63,10 +63,14 @@ class JobOrderController extends Controller
 
         $statusFilter = $request->status;
 
-        $orders = $ordersQuery
+        $ordersQuery
             ->when(in_array($statusFilter, self::STATUSES, true), fn ($q) => $q->where('status', $statusFilter))
             ->when($statusFilter === 'released', fn ($q) => $q->whereNotNull('released_at'))
-            ->when($statusFilter === 'active', fn ($q) => $q->whereNotIn('status', ['ready_for_pickup', 'ready_for_delivery', 'completed', 'cancelled']))
+            ->when($statusFilter === 'active', fn ($q) => $q->whereNotIn('status', ['ready_for_pickup', 'ready_for_delivery', 'completed', 'cancelled']));
+
+        $ordersTotal = (clone $ordersQuery)->sum('total');
+
+        $orders = $ordersQuery
             ->orderByRaw("CASE WHEN status IN ('ready_for_pickup', 'ready_for_delivery') THEN 0 WHEN status IN ('pending', 'washing', 'drying', 'folding') THEN 1 WHEN status = 'completed' THEN 2 ELSE 3 END")
             ->latest()
             ->paginate(8)
@@ -76,6 +80,7 @@ class JobOrderController extends Controller
             'dateFrom' => $dateFrom,
             'dateTo' => $dateTo,
             'orders' => $orders,
+            'ordersTotal' => $ordersTotal,
             'statusCounts' => $statusCounts,
             'statuses' => self::STATUSES,
             'currentStatus' => $statusFilter,

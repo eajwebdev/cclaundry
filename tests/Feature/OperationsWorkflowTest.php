@@ -56,6 +56,35 @@ class OperationsWorkflowTest extends TestCase
         $this->get($url)->assertOk()->assertSee('Clean counter');
     }
 
+    public function test_job_orders_total_uses_all_matching_pages_and_respects_branch_and_status(): void
+    {
+        $manager = $this->manager();
+        $manager->update(['access' => ['job_orders']]);
+        $other = Branch::create(['name' => 'Other', 'code' => 'OTHER', 'is_active' => true]);
+        $customer = \App\Models\Customer::create([
+            'branch_id' => $manager->branch_id, 'name' => 'Customer', 'billing_type' => 'regular', 'is_active' => true,
+        ]);
+        foreach (range(1, 11) as $number) {
+            $order = \App\Models\JobOrder::create([
+                'branch_id' => $number === 11 ? $other->id : $manager->branch_id,
+                'customer_id' => $customer->id, 'job_order_number' => 'JO-SUM-'.$number,
+                'status' => $number === 10 ? 'pending' : 'ready_for_pickup',
+                'subtotal' => 125.50, 'total' => 125.50, 'balance' => 125.50,
+            ]);
+            if ($number === 9) {
+                $order->forceFill(['created_at' => today()->subDay()])->save();
+            }
+        }
+        $this->actingAs($manager)->get(route('admin.job-orders.index', [
+            'status' => 'ready_for_pickup', 'date_range' => today()->subDay()->toDateString().' to '.today()->toDateString(),
+        ]))->assertOk()->assertViewHas('ordersTotal', fn ($total) => (float) $total === 1129.50)
+            ->assertSee('Job Orders Total')->assertSee('PHP 1,129.50');
+        $this->get(route('admin.job-orders.index', ['status' => 'ready_for_pickup']))
+            ->assertOk()->assertViewHas('ordersTotal', fn ($total) => (float) $total === 1004.00);
+        $this->get(route('admin.job-orders.index', ['search' => 'JO-SUM-10']))
+            ->assertOk()->assertViewHas('ordersTotal', fn ($total) => (float) $total === 125.50);
+    }
+
     public function test_bank_deposit_transfers_drawer_cash_to_bank_without_creating_sales(): void
     {
         $manager = $this->manager();

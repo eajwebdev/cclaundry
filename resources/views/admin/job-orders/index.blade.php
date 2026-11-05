@@ -389,6 +389,13 @@
     </div>
 
     <div class="overflow-hidden rounded-lg border border-border bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3 dark:border-gray-800">
+            <div>
+                <p class="text-sm font-medium">Job Orders Total</p>
+                <p class="text-xs text-muted">All orders matching the current filters, across all pages.</p>
+            </div>
+            <p class="text-lg font-semibold">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $ordersTotal, 2) }}</p>
+        </div>
         <table class="w-full text-left text-sm">
             <thead class="border-b border-border bg-smoke text-xs uppercase text-muted dark:border-gray-800 dark:bg-gray-950">
                 <tr>
