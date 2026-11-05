@@ -37,6 +37,13 @@ class DailyTaskController extends Controller
         return view('admin.daily-tasks.index', compact('branches', 'canChooseBranch', 'branchId', 'workDate', 'tasks'));
     }
 
+    public function store(Request $request, Branch $branch, BranchController $branches)
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+
+        return $branches->storeTask($request, $branch);
+    }
+
     public function complete(Request $request, DailyTask $task)
     {
         $validated = $request->validate([

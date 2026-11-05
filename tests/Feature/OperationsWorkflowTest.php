@@ -35,6 +35,27 @@ class OperationsWorkflowTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_add_a_task_directly_from_the_tasks_page(): void
+    {
+        $manager = $this->manager();
+        $url = route('admin.daily-tasks.index', ['branch_id' => $manager->branch_id]);
+        $this->actingAs($manager)->get($url)->assertOk()->assertDontSee('Add Task');
+
+        $this->post(route('admin.daily-tasks.store', $manager->branch_id), ['name' => 'Forbidden'])->assertForbidden();
+
+        $admin = User::factory()->create(['role' => 'admin', 'access' => ['daily_tasks']]);
+        $this->actingAs($admin)->get($url)->assertOk()
+            ->assertSee('Add Task')->assertSee(route('admin.daily-tasks.store', $manager->branch_id), false);
+        $this->from($url)->post(route('admin.daily-tasks.store', $manager->branch_id), [
+            'name' => 'Clean counter', 'category' => 'weekly', 'requires_photo' => '0', 'is_active' => '1',
+        ])->assertSessionHasNoErrors()->assertRedirect($url);
+        $this->assertDatabaseHas('daily_tasks', [
+            'branch_id' => $manager->branch_id, 'name' => 'Clean counter',
+            'category' => 'weekly', 'requires_photo' => false, 'is_active' => true,
+        ]);
+        $this->get($url)->assertOk()->assertSee('Clean counter');
+    }
+
     public function test_bank_deposit_transfers_drawer_cash_to_bank_without_creating_sales(): void
     {
         $manager = $this->manager();

@@ -11,7 +11,7 @@
                 Task checklist
             </div>
             <h1 class="text-xl font-semibold tracking-normal">Tasks</h1>
-            <p class="text-sm text-muted">Track opening, closing, weekly, and monthly tasks configured in Branches.</p>
+            <p class="text-sm text-muted">Track opening, closing, weekly, and monthly tasks for this branch.</p>
         </div>
 
         <form method="GET" class="grid grid-cols-1 gap-2 sm:grid-cols-[12rem_10rem_auto]">
@@ -28,6 +28,16 @@
             <button class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:opacity-90"><span data-lucide="search" class="h-4 w-4"></span>View</button>
         </form>
     </div>
+
+    @if($canChooseBranch && $branches->contains('id', $branchId))
+        <details class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900" @if($errors->any()) open @endif>
+            <summary class="cursor-pointer text-sm font-semibold">Add Task</summary>
+            <div class="mt-3 max-w-md">
+                <p class="mb-3 text-sm text-muted">Add a task for {{ $branches->firstWhere('id', $branchId)->name }}.</p>
+                @include('admin.branches.partials.task-form', ['branchId' => $branchId, 'taskAction' => route('admin.daily-tasks.store', $branchId)])
+            </div>
+        </details>
+    @endif
 
     <div x-data="{ category: 'all' }" class="space-y-3">
         <div class="mb-3 flex shrink-0 flex-wrap gap-2" role="group" aria-label="Task schedule">

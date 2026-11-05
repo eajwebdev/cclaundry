@@ -348,6 +348,7 @@ Route::middleware(['auth', 'not.rider', 'settings.completed', 'system.maintenanc
 
         Route::middleware('menu.access:daily_tasks')->group(function () {
             Route::get('/daily-tasks', [DailyTaskController::class, 'index'])->name('daily-tasks.index');
+            Route::post('/daily-tasks/branches/{branch}', [DailyTaskController::class, 'store'])->name('daily-tasks.store');
             Route::post('/daily-tasks/{task}/complete', [DailyTaskController::class, 'complete'])->name('daily-tasks.complete');
         });
 
