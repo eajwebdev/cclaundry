@@ -332,6 +332,8 @@
                         </label>
                     </div>
 
+                    <p class="lg:col-span-2 text-sm text-muted">Automatic SMS is sent only when laundry is ready for pickup or ready for delivery.</p>
+
                     <div>
                         <label class="block text-sm font-medium mb-2">SMS Provider</label>
                         <select name="sms_provider" x-model="smsProvider" class="w-full h-9 rounded-md border border-border dark:border-gray-700 bg-white dark:bg-gray-950 px-3 text-sm">
@@ -354,22 +356,6 @@
                         Available placeholders: <span class="font-medium text-foreground">{customer_name}</span>, <span class="font-medium text-foreground">{customer_phone}</span>, <span class="font-medium text-foreground">{job_order_number}</span>, <span class="font-medium text-foreground">{store_name}</span>, <span class="font-medium text-foreground">{branch_name}</span>, <span class="font-medium text-foreground">{status}</span>, <span class="font-medium text-foreground">{total}</span>, <span class="font-medium text-foreground">{price}</span>, <span class="font-medium text-foreground">{balance}</span>.
                     </div>
 
-                    @php($v = old('sms_template_order_received', $settings->sms_template_order_received ?: $smsTemplateDefaults['sms_template_order_received']))
-                    <div class="lg:col-span-2">
-                        <div class="mb-2 flex items-center justify-between">
-                            <label class="block text-sm font-medium">Order Received Template</label>
-                        </div>
-                        <textarea name="sms_template_order_received" rows="3" class="w-full rounded-md border border-border dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm">{{ $v }}</textarea>
-                    </div>
-
-                    @php($v = old('sms_template_delivery_received', $settings->sms_template_delivery_received ?: $smsTemplateDefaults['sms_template_delivery_received']))
-                    <div class="lg:col-span-2">
-                        <div class="mb-2 flex items-center justify-between">
-                            <label class="block text-sm font-medium">Delivery/Pickup Received Template</label>
-                        </div>
-                        <textarea name="sms_template_delivery_received" rows="3" class="w-full rounded-md border border-border dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm">{{ $v }}</textarea>
-                    </div>
-
                     @php($v = old('sms_template_ready_for_pickup', $settings->sms_template_ready_for_pickup ?: $smsTemplateDefaults['sms_template_ready_for_pickup']))
                     <div>
                         <div class="mb-2 flex items-center justify-between">
@@ -384,14 +370,6 @@
                             <label class="block text-sm font-medium">Ready for Delivery Template</label>
                         </div>
                         <textarea name="sms_template_ready_for_delivery" rows="3" class="w-full rounded-md border border-border dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm">{{ $v }}</textarea>
-                    </div>
-
-                    @php($v = old('sms_template_completed', $settings->sms_template_completed ?: $smsTemplateDefaults['sms_template_completed']))
-                    <div class="lg:col-span-2">
-                        <div class="mb-2 flex items-center justify-between">
-                            <label class="block text-sm font-medium">Completed Template</label>
-                        </div>
-                        <textarea name="sms_template_completed" rows="3" class="w-full rounded-md border border-border dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm">{{ $v }}</textarea>
                     </div>
 
                     <div class="lg:col-span-2 rounded-lg border border-border bg-smoke px-4 py-3 text-xs text-muted dark:border-gray-700 dark:bg-gray-950">

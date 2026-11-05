@@ -157,7 +157,10 @@ class SystemSettingsTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.settings.edit', ['branch_id' => $branch->id]))
             ->assertOk()
-            ->assertSee('Order Received Template')
+            ->assertSee('Ready for Pickup Template')
+            ->assertSee('Ready for Delivery Template')
+            ->assertDontSee('Order Received Template')
+            ->assertDontSee('Completed Template')
             ->assertSee('{customer_name}', false);
 
         $this->actingAs($admin)

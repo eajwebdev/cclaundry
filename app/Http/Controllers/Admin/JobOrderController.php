@@ -452,7 +452,6 @@ class JobOrderController extends Controller
             'transaction_type' => ['nullable', Rule::in(['walk_in', 'delivery'])],
             'is_rush' => ['nullable', 'boolean'],
             'pickup_request_id' => ['nullable', 'exists:pickup_requests,id'],
-            'send_sms' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string'],
         ]);
 
@@ -492,8 +491,7 @@ class JobOrderController extends Controller
 
         $validated['items'] = $this->applyVinegarRules($validated['items'], $selectedServices);
 
-        $createdOrder = null;
-        $response = DB::transaction(function () use ($request, $validated, $selectedServices, $user, &$createdOrder) {
+        return DB::transaction(function () use ($request, $validated, $selectedServices, $user) {
             $pickupRequest = null;
             if (! empty($validated['pickup_request_id'])) {
                 $pickupRequest = PickupRequest::query()
@@ -644,20 +642,8 @@ class JobOrderController extends Controller
                 ]);
             }
 
-            $createdOrder = $order;
-
             return redirect()->route('admin.job-orders.index')->with('success', 'Job order created successfully.');
         });
-
-        $shouldSendSms = $request->has('send_sms')
-            ? $request->boolean('send_sms')
-            : SystemSetting::current()->sms_enabled;
-
-        if ($shouldSendSms && $createdOrder) {
-            SmsNotifier::jobOrderReceived($createdOrder);
-        }
-
-        return $response;
     }
 
     public function update(Request $request, JobOrder $jobOrder)

@@ -1327,7 +1327,7 @@ class CycleMonitoringTest extends TestCase
         $this->assertSame($productionBranch->id, $order->processing_branch_id);
     }
 
-    public function test_rush_unpaid_pickup_order_can_send_received_sms(): void
+    public function test_creating_rush_unpaid_pickup_order_does_not_send_sms(): void
     {
         $this->completeSystemSettings();
         $this->activeTrial();
@@ -1369,7 +1369,6 @@ class CycleMonitoringTest extends TestCase
                 'payment_type' => 'unpaid',
                 'transaction_type' => 'delivery',
                 'is_rush' => 1,
-                'send_sms' => 1,
             ])
             ->assertRedirect(route('admin.job-orders.index'));
 
@@ -1379,18 +1378,10 @@ class CycleMonitoringTest extends TestCase
         $this->assertSame('0.00', $order->paid_amount);
         $this->assertSame('100.00', $order->balance);
         $this->assertDatabaseCount('payments', 0);
-        $this->assertDatabaseHas('sms_logs', [
-            'customer_id' => $customer->id,
-            'recipient' => $customer->phone,
-            'status' => 'queued',
-        ]);
-        $this->assertStringContainsString(
-            "We've picked up and received your laundry",
-            (string) \App\Models\SmsLog::query()->value('message')
-        );
+        $this->assertDatabaseCount('sms_logs', 0);
     }
 
-    public function test_job_order_is_saved_when_unisms_rejects_sms(): void
+    public function test_creating_job_order_does_not_contact_sms_provider(): void
     {
         Http::fake([
             'unismsapi.com/*' => Http::response([
@@ -1444,11 +1435,8 @@ class CycleMonitoringTest extends TestCase
 
         $order = JobOrder::query()->where('customer_id', $customer->id)->firstOrFail();
         $this->assertSame('pending', $order->status);
-        $this->assertDatabaseHas('sms_logs', [
-            'customer_id' => $customer->id,
-            'status' => 'failed',
-            'response' => 'UniSMS error: SMS service unavailable.',
-        ]);
+        $this->assertDatabaseCount('sms_logs', 0);
+        Http::assertNothingSent();
     }
 
     public function test_pos_only_prompts_for_receiving_branch_when_user_must_choose_one(): void

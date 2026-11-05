@@ -675,14 +675,6 @@
                                 <span class="font-bold" x-text="currencySymbol + wholeMoney(total)"></span>
                             </p>
                         </div>
-
-                        <label class="flex items-start gap-2 text-[11px]" :class="canSendSms ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'">
-                            <input type="checkbox" name="send_sms" value="1" :disabled="!canSendSms" :checked="canSendSms && sendSms" @change="sendSms = $event.target.checked" class="mt-0.5 rounded border-border text-primary">
-                            <span>
-                                <span class="block font-semibold">Send order received SMS</span>
-                                <span x-show="!canSendSms" class="block text-muted" x-text="smsAvailabilityMessage"></span>
-                            </span>
-                        </label>
                     @endif
 
                     <button type="submit" :disabled="!canSubmit" class="h-11 w-full rounded-lg bg-primary-deep text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-primary-soft dark:disabled:bg-gray-700"
@@ -890,7 +882,6 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         initialRush: Boolean(initialState.isRush),
         notesText: '',
         noteTags: ['Separate colors', 'Delicate wash', 'Hang dry only', 'Extra Downy', 'Stain treatment', 'Customer detergent', 'Hand wash', 'Fold only'],
-        sendSms: true,
         submitting: false,
         editIndex: null,
         bookingLoaded: @js((bool) $booked),
@@ -1140,16 +1131,6 @@ function posPage(branches, processingBranches, services, customers, serviceCateg
         maskPhone(phone) {
             const digits = String(phone || '').replace(/\D/g, '');
             return digits.length >= 8 ? `${digits.slice(0, 4)} ••• ${digits.slice(-4)}` : String(phone || '');
-        },
-        get canSendSms() {
-            return Boolean(this.selectedCustomer?.phone);
-        },
-        get smsAvailabilityMessage() {
-            if (!this.selectedCustomer?.phone) {
-                return 'Add a customer phone number to enable SMS.';
-            }
-
-            return 'Tell the customer their laundry was received and queued.';
         },
         formatBilling(value) {
             if (value === 'monthly_billing') return 'Legacy Billing';

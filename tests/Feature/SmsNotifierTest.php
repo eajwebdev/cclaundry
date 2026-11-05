@@ -164,36 +164,6 @@ class SmsNotifierTest extends TestCase
         ]);
     }
 
-    public function test_walk_in_received_sms_uses_drop_off_message(): void
-    {
-        [$order] = $this->readyOrder();
-        $order->update([
-            'status' => 'pending',
-            'transaction_type' => 'walk_in',
-        ]);
-
-        SystemSetting::query()->create([
-            'business_name' => 'SPIN KLEAN LAUNDRY',
-            'contact_number' => '09171234567',
-            'business_address' => 'Manila',
-            'currency' => 'PHP',
-            'job_order_prefix' => 'JO',
-            'invoice_prefix' => 'INV',
-            'sms_enabled' => true,
-            'is_completed' => true,
-        ]);
-
-        SmsNotifier::jobOrderReceived($order);
-
-        $message = (string) SmsLog::query()->value('message');
-        // The drop-off wording, not the delivery template's "We've picked up
-        // and received your laundry" — telling a walk-in we collected from
-        // their door is exactly the mix-up this guards against.
-        $this->assertStringContainsString("We've received your laundry", $message);
-        $this->assertStringNotContainsString('picked up', $message);
-        $this->assertStringContainsString('once your laundry is ready', $message);
-    }
-
     public function test_custom_sms_template_replaces_order_placeholders(): void
     {
         [$order] = $this->readyOrder();
@@ -240,7 +210,7 @@ class SmsNotifierTest extends TestCase
         ]);
     }
 
-    public function test_each_sms_event_uses_its_matching_template(): void
+    public function test_only_ready_statuses_send_automatic_sms(): void
     {
         [$order] = $this->readyOrder();
 
@@ -260,11 +230,11 @@ class SmsNotifierTest extends TestCase
             'sms_template_completed' => 'Completed {job_order_number}.',
         ]);
 
-        $order->update(['status' => 'pending', 'transaction_type' => 'walk_in']);
-        SmsNotifier::jobOrderReceived($order->fresh(['branch', 'customer']));
-
-        $order->update(['transaction_type' => 'delivery']);
-        SmsNotifier::jobOrderReceived($order->fresh(['branch', 'customer']));
+        foreach (['pending', 'washing', 'drying', 'folding', 'completed', 'cancelled'] as $status) {
+            $order->update(['status' => $status]);
+            SmsNotifier::jobOrderStatus($order->fresh(['branch', 'customer']));
+        }
+        $this->assertDatabaseCount('sms_logs', 0);
 
         $order->update(['status' => 'ready_for_pickup']);
         SmsNotifier::jobOrderStatus($order->fresh(['branch', 'customer']));
@@ -281,8 +251,6 @@ class SmsNotifierTest extends TestCase
         $messages = SmsLog::query()->orderBy('id')->pluck('message')->all();
 
         $this->assertSame([
-            'Drop-off received JO-TEST-001.',
-            'Pickup received JO-TEST-001.',
             'Pickup ready JO-TEST-001.',
             'Delivery ready JO-TEST-001.',
         ], $messages);

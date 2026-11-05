@@ -11,26 +11,6 @@ use Illuminate\Support\Str;
 
 class SmsNotifier
 {
-    public static function jobOrderReceived(JobOrder $order): void
-    {
-        self::withoutInterruptingOperations(function () use ($order): void {
-            $order->loadMissing(['branch', 'customer']);
-            $settings = self::resolveSettings($order->branch_id);
-            $customer = $order->customer;
-
-            if (! $settings->sms_enabled || ! $customer?->canReceiveSms()) {
-                return;
-            }
-
-            $template = $order->transaction_type === 'delivery'
-                ? 'sms_template_delivery_received'
-                : 'sms_template_order_received';
-            $message = self::renderTemplate($settings, $template, $order);
-
-            self::queue($order, $message, $settings);
-        });
-    }
-
     public static function jobOrderStatus(JobOrder $order): void
     {
         self::withoutInterruptingOperations(function () use ($order): void {
@@ -42,8 +22,7 @@ class SmsNotifier
                 return;
             }
 
-            // Customers are only notified on creation and when the order is
-            // ready. The "completed" status intentionally sends no SMS.
+            // Only ready-for-pickup and ready-for-delivery events send automatic SMS.
             $template = match ($order->status) {
                 'ready_for_pickup' => 'sms_template_ready_for_pickup',
                 'ready_for_delivery' => 'sms_template_ready_for_delivery',
