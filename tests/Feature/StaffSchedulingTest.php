@@ -56,6 +56,20 @@ class StaffSchedulingTest extends TestCase
         return $this->post(route('admin.scheduling.publish'), ['branch_id' => $this->branch->id, 'date' => '2026-11-09', 'coverage_confirmed' => 1]);
     }
 
+    public function test_folding_packing_shift_can_be_saved_and_published_to_staff(): void
+    {
+        $template = Planner::templates()['folding_packing'];
+        $this->get(route('admin.scheduling.index'))->assertOk()->assertSee('Folding/Packing');
+        $this->saveShift(overrides: ['template' => 'folding_packing'] + array_diff_key($template, ['label' => true]))
+            ->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('schedule_shifts', [
+            'attendance_employee_id' => $this->employee->id, 'template' => 'folding_packing',
+        ]);
+        $this->publish()->assertSessionHasNoErrors();
+        $this->withSession(['attendance_employee_id' => $this->employee->id])
+            ->get(route('attendance.schedule'))->assertOk()->assertSee('Folding/Packing');
+    }
+
     public function test_day_week_and_month_render_and_rates_are_owner_only(): void
     {
         $this->saveShift()->assertSessionHasNoErrors();
