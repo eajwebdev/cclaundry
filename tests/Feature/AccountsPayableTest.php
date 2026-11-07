@@ -80,8 +80,7 @@ class AccountsPayableTest extends TestCase
                 'title' => 'Detergent supplies',
                 'amount' => 1250,
                 'expense_date' => today()->toDateString(),
-                'payment_method' => 'cash',
-                'paid_from' => 'owner',
+                'paid_with' => 'owner',
             ])
             ->assertSessionHasNoErrors();
 
@@ -104,7 +103,7 @@ class AccountsPayableTest extends TestCase
         $this->assertSame(1250.0, $financial['owner_paid_expenses']);
     }
 
-    public function test_expense_defaults_to_store_funded_when_no_source_is_submitted(): void
+    public function test_expense_needs_to_say_what_it_was_paid_with(): void
     {
         [$branch, $manager] = $this->financeUser(['expenses', 'accounts_payable']);
 
@@ -115,14 +114,10 @@ class AccountsPayableTest extends TestCase
                 'title' => 'Detergent supplies',
                 'amount' => 500,
                 'expense_date' => today()->toDateString(),
-                'payment_method' => 'cash',
             ])
-            ->assertSessionHasNoErrors();
+            ->assertSessionHasErrors('paid_with');
 
-        $this->assertDatabaseHas('branch_expenses', [
-            'branch_id' => $branch->id,
-            'paid_from' => 'store_cash',
-        ]);
+        $this->assertDatabaseCount('branch_expenses', 0);
         $this->assertDatabaseCount('accounts_payables', 0);
     }
 
@@ -137,8 +132,7 @@ class AccountsPayableTest extends TestCase
                 'title' => 'Detergent supplies',
                 'amount' => 1250,
                 'expense_date' => today()->toDateString(),
-                'payment_method' => 'cash',
-                'paid_from' => 'owner',
+                'paid_with' => 'owner',
             ])
             ->assertSessionHasNoErrors();
 

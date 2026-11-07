@@ -32,6 +32,9 @@ class ZReading extends Model
         'signature_name',
         'remarks',
         'closed_at',
+        'float_for_tomorrow',
+        'deposit_bag_amount',
+        'cash_opening_id',
     ];
 
     protected $casts = [
@@ -52,6 +55,8 @@ class ZReading extends Model
         'actual_total_amount' => 'decimal:2',
         'over_short_amount' => 'decimal:2',
         'closed_at' => 'datetime',
+        'float_for_tomorrow' => 'decimal:2',
+        'deposit_bag_amount' => 'decimal:2',
     ];
 
     public function branch()

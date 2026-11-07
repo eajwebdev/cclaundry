@@ -51,6 +51,13 @@ class DashboardController extends Controller
             'settings' => SystemSetting::current(),
             'activeTab' => $request->query('tab', 'today'),
             'currentPeriod' => $this->currentPeriod($request),
+            // Owner alerts from Shop Cash: opening difference, disputed expense, short deposit bag.
+            'shopCashAlerts' => $user->isAdmin()
+                ? \App\Models\ActivityLog::query()->with('branch:id,name')
+                    ->where('action', 'shop_cash_alert')
+                    ->where('created_at', '>=', now()->subDays(7))
+                    ->latest()->limit(10)->get()
+                : collect(),
         ]);
     }
 

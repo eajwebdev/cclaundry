@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\AccountsPayable;
 use App\Models\AccountsPayablePayment;
 use App\Models\BranchExpense;
+use App\Models\CashOpening;
 use App\Models\JobOrder;
 use App\Models\MoneyMovement;
 use App\Models\Payment;
@@ -45,20 +46,35 @@ class FinancialReconciliation
 
         $expenseSummary = (clone $expenses)
             ->selectRaw("COALESCE(SUM(amount), 0) as total,
-                COALESCE(SUM(CASE WHEN paid_from = 'store_cash' AND COALESCE(LOWER(payment_method), 'cash') = 'cash' THEN amount ELSE 0 END), 0) as store_cash,
-                COALESCE(SUM(CASE WHEN paid_from = 'store_cash' AND LOWER(payment_method) = 'gcash' THEN amount ELSE 0 END), 0) as store_gcash,
-                COALESCE(SUM(CASE WHEN paid_from = 'store_cash' AND LOWER(payment_method) = 'bank' THEN amount ELSE 0 END), 0) as store_bank,
-                COALESCE(SUM(CASE WHEN paid_from = 'owner' THEN amount ELSE 0 END), 0) as owner_paid")
+                COALESCE(SUM(CASE WHEN drawer_status = 'confirmed' THEN drawer_amount ELSE 0 END), 0) as store_cash,
+                COALESCE(SUM(gcash_amount), 0) as store_gcash,
+                COALESCE(SUM(bank_amount), 0) as store_bank,
+                COALESCE(SUM(owner_amount), 0) as owner_paid")
             ->first();
 
         $movements = MoneyMovement::query()
             ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
+            ->whereNull('voided_at')
             ->whereDate('movement_date', '>=', $dateFrom)
-            ->whereDate('movement_date', '<=', $dateTo);
+            ->whereDate('movement_date', '<=', $dateTo)
+            ->selectRaw("COALESCE(SUM(CASE WHEN direction = 'in' THEN amount ELSE 0 END), 0) as cash_in,
+                COALESCE(SUM(CASE WHEN type = 'bank_deposit' THEN amount ELSE 0 END), 0) as bank_deposits,
+                COALESCE(SUM(CASE WHEN type = 'bank_deposit' THEN drawer_amount ELSE 0 END), 0) as extra_deposited,
+                COALESCE(SUM(CASE WHEN type = 'bank_deposit' THEN bag_amount ELSE 0 END), 0) as bag_deposited,
+                COALESCE(SUM(CASE WHEN direction = 'out' AND type <> 'bank_deposit' THEN amount ELSE 0 END), 0) as owner_took")
+            ->first();
 
-        $cashIn = round((float) (clone $movements)->where('direction', 'in')->sum('amount'), 2);
-        $bankDeposits = round((float) (clone $movements)->where('type', 'bank_deposit')->where('direction', 'out')->sum('amount'), 2);
-        $cashOut = round((float) (clone $movements)->where('direction', 'out')->sum('amount'), 2);
+        $cashIn = round((float) $movements->cash_in, 2);
+        $bankDeposits = round((float) $movements->bank_deposits, 2);
+        $extraDeposited = round((float) $movements->extra_deposited, 2);
+        $ownerTook = round((float) $movements->owner_took, 2);
+        // Only the drawer part of a bank deposit leaves the drawer; the sealed bag was already out.
+        $cashOut = round($extraDeposited + $ownerTook, 2);
+        $openingFloat = round((float) CashOpening::query()
+            ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
+            ->whereDate('business_date', '>=', $dateFrom)
+            ->whereDate('business_date', '<=', $dateTo)
+            ->sum('counted_amount'), 2);
 
         $cashlessFunding = AccountsPayable::query()
             ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
@@ -87,7 +103,7 @@ class FinancialReconciliation
         $storeCashExpenses = round((float) ($expenseSummary->store_cash ?? 0), 2);
         $storeGcashExpenses = round((float) ($expenseSummary->store_gcash ?? 0), 2);
         $storeBankExpenses = round((float) ($expenseSummary->store_bank ?? 0), 2);
-        $expectedCashDrawer = round($cashCollections + $cashIn - $storeCashExpenses - $cashOut, 2);
+        $expectedCashDrawer = round($openingFloat + $cashCollections + $cashIn - $storeCashExpenses - $cashOut, 2);
         $expectedGcash = round($gcashCollections + (float) ($cashlessFunding['gcash'] ?? 0) - (float) ($cashlessRepayments['gcash'] ?? 0) - $storeGcashExpenses, 2);
         $expectedBank = round($bankCollections + $bankDeposits + (float) ($cashlessFunding['bank'] ?? 0) - (float) ($cashlessRepayments['bank'] ?? 0) - $storeBankExpenses, 2);
 
@@ -125,6 +141,10 @@ class FinancialReconciliation
             'cash_in' => $cashIn,
             'cash_out' => $cashOut,
             'bank_deposits' => $bankDeposits,
+            'opening_float' => $openingFloat,
+            'extra_deposited' => $extraDeposited,
+            'bag_deposited' => round((float) $movements->bag_deposited, 2),
+            'owner_took' => $ownerTook,
             'expected_cash_drawer' => $expectedCashDrawer,
             'gcash_owner_funding' => (float) ($cashlessFunding['gcash'] ?? 0),
             'bank_owner_funding' => (float) ($cashlessFunding['bank'] ?? 0),

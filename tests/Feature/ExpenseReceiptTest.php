@@ -73,10 +73,14 @@ class ExpenseReceiptTest extends TestCase
         $this->assertEqualsWithDelta(4 / 3, $width / $height, 0.01);
     }
 
-    public function test_an_expense_without_a_photo_still_saves(): void
+    public function test_a_photo_is_required_unless_the_owner_paid(): void
     {
         $this->actingAs($this->admin)
             ->post(route('admin.expenses.store'), $this->expense())
+            ->assertSessionHasErrors('receipt');
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.expenses.store'), $this->expense(['paid_with' => 'owner']))
             ->assertSessionHasNoErrors();
 
         $this->assertNull(BranchExpense::query()->firstOrFail()->receipt_path);
@@ -149,9 +153,12 @@ class ExpenseReceiptTest extends TestCase
         Storage::disk(ExpenseReceipt::DISK)->assertMissing($firstPhoto);
         Storage::disk(ExpenseReceipt::DISK)->assertExists($secondPhoto);
 
-        // Removing the photo clears it and deletes the file.
+        // Removing the photo clears it and deletes the file (only allowed once no receipt is needed).
         $this->actingAs($this->admin)
             ->put(route('admin.expenses.update', $expense), $this->expense(['remove_receipt' => 1]))
+            ->assertSessionHasErrors('receipt');
+        $this->actingAs($this->admin)
+            ->put(route('admin.expenses.update', $expense), $this->expense(['remove_receipt' => 1, 'paid_with' => 'owner']))
             ->assertSessionHasNoErrors();
         $this->assertNull($expense->fresh()->receipt_path);
         Storage::disk(ExpenseReceipt::DISK)->assertMissing($secondPhoto);
@@ -181,8 +188,7 @@ class ExpenseReceiptTest extends TestCase
             'title' => 'Electric bill',
             'amount' => 3200,
             'expense_date' => today()->toDateString(),
-            'payment_method' => 'cash',
-            'paid_from' => 'store_cash',
+            'paid_with' => 'gcash',
         ], $overrides);
     }
 

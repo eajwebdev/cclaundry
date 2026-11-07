@@ -1213,16 +1213,23 @@ class ExampleTest extends TestCase
                 'movement_date' => today()->toDateString(),
             ]))
             ->assertOk()
-            ->assertSee('Petty Cash')
-            ->assertSee('New Petty Cash Voucher');
+            ->assertSee('Shop Cash')
+            ->assertSee('Step 1 · Open the shop');
+
+        // First day after go-live: the opening is recorded directly with an empty drawer.
+        \App\Models\CashOpening::query()->create([
+            'branch_id' => $branch->id, 'business_date' => today()->toDateString(), 'expected_float' => 0,
+            'denominations' => [], 'counted_amount' => 0, 'opened_by' => $admin->id, 'opened_at' => now(),
+        ]);
 
         $this
             ->actingAs($admin)
             ->post(route('admin.petty-cash.store'), [
                 'branch_id' => $branch->id,
                 'movement_date' => today()->toDateString(),
-                'type' => 'deposit',
+                'type' => 'owner_in',
                 'amount' => '50.00',
+                'person_name' => 'Owner',
                 'reference_no' => 'ADD-001',
                 'description' => 'Added change fund',
             ])
@@ -1236,8 +1243,9 @@ class ExampleTest extends TestCase
             ->post(route('admin.petty-cash.store'), [
                 'branch_id' => $branch->id,
                 'movement_date' => today()->toDateString(),
-                'type' => 'withdraw',
+                'type' => 'owner_out',
                 'amount' => '25.00',
+                'person_name' => 'Owner',
                 'reference_no' => 'REM-001',
                 'description' => 'Sales remittance',
             ])
@@ -1258,6 +1266,7 @@ class ExampleTest extends TestCase
                 ],
                 'actual_gcash_amount' => '310.00',
                 'actual_bank_amount' => '375.00',
+                'float_for_tomorrow' => '0',
             ])
             ->assertRedirect(route('admin.z-readings.index', [
                 'branch_id' => $branch->id,

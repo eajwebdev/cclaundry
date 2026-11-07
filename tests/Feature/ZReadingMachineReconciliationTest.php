@@ -139,6 +139,7 @@ class ZReadingMachineReconciliationTest extends TestCase
             'business_date' => today()->toDateString(),
             'actual_gcash_amount' => 0,
             'actual_bank_amount' => 0,
+            'float_for_tomorrow' => 0,
             'machine_counters' => [1 => $machine],
         ];
     }
@@ -179,6 +180,11 @@ class ZReadingMachineReconciliationTest extends TestCase
             'total' => 200,
             'paid_amount' => 200,
             'balance' => 0,
+        ]);
+
+        \App\Models\CashOpening::query()->create([
+            'branch_id' => $branch->id, 'business_date' => today()->toDateString(), 'expected_float' => 0,
+            'denominations' => [], 'counted_amount' => 0, 'opened_by' => $admin->id, 'opened_at' => now(),
         ]);
 
         return [$admin, $branch, $order];

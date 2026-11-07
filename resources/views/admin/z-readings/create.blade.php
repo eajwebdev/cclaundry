@@ -8,6 +8,9 @@
     $cashCount = old('cash_count', $reading?->cash_count ?? []);
     $actualGcash = old('actual_gcash_amount', $reading?->actual_gcash_amount ?? $summary['expected_gcash_amount']);
     $actualBank = old('actual_bank_amount', $reading?->actual_bank_amount ?? $summary['expected_bank_amount']);
+    $shopCash = $summary['shop_cash'];
+    $peso = fn ($value) => \App\Support\ShopCash::money($value);
+    $floatForTomorrow = old('float_for_tomorrow', $reading?->float_for_tomorrow ?? $shopCash['expected_float'] ?? 0);
 @endphp
 
 <div
@@ -19,6 +22,10 @@
         expectedBank: Number(@js($summary['expected_bank_amount'])),
         actualGcash: Number(@js($actualGcash ?: 0)),
         actualBank: Number(@js($actualBank ?: 0)),
+        floatForTomorrow: Number(@js((float) $floatForTomorrow)),
+        get depositBag() {
+            return Math.max(0, this.actualCash - Number(this.floatForTomorrow || 0));
+        },
         machineCounters: @js($machineCounters),
         get actualCash() {
             return this.denominations.reduce((total, value) => total + (Number(value) * Number(this.counts[value] || 0)), 0);
@@ -33,7 +40,7 @@
             return this.actualTotal - this.expectedTotal;
         },
         money(value) {
-            return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         },
         cycleTotal(machine, type) {
             const values = this.machineCounters[machine]?.[type] || {};
@@ -139,6 +146,14 @@
             <div class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 <p class="font-semibold">Please correct the Z Reading before saving.</p>
                 <p class="mt-1">{{ $errors->first() }}</p>
+            </div>
+        @endif
+
+        @if(! $shopCash['opening'] || $shopCash['pending']->isNotEmpty())
+            <div class="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                <p class="font-semibold">This Z-Reading can't be saved yet.</p>
+                @unless($shopCash['opening'])<p>The Shop Cash opening count for this date is not confirmed.</p>@endunless
+                @if($shopCash['pending']->isNotEmpty())<p>{{ $shopCash['pending']->count() }} drawer expense(s) still wait for confirmation in Shop Cash.</p>@endif
             </div>
         @endif
 
@@ -331,17 +346,31 @@
                             <span class="text-xs font-medium text-muted">Actual Bank Balance</span>
                             <input name="actual_bank_amount" x-model.number="actualBank" type="number" min="0" step="0.01" inputmode="decimal" class="mt-1 h-9 w-full rounded-md border border-border bg-white px-3 text-sm font-semibold dark:border-gray-800 dark:bg-gray-950">
                         </label>
+                        <label class="block">
+                            <span class="text-xs font-medium text-muted">Float to leave in the drawer for tomorrow</span>
+                            <input name="float_for_tomorrow" x-model.number="floatForTomorrow" type="number" min="0" step="0.01" inputmode="decimal" required class="mt-1 h-9 w-full rounded-md border border-border bg-white px-3 text-sm font-semibold dark:border-gray-800 dark:bg-gray-950">
+                        </label>
+                        <div class="rounded-md bg-smoke px-3 py-2 text-sm dark:bg-gray-950">
+                            <p class="text-xs text-muted">Sealed deposit bag (counted − float) → tomorrow's bank deposit</p>
+                            <p class="font-semibold">₱<span x-text="money(depositBag)"></span></p>
+                        </div>
                     </div>
                     <div class="mt-3 space-y-1.5 border-t border-border pt-3 text-sm dark:border-gray-800">
-                        <div class="flex justify-between"><span class="text-muted">Cash payments</span><span class="font-medium">{{ $currency }} {{ number_format((float) $summary['expected_cash_amount'], 2) }}</span></div>
-                        <div class="flex justify-between"><span class="text-muted">Store-cash expenses</span><span class="font-medium">- {{ $currency }} {{ number_format((float) $summary['cash_expense_amount'], 2) }}</span></div>
-                        @if((float) data_get($summary, 'expense_breakdown.owner', 0) > 0)
-                            <div class="flex justify-between"><span class="text-muted">Owner-paid expenses (not counted)</span><span class="font-medium">{{ $currency }} {{ number_format((float) data_get($summary, 'expense_breakdown.owner', 0), 2) }}</span></div>
+                        <p class="text-xs font-semibold uppercase text-muted">Cash drawer (from Shop Cash)</p>
+                        <div class="flex justify-between"><span class="text-muted">Float left at last Z</span><span class="font-medium">{{ $shopCash['expected_float'] === null ? '—' : $peso($shopCash['expected_float']) }}</span></div>
+                        <div class="flex justify-between"><span class="text-muted">Opening difference</span><span class="font-medium {{ $shopCash['opening_difference'] == 0 ? '' : 'text-red-600' }}">{{ $shopCash['opening_difference'] == 0 ? 'Matches' : $peso($shopCash['opening_difference']) }}</span></div>
+                        <div class="flex justify-between"><span>Float counted at opening</span><span class="font-semibold">{{ $peso($shopCash['opening_float']) }}</span></div>
+                        <div class="flex justify-between"><span class="text-muted">+ Cash payments (POS)</span><span class="font-medium">{{ $peso($shopCash['cash_payments']) }}</span></div>
+                        <div class="flex justify-between"><span class="text-muted">+ Owner added cash</span><span class="font-medium">{{ $peso($shopCash['owner_added']) }}</span></div>
+                        <div class="flex justify-between"><span class="text-muted">− Drawer expenses (confirmed)</span><span class="font-medium">{{ $peso($shopCash['drawer_expenses']) }}</span></div>
+                        <div class="flex justify-between"><span class="text-muted">− Extra deposited from drawer</span><span class="font-medium">{{ $peso($shopCash['extra_deposited']) }}</span></div>
+                        <div class="flex justify-between"><span class="text-muted">− Owner took cash</span><span class="font-medium">{{ $peso($shopCash['owner_took']) }}</span></div>
+                        <div class="flex justify-between border-t border-border pt-1.5 font-semibold dark:border-gray-800"><span>= Should be in drawer</span><span>{{ $peso($shopCash['should_be']) }}</span></div>
+                        <div class="flex justify-between text-xs"><span class="text-muted">Cash over / short</span><span class="font-semibold" :class="actualCash - {{ (float) $shopCash['should_be'] }} < 0 ? 'text-red-600' : ''" x-text="'₱' + money(actualCash - {{ (float) $shopCash['should_be'] }})"></span></div>
+                        @if($shopCash['bag_status'] === 'short' || $shopCash['bag_status'] === 'not_deposited')
+                            <div class="flex justify-between rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-700"><span>Deposit bag not fully deposited</span><span>{{ $peso($shopCash['bag_status'] === 'short' ? $shopCash['bag_difference'] : $shopCash['bag_due']) }}</span></div>
                         @endif
-                        <div class="flex justify-between"><span class="text-muted">Cash added</span><span class="font-medium">{{ $currency }} {{ number_format((float) data_get($summary, 'expense_breakdown.money_movements.cash_in', 0), 2) }}</span></div>
-                        <div class="flex justify-between"><span class="text-muted">Cash out (including bank deposits)</span><span class="font-medium">- {{ $currency }} {{ number_format((float) data_get($summary, 'expense_breakdown.money_movements.cash_out', 0), 2) }}</span></div>
-                        <div class="flex justify-between"><span class="text-muted">Bank deposits included above</span><span class="font-medium">{{ $currency }} {{ number_format((float) data_get($summary, 'expense_breakdown.money_movements.bank_deposits', 0), 2) }}</span></div>
-                        <p class="text-xs text-muted">Bank deposits transfer drawer cash to the bank and are included in the expected bank balance.</p>
+                        <div class="flex justify-between"><span class="text-muted">Bank deposits today (bag + extra)</span><span class="font-medium">{{ $peso(data_get($summary, 'expense_breakdown.money_movements.bank_deposits', 0)) }}</span></div>
                         <div class="flex justify-between"><span class="text-muted">Expected GCash net balance</span><span class="font-medium">{{ $currency }} {{ number_format((float) $summary['expected_gcash_amount'], 2) }}</span></div>
                         <div class="flex justify-between"><span class="text-muted">Expected Bank net balance</span><span class="font-medium">{{ $currency }} {{ number_format((float) $summary['expected_bank_amount'], 2) }}</span></div>
                         <div class="rounded-md bg-smoke px-2 py-1.5 text-xs text-muted dark:bg-gray-950">
@@ -353,7 +382,7 @@
 
                 <a href="{{ route('admin.petty-cash.index', ['branch_id' => $branch->id, 'movement_date' => $businessDate]) }}" class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-border bg-white px-4 text-sm font-medium hover:bg-smoke dark:border-gray-800 dark:bg-gray-950 dark:hover:bg-gray-900">
                     <span data-lucide="wallet" class="h-4 w-4"></span>
-                    Manage Petty Cash
+                    Open Shop Cash
                 </a>
             </div>
         </div>

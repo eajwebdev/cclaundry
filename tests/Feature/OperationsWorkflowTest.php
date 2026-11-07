@@ -87,19 +87,20 @@ class OperationsWorkflowTest extends TestCase
 
     public function test_bank_deposit_transfers_drawer_cash_to_bank_without_creating_sales(): void
     {
+        Storage::fake(\App\Support\ExpenseReceipt::DISK);
         $manager = $this->manager();
+        \App\Models\CashOpening::query()->create([
+            'branch_id' => $manager->branch_id, 'business_date' => '2026-10-30', 'expected_float' => 1000,
+            'denominations' => ['1000' => 1], 'counted_amount' => 1000, 'opened_by' => $manager->id, 'opened_at' => now(),
+        ]);
         $this->actingAs($manager)->post(route('admin.petty-cash.store'), [
-            'movement_date' => '2026-10-30', 'type' => 'deposit', 'amount' => 1000,
-        ])->assertSessionHasNoErrors()->assertRedirect();
-        $this->post(route('admin.petty-cash.store'), [
-            'movement_date' => '2026-10-30', 'type' => 'bank_deposit', 'amount' => 700,
-            'bank_name' => 'Test Bank 1234', 'reference_no' => 'SLIP-001',
+            'movement_date' => '2026-10-30', 'type' => 'bank_deposit', 'drawer_amount' => 700,
+            'reference_no' => 'SLIP-001', 'photo' => UploadedFile::fake()->image('slip.jpg'),
         ])->assertSessionHasNoErrors()->assertRedirect();
 
         $this->assertDatabaseHas('money_movements', [
-            'type' => 'bank_deposit', 'direction' => 'out', 'amount' => 700,
-            'bank_name' => 'Test Bank 1234', 'recorded_by' => $manager->id,
-            'branch_id' => $manager->branch_id,
+            'type' => 'bank_deposit', 'direction' => 'out', 'amount' => 700, 'drawer_amount' => 700,
+            'recorded_by' => $manager->id, 'branch_id' => $manager->branch_id,
         ]);
         $financial = FinancialReconciliation::forPeriod($manager->branch_id, '2026-10-30', '2026-10-30');
         $this->assertSame(300.0, $financial['expected_cash_drawer']);
@@ -107,13 +108,11 @@ class OperationsWorkflowTest extends TestCase
         $this->assertSame(700.0, $financial['bank_deposits']);
         $this->assertSame(1000.0, $financial['expected_total']);
         $this->assertSame(0.0, $financial['sales_owned']);
-        $this->get(route('admin.petty-cash.index', ['movement_date' => '2026-10-30', 'type' => 'bank_deposit']))
-            ->assertOk()->assertSee('Test Bank 1234')->assertSee('SLIP-001');
-        $this->get(route('admin.petty-cash.index', ['movement_date' => '2026-10-30', 'type' => 'withdraw']))
-            ->assertOk()->assertDontSee('SLIP-001');
+        $this->get(route('admin.petty-cash.index', ['movement_date' => '2026-10-30']))
+            ->assertOk()->assertSee('SLIP-001');
         $this->post(route('admin.petty-cash.store'), [
-            'movement_date' => '2026-10-30', 'type' => 'bank_deposit', 'amount' => 100,
-        ])->assertSessionHasErrors(['bank_name', 'reference_no']);
+            'movement_date' => '2026-10-30', 'type' => 'bank_deposit', 'drawer_amount' => 100,
+        ])->assertSessionHasErrors(['reference_no', 'photo']);
     }
 
     public function test_cash_list_defaults_to_selected_branch_and_today(): void
@@ -192,7 +191,7 @@ class OperationsWorkflowTest extends TestCase
     public function test_cash_filters_reject_malformed_dates_and_types_without_crashing(): void
     {
         $manager = $this->manager();
-        foreach ([['movement_date' => 'not-a-date'], ['movement_date' => ['bad']], ['type' => ['bank_deposit']]] as $filter) {
+        foreach ([['movement_date' => 'not-a-date'], ['movement_date' => ['bad']], ['branch_id' => ['1']]] as $filter) {
             $this->actingAs($manager)->getJson(route('admin.petty-cash.index', $filter))->assertUnprocessable();
         }
     }

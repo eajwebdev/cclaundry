@@ -7,6 +7,7 @@ use App\Models\BranchExpense;
 use App\Models\Branch;
 use App\Models\InventoryMovement;
 use App\Support\FinancialReconciliation;
+use App\Support\ShopCash;
 use App\Models\JobOrder;
 use App\Models\JobOrderItem;
 use App\Models\LaundryServiceCategory;
@@ -151,6 +152,7 @@ class ZReadingController extends Controller
             'cash_count.*' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'actual_gcash_amount' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
             'actual_bank_amount' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
+            'float_for_tomorrow' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
             'machine_counters' => ['nullable', 'array'],
             'machine_counters.*.wash.beginning' => ['nullable', 'integer', 'min:0', 'max:999999999'],
             'machine_counters.*.wash.ending' => ['nullable', 'integer', 'min:0', 'max:999999999'],
@@ -171,6 +173,17 @@ class ZReadingController extends Controller
         $actualGcash = round((float) ($validated['actual_gcash_amount'] ?? 0), 2);
         $actualBank = round((float) ($validated['actual_bank_amount'] ?? 0), 2);
         $summary = $this->summary($branchId, $businessDate);
+        $shopCash = $summary['shop_cash'];
+        if (! $shopCash['opening']) {
+            throw ValidationException::withMessages(['shop_cash' => 'Confirm the Shop Cash opening count for this date first.']);
+        }
+        if ($shopCash['pending']->isNotEmpty()) {
+            throw ValidationException::withMessages(['shop_cash' => $shopCash['pending']->count().' drawer expense(s) still wait for confirmation in Shop Cash.']);
+        }
+        $floatForTomorrow = round((float) $validated['float_for_tomorrow'], 2);
+        if ($floatForTomorrow > $actualCash) {
+            throw ValidationException::withMessages(['float_for_tomorrow' => 'The float for tomorrow cannot be more than the cash counted ('.ShopCash::money($actualCash).').']);
+        }
         $machineCount = max(
             1,
             (int) Branch::query()->whereKey($branchId)->value('machine_count'),
@@ -189,7 +202,7 @@ class ZReadingController extends Controller
         $overShort = round($actualTotal - (float) $summary['expected_total_amount'], 2);
         $remarks = $validated['remarks'] ?? null;
 
-        $reading = DB::transaction(function () use ($branchId, $businessDate, $cashCount, $machineCounters, $actualCash, $actualGcash, $actualBank, $actualTotal, $overShort, $summary, $remarks, $user): ZReading {
+        $reading = DB::transaction(function () use ($branchId, $businessDate, $cashCount, $machineCounters, $actualCash, $actualGcash, $actualBank, $actualTotal, $overShort, $summary, $remarks, $user, $floatForTomorrow, $shopCash): ZReading {
             $reading = ZReading::query()
                 ->where('branch_id', $branchId)
                 ->whereDate('business_date', $businessDate)
@@ -227,6 +240,10 @@ class ZReadingController extends Controller
                 'signature_name' => $user->name,
                 'remarks' => $remarks,
                 'closed_at' => now(),
+                // The rest of the counted cash goes in the sealed bag for tomorrow's bank deposit.
+                'float_for_tomorrow' => $floatForTomorrow,
+                'deposit_bag_amount' => round($actualCash - $floatForTomorrow, 2),
+                'cash_opening_id' => $shopCash['opening']->id,
             ]);
             $reading->save();
 
@@ -497,6 +514,7 @@ class ZReadingController extends Controller
                 'cycle_type' => $row->cycle_type,
                 'cycle_count' => (int) $row->cycle_count,
             ])->all(),
+            'shop_cash' => ShopCash::day($branchId, $businessDate),
             'transaction_count' => $jobOrders->count(),
             'first_job_order_number' => $jobOrders->first()?->job_order_number,
             'last_job_order_number' => $jobOrders->last()?->job_order_number,

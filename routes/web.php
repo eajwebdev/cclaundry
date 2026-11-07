@@ -393,6 +393,11 @@ Route::middleware(['auth', 'not.rider', 'settings.completed', 'system.maintenanc
         Route::middleware('menu.access:petty_cash')->group(function () {
             Route::get('/petty-cash', [PettyCashController::class, 'index'])->name('petty-cash.index');
             Route::post('/petty-cash', [PettyCashController::class, 'store'])->name('petty-cash.store');
+            Route::post('/petty-cash/opening', [PettyCashController::class, 'open'])->name('petty-cash.open');
+            Route::delete('/petty-cash/opening/{cashOpening}', [PettyCashController::class, 'reopen'])->name('petty-cash.reopen');
+            Route::post('/petty-cash/expenses/{expense}/confirm', [PettyCashController::class, 'confirmExpense'])->name('petty-cash.expenses.confirm');
+            Route::post('/petty-cash/expenses/{expense}/dispute', [PettyCashController::class, 'disputeExpense'])->name('petty-cash.expenses.dispute');
+            Route::get('/petty-cash/{moneyMovement}/photo', [PettyCashController::class, 'photo'])->name('petty-cash.photo');
             Route::delete('/petty-cash/{moneyMovement}', [PettyCashController::class, 'destroy'])->name('petty-cash.destroy');
         });
 

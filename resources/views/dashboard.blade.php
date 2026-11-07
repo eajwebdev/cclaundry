@@ -11,6 +11,17 @@
     {{-- ============================================================== --}}
     {{-- HEADER SECTION                                                 --}}
     {{-- ============================================================== --}}
+    @if($shopCashAlerts->isNotEmpty())
+        <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+            <p class="font-bold">Shop Cash alerts (last 7 days)</p>
+            <ul class="mt-1 space-y-0.5">
+                @foreach($shopCashAlerts as $alert)
+                    <li>{{ $alert->created_at->format('M d, g:i A') }} · {{ $alert->branch?->name }} · {{ data_get($alert->properties, 'message') }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
             <div class="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.18em] text-[#8C827A] font-serif">
