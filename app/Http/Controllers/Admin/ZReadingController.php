@@ -53,6 +53,14 @@ class ZReadingController extends Controller
         'other' => 'Other (explain)',
     ];
 
+    /** Why a counter shows fewer cycles than the job orders, or went below its Start. */
+    public const COUNTER_FAULT_REASONS = [
+        'counter_not_working' => 'Counter not working / not counting',
+        'counter_reset' => 'Counter was reset or replaced',
+        'wrong_machine' => 'Job order put on the wrong machine',
+        'other' => 'Other (explain)',
+    ];
+
     /** Cycles created from a Z-Reading "not clicked in POS" reason carry this note prefix. */
     private const AUTO_CYCLE_NOTE = 'Z-Reading ';
 
@@ -137,6 +145,7 @@ class ZReadingController extends Controller
             'closing' => $closing,
             'machines' => $this->machineRowsForForm($branch, $closing, $reading, $request->old('machine_counters')),
             'nonJobCycleReasons' => self::NON_JOB_CYCLE_REASONS,
+            'counterFaultReasons' => self::COUNTER_FAULT_REASONS,
             'isAdmin' => $user->isAdmin(),
         ]);
     }
@@ -168,6 +177,7 @@ class ZReadingController extends Controller
             'machine_counters.*.*.non_job_cycles.*' => ['nullable', 'integer', 'min:0', 'max:999999'],
             'machine_counters.*.*.notes' => ['nullable', 'string', 'max:500'],
             'machine_counters.*.*.jo_ref' => ['nullable', 'string', 'max:50'],
+            'machine_counters.*.*.fault' => ['nullable', 'string', 'in:'.implode(',', array_keys(self::COUNTER_FAULT_REASONS))],
             'remarks' => ['nullable', 'string', 'max:1000'],
             'edit_reason' => ['nullable', 'string', 'max:500'],
         ]);
@@ -315,6 +325,7 @@ class ZReadingController extends Controller
             'settings' => SystemSetting::current(),
             'signatories' => $this->signatories((int) $zReading->branch_id),
             'nonJobCycleReasons' => self::NON_JOB_CYCLE_REASONS,
+            'counterFaultReasons' => self::COUNTER_FAULT_REASONS,
             'showBank' => $request->user()->isAdmin(),
         ])->setPaper('a4', 'landscape');
 
@@ -708,7 +719,7 @@ class ZReadingController extends Controller
                 $previousEnding = data_get($closing['previous_counters'], "{$machine}.{$type}.ending");
                 $begin = is_numeric($previousEnding) ? (int) $previousEnding : (is_numeric($in['beginning'] ?? null) ? (int) $in['beginning'] : null);
                 $end = is_numeric($in['ending'] ?? null) ? (int) $in['ending'] : null;
-                $row = $this->machineRow($begin, $end, (int) data_get($closing['system_cycles'], "{$machine}.{$type}", 0), (array) ($in['non_job_cycles'] ?? []), $in['notes'] ?? null, $in['jo_ref'] ?? null);
+                $row = $this->machineRow($begin, $end, (int) data_get($closing['system_cycles'], "{$machine}.{$type}", 0), (array) ($in['non_job_cycles'] ?? []), $in['notes'] ?? null, $in['jo_ref'] ?? null, $in['fault'] ?? null);
                 $machines[$machine][$type] = $row;
 
                 $key = "machine_counters.{$machine}.{$type}";
@@ -718,10 +729,12 @@ class ZReadingController extends Controller
                     $errors["{$key}.beginning"] = "{$label}: enter the Start counter.";
                 } elseif ($row['reconciliation_status'] === 'empty') {
                     $errors["{$key}.ending"] = "{$label}: enter the End counter.";
-                } elseif ($row['reconciliation_status'] === 'end_low') {
-                    $errors["{$key}.ending"] = "{$label}: End is lower than Start.";
-                } elseif ($row['reconciliation_status'] === 'counter_low') {
-                    $errors["{$key}.ending"] = "{$label}: counter is lower than the job orders. Check the machine on the JOs or re-read the counter.";
+                } elseif ($row['fault'] !== null || in_array($row['reconciliation_status'], ['end_low', 'counter_low'], true)) {
+                    if ($row['reconciliation_status'] !== 'explained') {
+                        $errors["{$key}.fault"] = $row['fault'] === 'other'
+                            ? "{$label}: explain the reason in the notes."
+                            : "{$label}: ".($row['ending'] < $row['beginning'] ? 'End is lower than Start' : 'counter is lower than the job orders').'. Pick a reason.';
+                    }
                 } elseif ($row['non_job_total'] !== max(0, $extra)) {
                     $errors["{$key}.non_job_cycles"] = "{$label}: the reasons must add up to {$extra} extra cycle(s).";
                 } elseif ($row['non_job_cycles']['not_recorded'] > 0 && ! $row['jo_ref']) {
@@ -832,15 +845,18 @@ class ZReadingController extends Controller
     }
 
     /** One machine counter row. Reasons only count when the counter moved more than the job orders. */
-    private function machineRow(?int $begin, ?int $end, int $system, array $reasons, ?string $notes, ?string $joRef): array
+    private function machineRow(?int $begin, ?int $end, int $system, array $reasons, ?string $notes, ?string $joRef, ?string $fault = null): array
     {
         $used = $begin !== null && $end !== null ? $end - $begin : null;
         $diff = $used === null ? null : $used - $system;
+        // A fault reason only applies when the counter shows too few cycles (or went below Start).
+        $fault = $diff !== null && ($used < 0 || $diff < 0) && array_key_exists((string) $fault, self::COUNTER_FAULT_REASONS) ? $fault : null;
         $reasons = collect(self::NON_JOB_CYCLE_REASONS)
             ->map(fn ($label, $reason) => $diff > 0 ? max(0, (int) ($reasons[$reason] ?? 0)) : 0)
             ->all();
         $reasonTotal = array_sum($reasons);
         $notes = filled($notes) ? trim($notes) : null;
+        $faultExplained = $fault !== null && ($fault !== 'other' || $notes !== null);
         $joRef = $reasons['not_recorded'] > 0 && filled($joRef) ? trim($joRef) : null;
 
         return [
@@ -850,11 +866,13 @@ class ZReadingController extends Controller
             'system_cycles' => $system,
             'non_job_cycles' => $reasons,
             'non_job_total' => $reasonTotal,
-            'unexplained_cycles' => $diff === null ? null : $diff - $reasonTotal,
+            'unexplained_cycles' => $diff === null ? null : ($faultExplained ? 0 : $diff - $reasonTotal),
+            'fault' => $fault,
             'notes' => $notes,
             'jo_ref' => $joRef,
             'reconciliation_status' => match (true) {
                 $used === null => 'empty',
+                $faultExplained => 'explained',
                 $used < 0 => 'end_low',
                 $diff === 0 => 'matched',
                 $diff < 0 => 'counter_low',
@@ -897,9 +915,10 @@ class ZReadingController extends Controller
                     // Client: End fills in as Start + job order cycles; staff change it if the machine shows otherwise.
                     'end' => is_numeric($source['ending'] ?? null) ? (int) $source['ending'] : ($begin !== null ? $begin + $system : null),
                     'system' => $system,
-                    'reasons' => collect(self::NON_JOB_CYCLE_REASONS)->map(fn ($label, $reason) => (int) data_get($source, "non_job_cycles.{$reason}", 0))->all(),
                     'notes' => $source['notes'] ?? '',
                     'jo_ref' => $source['jo_ref'] ?? '',
+                    // One dropdown per row: the saved extra-cycle reason, or the saved fault.
+                    'reason' => (string) (collect((array) ($source['non_job_cycles'] ?? []))->filter(fn ($count) => (int) $count > 0)->keys()->first() ?? $source['fault'] ?? ''),
                 ];
             }
         }
@@ -965,6 +984,7 @@ class ZReadingController extends Controller
                     $row['non_job_cycles'] ?? [],
                     $row['notes'] ?? null,
                     $row['jo_ref'] ?? null,
+                    $row['fault'] ?? null,
                 ))->all())->all();
 
                 $reading->fill([
