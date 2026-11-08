@@ -228,6 +228,68 @@ class ZReadingStepsTest extends TestCase
         $this->actingAs($this->attendant)->get(route('admin.z-readings.pdf', $this->z()))->assertOk();
     }
 
+    public function test_first_z_after_go_live_needs_an_admin_to_set_the_gcash_balance(): void
+    {
+        ZReading::query()->where('reading_number', 'ZR-NOV05')->update(['status' => null]);
+
+        $this->actingAs($this->attendant)->post(route('admin.z-readings.store'), $this->payload())->assertSessionHasErrors('setup');
+        $this->actingAs($this->admin)->post(route('admin.z-readings.store'), $this->payload())->assertSessionHasErrors('gcash_opening');
+        $this->actingAs($this->admin)->post(route('admin.z-readings.store'), $this->payload(['gcash_opening' => 4000]))->assertSessionHasNoErrors();
+        $this->assertSame('0.00', $this->z()->gcash_diff);
+    }
+
+    public function test_saving_a_missed_earlier_day_recalculates_the_later_z(): void
+    {
+        $this->travelTo('2026-11-07 18:00:00');
+        $this->openShop('2026-11-07', 136, 1950, 1600);
+        $this->actingAs($this->admin)->post(route('admin.z-readings.store'), $this->payload([
+            'business_date' => '2026-11-07', 'cash_count' => ['1' => 1950], 'actual_gcash_amount' => 4253, 'remarks' => 'Nov 06 was missed',
+        ]))->assertSessionHasNoErrors();
+        $later = ZReading::query()->whereDate('business_date', '2026-11-07')->sole();
+        $this->assertSame('4000.00', $later->gcash_opening);
+
+        $this->actingAs($this->admin)->post(route('admin.z-readings.store'), $this->payload(['actual_gcash_amount' => 4253]))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success', fn ($message) => str_contains($message, $later->reading_number));
+        $this->assertSame('4253.00', $later->fresh()->gcash_opening);
+    }
+
+    public function test_admin_edit_keeps_who_closed_the_day(): void
+    {
+        $this->actingAs($this->attendant)->post(route('admin.z-readings.store'), $this->payload())->assertSessionHasNoErrors();
+        $this->actingAs($this->admin)->post(route('admin.z-readings.store'), $this->payload(['edit_reason' => 'Recount']))->assertSessionHasNoErrors();
+
+        $this->assertSame($this->attendant->id, $this->z()->closed_by);
+    }
+
+    public function test_admin_can_correct_a_z_saved_before_shop_cash_existed(): void
+    {
+        CashOpening::query()->delete();
+        ZReading::query()->create(['branch_id' => $this->branch->id, 'reading_number' => 'ZR-NOV06', 'business_date' => self::DATE, 'signature_name' => 'x']);
+
+        $this->actingAs($this->admin)->post(route('admin.z-readings.store'), $this->payload([
+            'edit_reason' => 'Fix old record', 'cash_count' => ['1' => 1678], 'float_for_tomorrow' => 0, 'remarks' => 'No float that day',
+        ]))->assertSessionHasNoErrors();
+    }
+
+    public function test_empty_cash_count_and_centavo_float_are_rejected(): void
+    {
+        $this->actingAs($this->attendant)->post(route('admin.z-readings.store'), $this->payload(['cash_count' => [], 'remarks' => 'x']))
+            ->assertSessionHasErrors('cash_count');
+        $this->actingAs($this->attendant)->post(route('admin.z-readings.store'), $this->payload(['cash_count' => ['1' => 1813, '0.25' => 4], 'float_for_tomorrow' => 135.75]))
+            ->assertSessionHasErrors('float_for_tomorrow');
+    }
+
+    public function test_orders_charged_to_an_account_still_add_up_in_step_1(): void
+    {
+        $this->sale(self::DATE, 'JO-PO-1', 500, 'po');
+
+        $this->actingAs($this->attendant)->get(route('admin.z-readings.create'))
+            ->assertOk()
+            ->assertSee('Charged to account (PO / monthly)')
+            ->assertDontSee('this does not add up');
+    }
+
     private function payload(array $overrides = []): array
     {
         return array_merge([

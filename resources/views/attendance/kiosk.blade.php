@@ -599,14 +599,18 @@
                     }
 
                     try {
-                        await this.punchQueue.enqueue({
+                        const event = await this.punchQueue.enqueue({
                             branch_id: this.selectedBranchId,
                             face_image: this.proofImage,
                             action: url === @js(route('attendance.public-time-in')) ? 'in' : 'out',
                         });
                         const result = await this.syncPendingPunches();
-                        this.lastResult = this.pendingPunches ? 'Punch saved on this device; waiting to sync.' : (result?.data?.message || 'Attendance saved.');
-                        this.message = this.queueError || this.lastResult;
+                        const rejected = (await this.punchQueue.all()).find(e => e.event_id === event.event_id)?.rejected;
+                        // This punch's own result; older rejected punches stay in the amber banner.
+                        this.lastResult = rejected ? `${actionLabel} not saved: ${rejected}`
+                            : this.pendingPunches ? 'Punch saved on this device; waiting to sync.'
+                            : (result?.data?.message || 'Attendance saved.');
+                        this.message = this.lastResult;
                         window.clearTimeout(this.resetTimer);
                         this.resetTimer = window.setTimeout(() => this.resetClock(), 2500);
                     } catch (error) {

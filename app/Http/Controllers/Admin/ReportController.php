@@ -584,7 +584,8 @@ class ReportController extends Controller
             'transaction_count' => (int) ($jobOrderSummary->total_orders ?? 0),
             'expected_total' => $financialSummary['expected_total'],
             'actual_total' => round((float) $zReadings->sum(fn (ZReading $reading) => (float) $reading->actual_cash_amount + (float) $reading->actual_gcash_amount + (float) $reading->actual_bank_amount), 2),
-            'over_short' => round((float) $zReadings->sum(fn (ZReading $reading) => (float) $reading->actual_cash_amount + (float) $reading->actual_gcash_amount + (float) $reading->actual_bank_amount) - (float) $financialSummary['expected_total'], 2),
+            // Each Z stores its own over/short; summing wallet balances against daily flows does not work.
+            'over_short' => round((float) $zReadings->sum('over_short_amount'), 2),
             'expected_cash' => $financialSummary['expected_cash_drawer'],
             'actual_cash' => round((float) $zReadings->sum('actual_cash_amount'), 2),
             'expected_gcash' => $financialSummary['expected_gcash'],

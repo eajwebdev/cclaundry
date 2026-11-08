@@ -12,7 +12,7 @@
     $gates = array_values(array_filter([
         $shopCash['opening'] ? null : 'The Shop Cash opening count for this date is not confirmed yet.',
         $shopCash['pending']->isNotEmpty() ? $shopCash['pending']->count().' drawer expense(s) still wait for confirmation in Shop Cash.' : null,
-        $closing['first'] && ! $isAdmin ? 'This is the first Z-Reading of this branch. An admin must do it once to set the opening counters and GCash balance.' : null,
+        $closing['first'] && ! $isAdmin ? 'This is the first Z-Reading of this branch with the new screen. An admin must do it once to set the GCash starting balance.' : null,
         $closing['missed_date'] && ! $isAdmin ? 'No Z-Reading was saved for '.\Illuminate\Support\Carbon::parse($closing['missed_date'])->format('M d, Y').'. Close that day first, or ask an admin.' : null,
     ]));
     $cashCount = old('cash_count', $reading?->cash_count ?? []);
@@ -23,6 +23,8 @@
         'gcashOpening' => $closing['first'] ? old('gcash_opening', $reading?->gcash_opening ?? '') : $closing['gcash_opening'],
         'gcashPayments' => $closing['gcash_payments'],
         'gcashExpenses' => $closing['gcash_expenses'],
+        'gcashFunding' => $closing['gcash_funding'],
+        'gcashRepayments' => $closing['gcash_repayments'],
         'actualGcash' => old('actual_gcash_amount', $reading?->actual_gcash_amount ?? ''),
         'transfer' => (bool) old('gcash_transfer', (float) $reading?->gcash_transfer_amount > 0),
         'transferAmount' => old('gcash_transfer_amount', $reading?->gcash_transfer_amount ?? ''),
@@ -90,7 +92,7 @@ function zReading(state, chips) {
             return Object.entries(this.counts).reduce((total, [value, count]) => total + Number(value) * Number(count || 0), 0);
         },
         expectedGcash() {
-            return Number(this.gcashOpening || 0) + this.gcashPayments - this.gcashExpenses
+            return Number(this.gcashOpening || 0) + this.gcashPayments + this.gcashFunding - this.gcashExpenses - this.gcashRepayments
                 - (this.transfer ? Number(this.transferAmount || 0) + Number(this.transferFee || 0) : 0);
         },
         depositBag() {
@@ -99,6 +101,7 @@ function zReading(state, chips) {
         floatError() {
             if (this.empty(this.floatForTomorrow)) return '';
             if (Number(this.floatForTomorrow) < 0) return 'The float cannot be negative.';
+            if (Number(this.floatForTomorrow) % 1 !== 0) return 'Leave a whole-peso float (no centavos).';
             if (Number(this.floatForTomorrow) > this.actualCash() + 0.004) return 'The float cannot be more than the cash counted (' + this.money(this.actualCash()) + ').';
             return '';
         },
@@ -153,6 +156,7 @@ function zReading(state, chips) {
             const steps = this.steps();
             const needed = [];
             if (['red', 'grey'].includes(steps.machines.tone)) needed.push('machines');
+            if (! Object.values(this.counts).some(count => ! this.empty(count))) needed.push('cash count');
             if (this.first && this.empty(this.gcashOpening)) needed.push('GCash starting balance');
             if (this.empty(this.actualGcash)) needed.push('GCash balance');
             if (steps.gcash.text === 'Finish transfer details') needed.push('GCash transfer details');
@@ -258,6 +262,7 @@ function zReading(state, chips) {
                     'Paid in cash' => $peso($sales['cash']),
                     'Paid by GCash' => $peso($sales['gcash']),
                     'Paid by bank transfer' => $sales['bank'] > 0 ? $peso($sales['bank']) : null,
+                    'Charged to account (PO / monthly)' => $sales['account'] > 0 ? $peso($sales['account']) : null,
                     'Old orders paid today' => $peso($sales['old_orders_paid']),
                     'Still unpaid' => $peso($sales['unpaid']),
                 ]) as $label => $value)
@@ -268,7 +273,7 @@ function zReading(state, chips) {
                 @endforeach
             </div>
             <p class="mt-2 rounded-md bg-smoke px-3 py-2 text-xs text-muted dark:bg-gray-950">
-                Check: Cash {{ $peso($sales['cash']) }} + GCash {{ $peso($sales['gcash']) }}{{ $sales['bank'] > 0 ? ' + Bank transfer '.$peso($sales['bank']) : '' }} + Unpaid {{ $peso($sales['unpaid']) }} = {{ $peso($sales['cash'] + $sales['gcash'] + $sales['bank'] + $sales['unpaid']) }} (total sales {{ $peso($sales['total']) }})
+                Check: Cash {{ $peso($sales['cash']) }} + GCash {{ $peso($sales['gcash']) }}{{ $sales['bank'] > 0 ? ' + Bank transfer '.$peso($sales['bank']) : '' }}{{ $sales['account'] > 0 ? ' + Account '.$peso($sales['account']) : '' }} + Unpaid {{ $peso($sales['unpaid']) }} = {{ $peso($sales['cash'] + $sales['gcash'] + $sales['bank'] + $sales['account'] + $sales['unpaid']) }} (total sales {{ $peso($sales['total']) }})
                 @unless($sales['matches'])<span class="font-semibold text-red-700"> — this does not add up. It is a POS problem, not your mistake; it has been reported.</span>@endunless
             </p>
         </section>
@@ -388,7 +393,9 @@ function zReading(state, chips) {
                 <div class="divide-y divide-border rounded-md border border-border text-sm dark:divide-gray-800 dark:border-gray-800">
                     <div class="flex justify-between px-3 py-2"><span class="text-muted">Balance at last Z-Reading</span>@if($closing['first'])<span x-text="money(gcashOpening)"></span>@else<span>{{ $peso($closing['gcash_opening']) }}</span>@endif</div>
                     <div class="flex justify-between px-3 py-2"><span class="text-muted">+ GCash payments today</span><span>{{ $peso($closing['gcash_payments']) }}</span></div>
+                    @if($closing['gcash_funding'] > 0)<div class="flex justify-between px-3 py-2"><span class="text-muted">+ Owner added to GCash</span><span>{{ $peso($closing['gcash_funding']) }}</span></div>@endif
                     <div class="flex justify-between px-3 py-2"><span class="text-muted">− Paid with GCash (expenses)</span><span>{{ $peso($closing['gcash_expenses']) }}</span></div>
+                    @if($closing['gcash_repayments'] > 0)<div class="flex justify-between px-3 py-2"><span class="text-muted">− Payables paid with GCash</span><span>{{ $peso($closing['gcash_repayments']) }}</span></div>@endif
                     <div class="flex justify-between px-3 py-2"><span class="text-muted">− Transferred to bank</span><span x-text="money(transfer ? transferAmount : 0)"></span></div>
                     <div class="flex justify-between px-3 py-2"><span class="text-muted">− GCash transfer fee</span><span x-text="money(transfer ? transferFee : 0)"></span></div>
                     <div class="flex justify-between bg-smoke px-3 py-2 font-semibold dark:bg-gray-950"><span>= Should be in GCash</span><span x-text="money(expectedGcash())"></span></div>

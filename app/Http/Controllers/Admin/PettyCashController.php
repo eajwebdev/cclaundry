@@ -11,6 +11,7 @@ use App\Models\MoneyMovement;
 use App\Support\Activity;
 use App\Support\ExpenseReceipt;
 use App\Support\ShopCash;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
@@ -108,7 +109,8 @@ class PettyCashController extends Controller
             throw ValidationException::withMessages(['reason' => 'The count does not match the float. Explain the difference before opening.']);
         }
 
-        $opening = CashOpening::query()->create([
+        try {
+            $opening = CashOpening::query()->create([
             'branch_id' => $branchId,
             'business_date' => $date,
             'expected_float' => $expected,
@@ -119,7 +121,10 @@ class PettyCashController extends Controller
             'reason' => $reason ?: null,
             'opened_by' => $user->id,
             'opened_at' => now(),
-        ]);
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages(['opening' => 'The shop is already open for this date.']);
+        }
 
         Activity::log($request, 'cash_opening_confirmed', $opening, ['counted' => $counted, 'expected' => $expected, 'difference' => $difference], $branchId);
         if ($difference != 0) {
@@ -141,6 +146,13 @@ class PettyCashController extends Controller
         abort_unless($request->user()->isAdmin(), 403);
         $branchId = (int) $cashOpening->branch_id;
         $date = $cashOpening->business_date->toDateString();
+        $day = ShopCash::day($branchId, $date);
+        if ($day['z_reading']) {
+            throw ValidationException::withMessages(['opening' => 'The Z-Reading for this day is saved. The opening can no longer be removed.']);
+        }
+        if (MoneyMovement::query()->where('branch_id', $branchId)->whereDate('movement_date', $date)->whereNull('voided_at')->exists()) {
+            throw ValidationException::withMessages(['opening' => 'Void this day\'s cash movements first, then count the float again.']);
+        }
 
         Activity::log($request, 'cash_opening_reopened', $cashOpening, ['before' => $cashOpening->only(['counted_amount', 'expected_float', 'difference', 'reason', 'opened_by'])], $branchId);
         $cashOpening->delete();
@@ -159,11 +171,15 @@ class PettyCashController extends Controller
             'person_name' => [Rule::requiredIf($type !== 'bank_deposit'), 'nullable', 'string', 'max:255'],
             'bag_amount' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
             'drawer_amount' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
-            'reference_no' => [Rule::requiredIf($type === 'bank_deposit'), 'nullable', 'string', 'max:255'],
+            'reference_no' => array_filter([Rule::requiredIf($type === 'bank_deposit'), 'nullable', 'string', 'max:255',
+                // The same slip saved twice (double tap) would double the deposit.
+                $type === 'bank_deposit' ? Rule::unique('money_movements', 'reference_no')->where(fn ($query) => $query
+                    ->where('branch_id', $branchId)->where('type', 'bank_deposit')->whereNull('voided_at')) : null]),
             'photo' => [Rule::requiredIf($type === 'bank_deposit'), 'nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:20480'],
             'description' => ['nullable', 'string', 'max:255'],
         ], [
             'reference_no.required' => 'Enter the deposit slip reference number.',
+            'reference_no.unique' => 'This deposit slip is already recorded.',
             'photo.required' => 'Add a photo of the deposit slip.',
             'person_name.required' => 'Enter who took or gave the cash.',
         ]);
@@ -187,7 +203,11 @@ class PettyCashController extends Controller
             throw ValidationException::withMessages(['description' => 'The bag amount is less than what the Z-Reading put in the bag. Explain in the note.']);
         }
 
-        $photoPath = $request->hasFile('photo') ? ExpenseReceipt::store($request->file('photo')) : null;
+        try {
+            $photoPath = $request->hasFile('photo') ? ExpenseReceipt::store($request->file('photo')) : null;
+        } catch (ValidationException) {
+            throw ValidationException::withMessages(['photo' => 'The slip photo could not be read. Please use a JPG, PNG or WEBP picture.']);
+        }
         $movement = MoneyMovement::query()->create([
             'branch_id' => $branchId,
             'recorded_by' => $user->id,

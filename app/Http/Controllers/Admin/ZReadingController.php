@@ -21,6 +21,7 @@ use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\ZReading;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -188,7 +189,7 @@ class ZReadingController extends Controller
 
         $summary = $this->summary($branchId, $businessDate);
         $shopCash = $summary['shop_cash'];
-        if (! $shopCash['opening']) {
+        if (! $shopCash['opening'] && ! $existing) {
             throw ValidationException::withMessages(['shop_cash' => 'Confirm the Shop Cash opening count for this date first.']);
         }
         if ($shopCash['pending']->isNotEmpty()) {
@@ -197,7 +198,7 @@ class ZReadingController extends Controller
 
         $closing = $this->closing($branch, $businessDate, $summary);
         if ($closing['first'] && ! $isAdmin) {
-            throw ValidationException::withMessages(['setup' => 'The first Z-Reading of this branch sets the opening counters and GCash balance. An admin must do it.']);
+            throw ValidationException::withMessages(['setup' => 'The first Z-Reading of this branch (or the first after the new Z-Reading went live) sets the GCash starting balance. An admin must do it.']);
         }
         if ($closing['missed_date']) {
             $missed = Carbon::parse($closing['missed_date'])->format('M d, Y');
@@ -221,7 +222,8 @@ class ZReadingController extends Controller
             Log::warning('Z-Reading sales check failed', ['branch_id' => $branchId, 'date' => $businessDate, 'sales' => $steps['sales']]);
         }
 
-        $reading = DB::transaction(function () use ($branchId, $businessDate, $existing, $steps, $summary, $closing, $remarks, $user, $shopCash): ZReading {
+        try {
+            [$reading, $changed] = DB::transaction(function () use ($request, $validated, $branchId, $businessDate, $existing, $steps, $summary, $closing, $remarks, $user, $shopCash): array {
             $reading = $existing ? ZReading::query()->lockForUpdate()->findOrFail($existing->id) : new ZReading([
                 'branch_id' => $branchId,
                 'business_date' => $businessDate,
@@ -240,7 +242,7 @@ class ZReadingController extends Controller
                 'expected_cash_drawer_amount' => $steps['cash']['expected'],
                 'actual_cash_amount' => $steps['cash']['actual'],
                 'cash_diff' => $steps['cash']['diff'],
-                'gcash_opening' => $closing['gcash_opening'] ?? $steps['gcash']['opening'],
+                'gcash_opening' => $steps['gcash']['opening'],
                 'expected_gcash_amount' => $steps['gcash']['expected'],
                 'actual_gcash_amount' => $steps['gcash']['actual'],
                 'gcash_diff' => $steps['gcash']['diff'],
@@ -264,28 +266,32 @@ class ZReadingController extends Controller
                 'signature_name' => $reading->signature_name ?? $user->name,
                 'remarks' => $remarks,
                 'status' => $steps['status'],
-                'closed_by' => $user->id,
-                'closed_at' => now(),
+                // An admin edit keeps who closed the day; the edit itself is in the activity log.
+                'closed_by' => $existing ? $reading->closed_by : $user->id,
+                'closed_at' => $existing ? $reading->closed_at : now(),
                 'float_for_tomorrow' => $steps['float_for_tomorrow'],
                 'deposit_bag_amount' => $steps['deposit_bag_amount'],
-                'cash_opening_id' => $shopCash['opening']->id,
+                'cash_opening_id' => $shopCash['opening']?->id ?? $reading->cash_opening_id,
             ]);
             $reading->save();
             $this->createMissingCycles($reading, $steps['missing_cycles'], $user->id);
+            if ($existing) {
+                Activity::log($request, 'z_reading_edited', $reading, [
+                    'reason' => trim($validated['edit_reason']),
+                    'before' => collect($existing->getAttributes())->only(array_keys($reading->getChanges()))->except(['updated_at'])->all(),
+                ], $branchId);
+            }
 
-            return $reading;
-        });
+            // Also runs when an earlier, missed day is saved after later Zs exist.
+            return [$reading, $this->recalculateFollowing($request, $reading)];
+            });
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages(['locked' => 'This Z-Reading was just saved. Open it again to see it.']);
+        }
 
         $message = "Z-Reading {$reading->reading_number} saved.";
-        if ($existing) {
-            Activity::log($request, 'z_reading_edited', $reading, [
-                'reason' => trim($validated['edit_reason']),
-                'before' => collect($existing->getAttributes())->only(array_keys($reading->getChanges()))->except(['updated_at', 'closed_at'])->all(),
-            ], $branchId);
-            $changed = $this->recalculateFollowing($reading);
-            if ($changed !== []) {
-                $message .= ' Openings recalculated for: '.implode(', ', $changed).'.';
-            }
+        if ($changed !== []) {
+            $message .= ' Openings recalculated for: '.implode(', ', $changed).'.';
         }
         if ($steps['status'] === 'with_over_short') {
             ShopCash::alert($request, $reading, $branchId, "Z-Reading {$reading->reading_number} saved with over/short: ".$steps['off_summary'].'.');
@@ -635,21 +641,33 @@ class ZReadingController extends Controller
             ->where('bag_amount', '>', 0)
             ->get(['bag_amount', 'reference_no']);
 
+        // Today's orders charged to a customer account (PO / monthly billing) are paid, but not in cash or GCash.
+        $account = round((float) Payment::query()
+            ->where('collected_branch_id', $branchId)
+            ->whereDate('paid_at', $date)
+            ->whereIn('payment_type', ['po', 'monthly_billing'])
+            ->whereHas('jobOrder', fn ($query) => $query->where('branch_id', $branchId)->whereDate('created_at', $date))
+            ->sum('amount'), 2);
         $cash = (float) data_get($summary, 'payment_breakdown.current_sales.cash', 0);
         $gcash = (float) data_get($summary, 'payment_breakdown.current_sales.gcash', 0);
         $bank = (float) data_get($summary, 'payment_breakdown.current_sales.bank', 0);
         $unpaid = (float) $summary['daily_unpaid_amount'];
         $total = (float) $summary['daily_total_sales'];
-        $salesDiff = round($cash + $gcash + $bank + $unpaid - $total, 2);
+        $salesDiff = round($cash + $gcash + $bank + $account + $unpaid - $total, 2);
+        // Zs saved before the rebuild have no trusted wallet balance: the admin enters it once.
+        $setup = $previous === null || $previous->status === null;
 
         return [
             'previous' => $previous,
-            'first' => $previous === null,
+            'first' => $setup,
             'opening_float' => (float) $shopCash['opening_float'],
             'should_be' => (float) $shopCash['should_be'],
-            'gcash_opening' => $previous ? (float) $previous->actual_gcash_amount : null,
+            'gcash_opening' => $setup ? null : (float) $previous->actual_gcash_amount,
             'gcash_payments' => (float) data_get($summary, 'payment_breakdown.amounts.gcash', 0),
             'gcash_expenses' => (float) data_get($summary, 'expense_breakdown.store_gcash', 0),
+            // Owner money into the wallet, and payables paid out of it (Accounts Payable).
+            'gcash_funding' => (float) data_get($summary, 'expense_breakdown.accounts_payable.gcash_funding', 0),
+            'gcash_repayments' => (float) data_get($summary, 'expense_breakdown.accounts_payable.gcash_repayments', 0),
             'bag_due' => (float) $shopCash['bag_due'],
             'bag_deposited' => round((float) $bagDeposits->sum('bag_amount'), 2),
             'bag_refs' => $bagDeposits->pluck('reference_no')->filter()->implode(', '),
@@ -662,6 +680,7 @@ class ZReadingController extends Controller
                 'cash' => $cash,
                 'gcash' => $gcash,
                 'bank' => $bank,
+                'account' => $account,
                 'old_orders_paid' => (float) $summary['previous_payment_total'],
                 'unpaid' => $unpaid,
                 'diff' => $salesDiff,
@@ -712,7 +731,8 @@ class ZReadingController extends Controller
                 } elseif ($row['non_job_cycles']['not_recorded'] > 0) {
                     $order = JobOrder::query()
                         ->where('job_order_number', $row['jo_ref'])
-                        ->where(fn ($query) => $query->where('branch_id', $branch->id)->orWhere('processing_branch_id', $branch->id))
+                        // Same rule the machine counts use, so the cycle lands on this branch's machine.
+                        ->whereRaw('COALESCE(processing_branch_id, branch_id) = ?', [$branch->id])
                         ->first(['id']);
                     if (! $order) {
                         $errors["{$key}.jo_ref"] = "{$label}: no job order {$row['jo_ref']} at this branch.";
@@ -724,6 +744,9 @@ class ZReadingController extends Controller
         }
 
         // Step 3 · Cash drawer
+        if (collect((array) ($input['cash_count'] ?? []))->filter(fn ($quantity) => $quantity !== null && $quantity !== '')->isEmpty()) {
+            $errors['cash_count'] = 'Count the cash in the drawer (type 0 for a bill or coin you do not have).';
+        }
         $cashCount = $this->normalizedCashCount((array) ($input['cash_count'] ?? []));
         $actualCash = $this->cashCountTotal($cashCount);
         $cashDiff = round($actualCash - $closing['should_be'], 2);
@@ -747,7 +770,7 @@ class ZReadingController extends Controller
         if ($transfer && ! $transferRef) {
             $errors['gcash_transfer_ref'] = 'Enter the GCash reference #.';
         }
-        $expectedGcash = round((float) $gcashOpening + $closing['gcash_payments'] - $closing['gcash_expenses'] - (float) $transferAmount - $transferFee, 2);
+        $expectedGcash = round((float) $gcashOpening + $closing['gcash_payments'] + $closing['gcash_funding'] - $closing['gcash_expenses'] - $closing['gcash_repayments'] - (float) $transferAmount - $transferFee, 2);
         $gcashDiff = round((float) $actualGcash - $expectedGcash, 2);
 
         // Step 5 · Bank deposit (last night's sealed bag)
@@ -770,6 +793,9 @@ class ZReadingController extends Controller
         $float = $number($input['float_for_tomorrow'] ?? null);
         if ($float === null) {
             $errors['float_for_tomorrow'] = 'Enter the float left in the drawer for tomorrow.';
+        } elseif ($float != floor($float)) {
+            // Tomorrow's opening count has no 25¢ coin.
+            $errors['float_for_tomorrow'] = 'Leave a whole-peso float (no centavos).';
         } elseif ($float > $actualCash) {
             $errors['float_for_tomorrow'] = 'The float for tomorrow cannot be more than the cash counted ('.ShopCash::money($actualCash).').';
         }
@@ -908,7 +934,7 @@ class ZReadingController extends Controller
      *
      * @return list<string> reading numbers that changed
      */
-    private function recalculateFollowing(ZReading $edited): array
+    private function recalculateFollowing(Request $request, ZReading $edited): array
     {
         $changed = [];
         $previous = $edited;
@@ -923,7 +949,8 @@ class ZReadingController extends Controller
             $this->syncShopCashOpenings($previous, $reading->business_date->toDateString());
 
             if ($reading->status !== null) {
-                $gcashOpening = (float) $previous->actual_gcash_amount;
+                // After a pre-rebuild Z the admin typed this Z's GCash opening; keep it.
+                $gcashOpening = $previous->status === null ? (float) $reading->gcash_opening : (float) $previous->actual_gcash_amount;
                 $bagDue = (float) ($previous->deposit_bag_amount ?? 0);
                 $expectedGcash = round((float) $reading->expected_gcash_amount - (float) $reading->gcash_opening + $gcashOpening, 2);
                 $gcashDiff = round((float) $reading->actual_gcash_amount - $expectedGcash, 2);
@@ -950,8 +977,12 @@ class ZReadingController extends Controller
                     'status' => collect([(float) $reading->cash_diff, $gcashDiff, $depositDiff])->every(fn ($diff) => abs($diff) < 0.005) ? 'balanced' : 'with_over_short',
                 ]);
                 if ($reading->isDirty()) {
+                    $becameOff = $reading->isDirty('status') && $reading->status === 'with_over_short';
                     $reading->save();
                     $changed[] = $reading->reading_number;
+                    if ($becameOff) {
+                        ShopCash::alert($request, $reading, (int) $reading->branch_id, "Z-Reading {$reading->reading_number} now shows an over/short after an earlier Z-Reading was changed.");
+                    }
                 }
             }
 

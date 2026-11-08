@@ -293,6 +293,65 @@ class ShopCashTest extends TestCase
             ->assertSee('Record Expense');
     }
 
+    public function test_same_deposit_slip_cannot_be_saved_twice(): void
+    {
+        $this->openMatching();
+        $this->deposit(['bag_amount' => 1500])->assertSessionHasNoErrors();
+        $this->deposit(['bag_amount' => 1500])->assertSessionHasErrors('reference_no');
+        $this->assertDatabaseCount('money_movements', 1);
+    }
+
+    public function test_double_tapped_open_gives_a_message_not_an_error_page(): void
+    {
+        $this->openMatching();
+        $this->open(['100' => 1, '20' => 1, '10' => 1, '5' => 1, '1' => 1])->assertSessionHasErrors('opening');
+        $this->assertDatabaseCount('cash_openings', 1);
+    }
+
+    public function test_opening_cannot_be_removed_once_cash_moved_or_the_z_is_saved(): void
+    {
+        $this->openMatching();
+        $this->deposit(['bag_amount' => 1500])->assertSessionHasNoErrors();
+        $opening = CashOpening::query()->sole();
+
+        $this->actingAs($this->admin)->delete(route('admin.petty-cash.reopen', $opening))->assertSessionHasErrors('opening');
+        $this->assertModelExists($opening);
+    }
+
+    public function test_staff_cannot_add_an_expense_to_a_closed_day(): void
+    {
+        $this->openMatching();
+        ZReading::query()->create(['branch_id' => $this->branch->id, 'reading_number' => 'ZR-NOV06', 'business_date' => self::DATE, 'signature_name' => 'x']);
+
+        $this->actingAs($this->attendant)->post(route('admin.expenses.store'), $this->expense(['confirm_drawer' => 1]))
+            ->assertSessionHasErrors('expense_date');
+        $this->assertDatabaseCount('branch_expenses', 0);
+    }
+
+    public function test_staff_cannot_open_the_receipt_of_a_bank_paid_expense(): void
+    {
+        $expense = BranchExpense::query()->create([
+            'branch_id' => $this->branch->id, 'category' => 'supplies', 'title' => 'Rent', 'amount' => 100,
+            'expense_date' => self::DATE, 'paid_from' => 'store_cash', 'payment_method' => 'bank',
+            'receipt_path' => ExpenseReceipt::store(UploadedFile::fake()->image('r.jpg', 40, 40)), 'created_by' => $this->admin->id,
+        ]);
+
+        $this->actingAs($this->attendant)->get(route('admin.expenses.receipt', $expense))->assertNotFound();
+        $this->actingAs($this->admin)->get(route('admin.expenses.receipt', $expense))->assertOk();
+    }
+
+    public function test_a_report_range_counts_the_float_once_not_per_day(): void
+    {
+        $this->openMatching();
+        CashOpening::query()->create([
+            'branch_id' => $this->branch->id, 'business_date' => '2026-11-07', 'expected_float' => 136, 'denominations' => [],
+            'counted_amount' => 136, 'opened_by' => $this->admin->id, 'opened_at' => now(),
+        ]);
+
+        $this->assertSame(136.0, \App\Support\FinancialReconciliation::forPeriod($this->branch->id, self::DATE, self::DATE)['expected_cash_drawer']);
+        $this->assertSame(0.0, \App\Support\FinancialReconciliation::forPeriod($this->branch->id, self::DATE, '2026-11-07')['opening_float']);
+    }
+
     private function openMatching(): void
     {
         $this->open(['100' => 1, '20' => 1, '10' => 1, '5' => 1, '1' => 1])->assertSessionHasNoErrors();
@@ -336,6 +395,7 @@ class ShopCashTest extends TestCase
             'business_date' => self::DATE,
             'cash_count' => ['1' => (int) $counted],
             'float_for_tomorrow' => $float,
+            'gcash_opening' => 0, // previous Z is pre-rebuild: admin sets the wallet once
             'actual_gcash_amount' => 0,
             'deposit_slip_amount' => 1500,
             'deposit_slip_ref' => 'BDO-558213',

@@ -70,10 +70,11 @@ class FinancialReconciliation
         $ownerTook = round((float) $movements->owner_took, 2);
         // Only the drawer part of a bank deposit leaves the drawer; the sealed bag was already out.
         $cashOut = round($extraDeposited + $ownerTook, 2);
-        $openingFloat = round((float) CashOpening::query()
+        // One day's drawer starts from its counted float. Over a range each day's float is the
+        // same cash carried over (and the nightly bag leaves outside these figures), so it is left out.
+        $openingFloat = $dateFrom !== $dateTo ? 0.0 : round((float) CashOpening::query()
             ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
-            ->whereDate('business_date', '>=', $dateFrom)
-            ->whereDate('business_date', '<=', $dateTo)
+            ->whereDate('business_date', $dateFrom)
             ->sum('counted_amount'), 2);
 
         $cashlessFunding = AccountsPayable::query()

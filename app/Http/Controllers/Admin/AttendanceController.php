@@ -226,9 +226,11 @@ class AttendanceController extends Controller
         $employee = $this->employeeFromAttendanceSession();
         abort_unless($employee->id === (int) $data['employee_id'], 403);
         $capturedAt = Carbon::parse($data['captured_at'])->setTimezone(config('app.timezone'));
-        if ($capturedAt->lt(now()->subHours(48)) || $capturedAt->gt(now()->addMinutes(2))) {
+        if ($capturedAt->lt(now()->subHours(48))) {
             throw ValidationException::withMessages(['captured_at' => 'Offline punches must be synced within 48 hours with the correct device time. Ask a manager to review this punch.']);
         }
+        // A device clock running ahead can't punch in the future: use the server time instead.
+        $capturedAt = $capturedAt->min(now());
         $branch = $this->branchForPublicSelection((int) $data['branch_id']);
         $path = null;
         try {
