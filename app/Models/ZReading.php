@@ -32,6 +32,23 @@ class ZReading extends Model
         'signature_name',
         'remarks',
         'closed_at',
+        'float_for_tomorrow',
+        'deposit_bag_amount',
+        'cash_opening_id',
+        'opening_float',
+        'cash_diff',
+        'gcash_opening',
+        'gcash_diff',
+        'gcash_transfer_amount',
+        'gcash_transfer_fee',
+        'gcash_transfer_ref',
+        'bag_due',
+        'deposit_carried_over',
+        'deposit_slip_amount',
+        'deposit_slip_ref',
+        'deposit_diff',
+        'status',
+        'closed_by',
     ];
 
     protected $casts = [
@@ -52,6 +69,18 @@ class ZReading extends Model
         'actual_total_amount' => 'decimal:2',
         'over_short_amount' => 'decimal:2',
         'closed_at' => 'datetime',
+        'float_for_tomorrow' => 'decimal:2',
+        'deposit_bag_amount' => 'decimal:2',
+        'opening_float' => 'decimal:2',
+        'cash_diff' => 'decimal:2',
+        'gcash_opening' => 'decimal:2',
+        'gcash_diff' => 'decimal:2',
+        'gcash_transfer_amount' => 'decimal:2',
+        'gcash_transfer_fee' => 'decimal:2',
+        'bag_due' => 'decimal:2',
+        'deposit_carried_over' => 'boolean',
+        'deposit_slip_amount' => 'decimal:2',
+        'deposit_diff' => 'decimal:2',
     ];
 
     public function branch()
@@ -62,6 +91,11 @@ class ZReading extends Model
     public function preparer()
     {
         return $this->belongsTo(User::class, 'prepared_by');
+    }
+
+    public function closer()
+    {
+        return $this->belongsTo(User::class, 'closed_by');
     }
 
     public function hasMachineReconciliation(): bool

@@ -451,6 +451,7 @@ class UserManagementAccessTest extends TestCase
     public function test_branch_manager_expense_is_forced_to_assigned_branch(): void
     {
         $this->completeSystemSettings();
+        Storage::fake(\App\Support\ExpenseReceipt::DISK);
 
         [$branchA, $branchB] = $this->twoBranches();
         $manager = User::factory()->create([
@@ -467,8 +468,8 @@ class UserManagementAccessTest extends TestCase
                 'title' => 'Detergent',
                 'amount' => '250',
                 'expense_date' => today()->toDateString(),
-                'payment_method' => 'Cash',
-                'paid_from' => 'store_cash',
+                'paid_with' => 'gcash',
+                'receipt' => UploadedFile::fake()->image('receipt.jpg', 400, 300),
                 'expense_type' => 'regular',
             ])
             ->assertRedirect();

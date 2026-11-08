@@ -20,7 +20,7 @@ class Menu
             'receivables' => ['label' => 'Receivables', 'route' => 'admin.receivables.index', 'icon' => 'receivables'],
             'expenses' => ['label' => 'Expenses', 'route' => 'admin.expenses.index', 'icon' => 'expense'],
             'accounts_payable' => ['label' => 'Accounts Payable', 'route' => 'admin.accounts-payable.index', 'icon' => 'receivables'],
-            'petty_cash' => ['label' => 'Petty Cash', 'route' => 'admin.petty-cash.index', 'icon' => 'wallet'],
+            'petty_cash' => ['label' => 'Shop Cash', 'route' => 'admin.petty-cash.index', 'icon' => 'wallet'],
             'z_readings' => ['label' => 'Z Reading', 'route' => 'admin.z-readings.index', 'icon' => 'receipt'],
             'employees' => ['label' => 'Employees', 'route' => 'admin.employees.index', 'icon' => 'employees'],
             'scheduling' => ['label' => 'Staff Scheduling', 'route' => 'admin.scheduling.index', 'icon' => 'attendance'],

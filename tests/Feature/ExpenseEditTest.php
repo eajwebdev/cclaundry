@@ -9,7 +9,10 @@ use App\Models\BranchExpense;
 use App\Models\SystemSetting;
 use App\Models\SystemTrialSetting;
 use App\Models\User;
+use App\Support\ExpenseReceipt;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -164,30 +167,34 @@ class ExpenseEditTest extends TestCase
 
     private function generalPayload(Branch $branch, array $overrides = []): array
     {
+        $paidWith = ($overrides['paid_from'] ?? 'store_cash') === 'owner' ? 'owner' : 'gcash';
+        unset($overrides['paid_from']);
+
         return $overrides + [
+            'paid_with' => $paidWith,
+            'receipt' => UploadedFile::fake()->image('receipt.jpg', 400, 300),
             'branch_id' => $branch->id,
             'category' => 'utilities',
             'title' => 'Electric Bill',
             'amount' => 1200,
             'expense_date' => '2026-10-10',
-            'payment_method' => 'cash',
-            'paid_from' => 'store_cash',
         ];
     }
 
     private function salaryPayload(Branch $branch, AttendanceEmployee $employee, array $overrides = []): array
     {
+        $overrides['split'] = ['gcash' => $overrides['amount'] ?? 5000];
+        unset($overrides['amount']);
+
         return $overrides + [
+            'receipt' => UploadedFile::fake()->image('payslips.jpg', 400, 300),
             'branch_id' => $branch->id,
             'category' => 'payroll',
             'attendance_employee_id' => $employee->id,
             'salary_period_start' => '2026-10-01',
             'salary_period_end' => '2026-10-15',
             'title' => 'Salary - Ana Cruz',
-            'amount' => 5000,
             'expense_date' => '2026-10-10',
-            'payment_method' => 'cash',
-            'paid_from' => 'store_cash',
         ];
     }
 
@@ -207,6 +214,7 @@ class ExpenseEditTest extends TestCase
     private function setUpAdmin(string $role = 'super_admin'): array
     {
         $this->travelTo(Carbon::parse('2026-10-10 10:00:00'));
+        Storage::fake(ExpenseReceipt::DISK);
 
         SystemSetting::query()->create([
             'business_name' => 'Cane & Cotton Laundry',

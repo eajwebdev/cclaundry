@@ -9,6 +9,8 @@ use App\Models\SystemSetting;
 use App\Models\SystemTrialSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -16,6 +18,12 @@ use Tests\TestCase;
 class SalaryExpenseTrackingTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Storage::fake(\App\Support\ExpenseReceipt::DISK);
+    }
 
     public function test_salary_expense_records_employee_period_and_updates_dashboard_unpaid_list(): void
     {
@@ -49,10 +57,9 @@ class SalaryExpenseTrackingTest extends TestCase
                 'salary_period_start' => '2026-10-01',
                 'salary_period_end' => '2026-10-15',
                 'title' => 'Salary - Alice Santos',
-                'amount' => 6500,
+                'split' => ['gcash' => 6500],
+                'receipt' => UploadedFile::fake()->image('payslips.jpg', 400, 300),
                 'expense_date' => '2026-10-10',
-                'payment_method' => 'cash',
-                'paid_from' => 'store_cash',
             ])
             ->assertRedirect()
             ->assertSessionHasNoErrors();
@@ -106,9 +113,9 @@ class SalaryExpenseTrackingTest extends TestCase
             'salary_period_start' => '2026-10-01',
             'salary_period_end' => '2026-10-15',
             'title' => 'Salary - Ana Cruz',
-            'amount' => 5000,
+            'split' => ['gcash' => 5000],
+            'receipt' => UploadedFile::fake()->image('payslips.jpg', 400, 300),
             'expense_date' => '2026-10-10',
-            'paid_from' => 'store_cash',
         ];
 
         $this->actingAs($owner)->post(route('admin.expenses.store'), $payload)->assertSessionHasNoErrors();

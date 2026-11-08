@@ -6,146 +6,13 @@
 @php
     $currency = $appSettings?->currency ?? 'PHP';
     $dateRangeValue = request('date_range') ?: ($dateFrom && $dateTo ? $dateFrom.' to '.$dateTo : '');
-    $defaultBranchId = (string) old('branch_id', request('branch_id', auth()->user()->branch_id ?: ($branches->first()?->id ?? '')));
-    $salaryPeriodStart = today()->day <= 15 ? today()->startOfMonth()->toDateString() : today()->startOfMonth()->addDays(15)->toDateString();
-    $salaryPeriodEnd = today()->day <= 15 ? today()->startOfMonth()->addDays(14)->toDateString() : today()->endOfMonth()->toDateString();
     $canEditExpenses = auth()->user()->isAdmin();
-    $expenseDefaults = [
-        'branch_id' => (string) request('branch_id', auth()->user()->branch_id ?: ($branches->first()?->id ?? '')),
-        'expense_date' => today()->toDateString(),
-        'category' => 'supplies',
-        'amount' => '',
-        'attendance_employee_id' => '',
-        'salary_period_start' => $salaryPeriodStart,
-        'salary_period_end' => $salaryPeriodEnd,
-        'title' => '',
-        'payment_method' => '',
-        'paid_from' => 'store_cash',
-        'reference_no' => '',
-        'remarks' => '',
-    ];
+    $paidWithOptions = collect(\App\Models\BranchExpense::SOURCES)->when(! $canEditExpenses, fn ($sources) => $sources->except('bank'));
 @endphp
 
 <div
     x-data="{
-        createOpen: @js($errors->any()),
-        editId: @js(old('_edit_id') ? (int) old('_edit_id') : null),
-        storeUrl: @js(route('admin.expenses.store')),
-        updateUrl: @js(route('admin.expenses.update', '__ID__')),
-        defaults: @js($expenseDefaults),
         dateRange: @js($dateRangeValue),
-        expenseCategory: @js(old('category', 'supplies')),
-        expenseBranchId: @js($defaultBranchId),
-        salaryEmployeeId: @js((string) old('attendance_employee_id', '')),
-        expenseAmount: @js(old('amount', '')),
-        expenseTitle: @js(old('title', '')),
-        expenseDate: @js(old('expense_date', today()->toDateString())),
-        salaryPeriodStart: @js(old('salary_period_start', $salaryPeriodStart)),
-        salaryPeriodEnd: @js(old('salary_period_end', $salaryPeriodEnd)),
-        paymentMethod: @js(old('payment_method', '')),
-        paidFrom: @js(old('paid_from', 'store_cash')),
-        referenceNo: @js(old('reference_no', '')),
-        remarks: @js(old('remarks', '')),
-        receiptUrl: null,
-        receiptPreview: null,
-        receiptSizeKb: null,
-        receiptBusy: false,
-        removeReceipt: false,
-        resetReceipt(currentUrl = null) {
-            this.receiptUrl = currentUrl;
-            this.receiptPreview = null;
-            this.receiptSizeKb = null;
-            this.removeReceipt = false;
-            if (this.$refs.receiptInput) this.$refs.receiptInput.value = '';
-        },
-        // Shrink the photo in the browser before upload (the server also
-        // compresses it to under 200 KB, so this only speeds up uploading).
-        async pickReceipt(event) {
-            const input = event.target;
-            const file = input.files[0];
-            this.removeReceipt = false;
-            this.receiptPreview = null;
-            this.receiptSizeKb = null;
-            if (!file) return;
-
-            this.receiptBusy = true;
-            try {
-                const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-                const scale = Math.min(1, 1400 / Math.max(bitmap.width, bitmap.height));
-                const canvas = document.createElement('canvas');
-                canvas.width = Math.round(bitmap.width * scale);
-                canvas.height = Math.round(bitmap.height * scale);
-                const context = canvas.getContext('2d');
-                context.fillStyle = '#ffffff';
-                context.fillRect(0, 0, canvas.width, canvas.height);
-                context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-
-                let blob = null;
-                for (const quality of [0.72, 0.6, 0.5, 0.4]) {
-                    blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
-                    if (blob && blob.size <= 200 * 1024) break;
-                }
-
-                if (blob && blob.size < file.size) {
-                    const files = new DataTransfer();
-                    files.items.add(new File([blob], 'receipt.jpg', { type: 'image/jpeg' }));
-                    input.files = files.files;
-                }
-            } catch (error) {
-                // This browser cannot shrink the photo; the server still will.
-            }
-
-            this.receiptSizeKb = Math.max(1, Math.round(input.files[0].size / 1024));
-            this.receiptPreview = URL.createObjectURL(input.files[0]);
-            this.receiptBusy = false;
-        },
-        fill(values) {
-            this.expenseBranchId = String(values.branch_id ?? '');
-            this.expenseDate = values.expense_date ?? '';
-            this.expenseCategory = values.category ?? 'supplies';
-            this.expenseAmount = values.amount ?? '';
-            this.salaryEmployeeId = String(values.attendance_employee_id ?? '');
-            this.salaryPeriodStart = values.salary_period_start || this.defaults.salary_period_start;
-            this.salaryPeriodEnd = values.salary_period_end || this.defaults.salary_period_end;
-            this.expenseTitle = values.title ?? '';
-            this.paymentMethod = values.payment_method ?? '';
-            this.paidFrom = values.paid_from || 'store_cash';
-            this.referenceNo = values.reference_no ?? '';
-            this.remarks = values.remarks ?? '';
-            this.resetReceipt(values.receipt_url ?? null);
-        },
-        openCreate() {
-            this.editId = null;
-            this.fill(this.defaults);
-            this.createOpen = true;
-        },
-        openEdit(expense) {
-            if (expense.employee && !this.employees.some(item => item.id === expense.employee.id)) {
-                this.employees.push(expense.employee);
-            }
-            this.editId = expense.id;
-            this.fill(expense);
-            this.createOpen = true;
-        },
-        get formAction() {
-            return this.editId ? this.updateUrl.replace('__ID__', this.editId) : this.storeUrl;
-        },
-        employees: @js($employees->map(fn ($employee) => [
-            'id' => (string) $employee->id,
-            'branch_id' => (string) $employee->branch_id,
-            'name' => $employee->name,
-            'branch' => $employee->branch?->name,
-            'monthly_salary' => $employee->configured_monthly_salary,
-        ])->values()),
-        get salaryEmployees() {
-            return this.employees.filter(employee => !this.expenseBranchId || employee.branch_id === String(this.expenseBranchId));
-        },
-        salaryEmployeeChanged() {
-            const employee = this.employees.find(item => item.id === String(this.salaryEmployeeId));
-            if (!employee) return;
-            if (!Number(this.expenseAmount || 0)) this.expenseAmount = (Number(employee.monthly_salary || 0) / 2).toFixed(2);
-            if (!this.expenseTitle) this.expenseTitle = `Salary - ${employee.name}`;
-        },
         init() {
             this.$nextTick(() => {
                 if (!window.flatpickr) return;
@@ -167,7 +34,7 @@
                 Cash management
             </div>
             <h1 class="text-xl font-semibold tracking-normal">Expenses</h1>
-            <p class="text-sm text-muted">Record business costs paid from store funds, or by the owner for later reimbursement.</p>
+            <p class="text-sm text-muted">Every expense, payroll included, is entered once here. Shop Cash and the Z-Reading read it.</p>
         </div>
 
         <div class="flex flex-wrap gap-2">
@@ -175,7 +42,7 @@
                 <span data-lucide="users" class="h-4 w-4"></span>
                 Salary Only
             </a>
-            <button type="button" @click="openCreate()" class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:opacity-90">
+            <button type="button" @click="$dispatch('expense-form')" class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-white hover:opacity-90">
                 <span data-lucide="plus" class="h-4 w-4"></span>
                 Record Expense
             </button>
@@ -188,7 +55,7 @@
             <p class="mt-1 text-lg font-semibold">{{ $currency }} {{ number_format((float) ($summary->total_expenses ?? 0), 2) }}</p>
         </div>
         <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <p class="text-xs text-muted">Paid With Store Funds</p>
+            <p class="text-xs text-muted">Drawer Cash (confirmed)</p>
             <p class="mt-1 text-lg font-semibold">{{ $currency }} {{ number_format((float) ($summary->store_cash_expenses ?? 0), 2) }}</p>
         </div>
         <div class="rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -201,7 +68,7 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ route('admin.expenses.index') }}" class="grid gap-2 rounded-lg border border-border bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900 lg:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto]">
+    <form method="GET" action="{{ route('admin.expenses.index') }}" class="grid gap-2 rounded-lg border border-border bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900 lg:grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_auto]">
         @if($canChooseBranch)
             <select name="branch_id" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
                 <option value="">All branches</option>
@@ -218,10 +85,18 @@
             <input x-ref="dateRange" x-model="dateRange" name="date_range" placeholder="Date range" class="w-full bg-transparent text-sm outline-none" autocomplete="off">
         </div>
 
-        <select name="paid_from" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
-            <option value="">All sources</option>
-            <option value="store_cash" @selected(request('paid_from') === 'store_cash')>Store-funded</option>
-            <option value="owner" @selected(request('paid_from') === 'owner')>Owner-funded</option>
+        <select name="paid_with" aria-label="Paid with" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+            <option value="">Paid with: all</option>
+            @foreach($paidWithOptions as $source => $label)
+                <option value="{{ $source }}" @selected(request('paid_with') === $source)>{{ $label }}</option>
+            @endforeach
+        </select>
+
+        <select name="confirmation" aria-label="Confirmation" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+            <option value="">Confirmation: all</option>
+            @foreach(['confirmed' => 'Confirmed', 'pending' => 'Pending', 'disputed' => 'Disputed'] as $status => $label)
+                <option value="{{ $status }}" @selected(request('confirmation') === $status)>{{ $label }}</option>
+            @endforeach
         </select>
 
         <select name="expense_type" class="h-9 rounded-md border border-border bg-white px-3 text-sm dark:border-gray-800 dark:bg-gray-950">
@@ -251,7 +126,7 @@
                     <tr>
                         <th class="px-4 py-3">Expense</th>
                         <th class="px-4 py-3">Branch</th>
-                        <th class="px-4 py-3">Paid From</th>
+                        <th class="px-4 py-3">Paid with</th>
                         <th class="px-4 py-3">Employee / Period</th>
                         <th class="px-4 py-3">Reference</th>
                         <th class="px-4 py-3 text-right">Amount</th>
@@ -273,7 +148,12 @@
                             </td>
                             <td class="px-4 py-3">{{ $expense->branch?->name }}</td>
                             <td class="px-4 py-3">
-                                {{ $expense->paid_from === 'owner' ? 'Owner-funded' : 'Store-funded' }}
+                                @foreach($expense->sourceAmounts() as $source => $part)
+                                    <p>{{ \App\Models\BranchExpense::SOURCES[$source] }}{{ count($expense->sourceAmounts()) > 1 ? ' · '.\App\Support\ShopCash::money($part) : '' }}</p>
+                                @endforeach
+                                @if($expense->drawer_status !== 'none')
+                                    <p class="text-xs font-medium {{ ['pending' => 'text-amber-700', 'disputed' => 'text-red-600'][$expense->drawer_status] ?? 'text-emerald-700' }}">Drawer: {{ $expense->drawer_status }}</p>
+                                @endif
                                 @if($expense->accountsPayable)
                                     <p class="text-xs text-muted">{{ $expense->accountsPayable->payable_number }}</p>
                                 @endif
@@ -295,7 +175,7 @@
                                             type="button"
                                             title="Edit"
                                             aria-label="Edit expense"
-                                            @click="openEdit(@js([
+                                            @click="$dispatch('expense-form', @js([
                                                 'id' => $expense->id,
                                                 'branch_id' => (string) $expense->branch_id,
                                                 'expense_date' => $expense->expense_date?->toDateString(),
@@ -305,8 +185,9 @@
                                                 'salary_period_start' => $expense->salary_period_start?->toDateString(),
                                                 'salary_period_end' => $expense->salary_period_end?->toDateString(),
                                                 'title' => $expense->title,
-                                                'payment_method' => $expense->payment_method,
-                                                'paid_from' => $expense->paid_from,
+                                                'paid_with' => array_key_first($expense->sourceAmounts()) ?? 'drawer',
+                                                'split' => ['drawer' => (string) (float) $expense->drawer_amount, 'gcash' => (string) (float) $expense->gcash_amount, 'bank' => (string) (float) $expense->bank_amount],
+                                                'drawer_amount' => (float) $expense->drawer_amount,
                                                 'reference_no' => $expense->reference_no,
                                                 'remarks' => $expense->remarks,
                                                 'receipt_url' => $expense->receipt_path ? route('admin.expenses.receipt', $expense) : null,
@@ -322,14 +203,14 @@
                                         >
                                             <span data-lucide="pencil" class="h-4 w-4"></span>
                                         </button>
+                                        <form method="POST" action="{{ route('admin.expenses.destroy', $expense) }}">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" title="Delete" aria-label="Delete expense" class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-smoke dark:border-gray-800 dark:hover:bg-gray-950">
+                                                <span data-lucide="trash" class="h-4 w-4"></span>
+                                            </button>
+                                        </form>
                                     @endif
-                                    <form method="POST" action="{{ route('admin.expenses.destroy', $expense) }}">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" title="Delete" aria-label="Delete expense" class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-smoke dark:border-gray-800 dark:hover:bg-gray-950">
-                                            <span data-lucide="trash" class="h-4 w-4"></span>
-                                        </button>
-                                    </form>
                                 </div>
                             </td>
                         </tr>
@@ -342,106 +223,6 @@
         <div class="border-t border-border px-4 py-3 dark:border-gray-800">{{ $expenses->links() }}</div>
     </div>
 
-    <div x-cloak x-show="createOpen" x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div @click.outside="createOpen = false" class="w-full max-w-2xl rounded-lg bg-white p-5 shadow-2xl dark:bg-gray-900">
-            <div class="mb-4 flex items-center justify-between">
-                <h2 class="inline-flex items-center gap-2 text-lg font-semibold"><span data-lucide="expense" class="h-4 w-4 text-primary"></span><span x-text="editId ? 'Edit Expense' : 'Record Expense'">Record Expense</span></h2>
-                <button type="button" @click="createOpen = false" class="rounded-md p-2 hover:bg-smoke dark:hover:bg-gray-800"><span data-lucide="x" class="h-4 w-4"></span></button>
-            </div>
-            <form method="POST" :action="formAction" action="{{ route('admin.expenses.store') }}" enctype="multipart/form-data" class="space-y-4">
-                @csrf
-                <template x-if="editId">
-                    <div>
-                        <input type="hidden" name="_method" value="PUT">
-                        <input type="hidden" name="_edit_id" :value="editId">
-                    </div>
-                </template>
-                @if($errors->any())
-                    <div class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-500/10 dark:text-red-200">
-                        @foreach($errors->all() as $error)
-                            <p>{{ $error }}</p>
-                        @endforeach
-                    </div>
-                @endif
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    @if($canChooseBranch)
-                        <label class="text-sm font-medium">Branch
-                            <select name="branch_id" x-model="expenseBranchId" @change="salaryEmployeeId = ''" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
-                                @foreach($branches as $branch)
-                                    <option value="{{ $branch->id }}" @selected(request('branch_id') == $branch->id)>{{ $branch->name }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                    @else
-                        <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id }}">
-                    @endif
-                    <label class="text-sm font-medium">Expense Date<input type="date" name="expense_date" x-model="expenseDate" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
-                    <label class="text-sm font-medium">Category
-                        <select name="category" x-model="expenseCategory" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
-                            @foreach($categories as $category)
-                                <option value="{{ $category }}">{{ \App\Support\StatusBadge::label($category) }}</option>
-                            @endforeach
-                        </select>
-                    </label>
-                    <label class="text-sm font-medium">Amount<input type="number" min="0.01" step="0.01" name="amount" x-model="expenseAmount" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
-                    <div x-cloak x-show="expenseCategory === 'payroll'" class="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
-                        <label class="text-sm font-medium">Employee
-                            <select name="attendance_employee_id" x-model="salaryEmployeeId" @change="salaryEmployeeChanged()" :required="expenseCategory === 'payroll'" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
-                                <option value="">Select employee</option>
-                                <template x-for="employee in salaryEmployees" :key="employee.id">
-                                    <option :value="employee.id" x-text="employee.name"></option>
-                                </template>
-                            </select>
-                        </label>
-                        <label class="text-sm font-medium">Pay Period Start<input type="date" name="salary_period_start" x-model="salaryPeriodStart" :required="expenseCategory === 'payroll'" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
-                        <label class="text-sm font-medium">Pay Period End<input type="date" name="salary_period_end" x-model="salaryPeriodEnd" :required="expenseCategory === 'payroll'" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
-                        <p class="text-xs text-muted md:col-span-3">Selecting an employee suggests half of the configured monthly salary. You can adjust the amount before saving.</p>
-                    </div>
-                    <label class="text-sm font-medium md:col-span-2">Title<input name="title" x-model="expenseTitle" required :placeholder="expenseCategory === 'payroll' ? 'Salary - Employee name' : 'Detergent stock, gas, utilities...'" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
-                    <label class="text-sm font-medium">Payment Method<input name="payment_method" x-model="paymentMethod" placeholder="Cash, GCash, or Bank" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
-                    <label class="text-sm font-medium">Paid From
-                        <select name="paid_from" x-model="paidFrom" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
-                            <option value="store_cash">Store-funded</option>
-                            <option value="owner">Owner-funded (for reimbursement)</option>
-                        </select>
-                        <span class="mt-1 block text-xs font-normal text-muted">Owner-funded expenses do not touch store cash and create an accounts payable to repay the owner.</span>
-                    </label>
-                    <label class="text-sm font-medium md:col-span-2">Reference<input name="reference_no" x-model="referenceNo" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
-                    <label class="text-sm font-medium md:col-span-2">Remarks<textarea name="remarks" x-model="remarks" rows="3" class="mt-1.5 w-full rounded-md border border-border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"></textarea></label>
-                    <div class="md:col-span-2">
-                        <p class="text-sm font-medium">Receipt / Bill Photo <span class="font-normal text-muted">(optional)</span></p>
-                        <div class="mt-1.5 flex flex-wrap items-start gap-3">
-                            <label class="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:bg-smoke dark:border-gray-700 dark:bg-gray-950 dark:hover:bg-gray-800">
-                                <span data-lucide="receipt" class="h-4 w-4"></span>
-                                <span x-text="receiptPreview || (receiptUrl && !removeReceipt) ? 'Change photo' : 'Add photo'">Add photo</span>
-                                <input x-ref="receiptInput" type="file" name="receipt" accept="image/jpeg,image/png,image/webp,image/*" @change="pickReceipt($event)" class="sr-only">
-                            </label>
-                            <template x-if="receiptPreview">
-                                <div class="flex items-center gap-2">
-                                    <img :src="receiptPreview" alt="New receipt photo" class="h-16 w-16 rounded-md border border-border object-cover dark:border-gray-700">
-                                    <span class="text-xs text-muted" x-text="`New photo · about ${receiptSizeKb} KB`"></span>
-                                </div>
-                            </template>
-                            <template x-if="!receiptPreview && receiptUrl">
-                                <div class="flex items-center gap-2">
-                                    <a :href="receiptUrl" target="_blank" rel="noopener" :class="removeReceipt ? 'opacity-40' : ''">
-                                        <img :src="receiptUrl" alt="Current receipt photo" class="h-16 w-16 rounded-md border border-border object-cover dark:border-gray-700">
-                                    </a>
-                                    <label class="inline-flex items-center gap-1.5 text-xs text-muted">
-                                        <input type="checkbox" name="remove_receipt" value="1" x-model="removeReceipt" class="rounded border-border text-primary">
-                                        Remove photo
-                                    </label>
-                                </div>
-                            </template>
-                        </div>
-                        <p class="mt-1 text-xs text-muted">Take a picture of the receipt or bill. It is saved as a small photo (under 200 KB) that only staff can open.</p>
-                    </div>
-                </div>
-                <div class="flex justify-end">
-                    <button :disabled="receiptBusy" class="h-9 rounded-md bg-primary px-4 text-sm font-medium text-white hover:opacity-90 disabled:cursor-wait disabled:opacity-60" x-text="receiptBusy ? 'Preparing photo…' : (editId ? 'Update Expense' : 'Save Expense')">Save Expense</button>
-                </div>
-            </form>
-        </div>
-    </div>
+    @include('admin.expenses._form')
 </div>
 @endsection
