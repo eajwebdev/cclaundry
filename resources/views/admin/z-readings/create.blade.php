@@ -283,7 +283,7 @@ function zReading(state, chips) {
             <div class="mb-3 flex items-start justify-between gap-2">
                 <div>
                     <h2 class="text-base font-semibold">Step 2 · Machine counters</h2>
-                    <p class="text-xs text-muted">Read the counter on each machine and type the number in "End". Start comes from yesterday's Z-Reading.</p>
+                    <p class="text-xs text-muted">"End" fills in as Start + job order cycles. Check each machine and change End if its counter shows a different number.</p>
                 </div>
                 <span class="rounded-full border px-3 py-1 text-xs font-semibold" :class="tone(steps().machines.tone)" x-text="steps().machines.text"></span>
             </div>

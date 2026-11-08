@@ -884,16 +884,19 @@ class ZReadingController extends Controller
                 $source = is_array($old) ? (array) data_get($old, "{$machine}.{$type}", []) : (array) data_get($reading?->machine_counters, "{$machine}.{$type}", []);
                 $previousEnding = data_get($closing['previous_counters'], "{$machine}.{$type}.ending");
                 $class = MachineClass::forMachine($branch, $machine);
+                $begin = is_numeric($previousEnding) ? (int) $previousEnding : (is_numeric($source['beginning'] ?? null) ? (int) $source['beginning'] : null);
+                $system = (int) data_get($closing['system_cycles'], "{$machine}.{$type}", 0);
 
                 $rows[] = [
                     'machine' => $machine,
                     'type' => $type,
                     'label' => ucfirst($type)." {$machine}",
                     'model' => MachineClass::label($class).' '.MachineClass::definitions()[$class]['rated_kg'].' kg',
-                    'begin' => is_numeric($previousEnding) ? (int) $previousEnding : (is_numeric($source['beginning'] ?? null) ? (int) $source['beginning'] : null),
+                    'begin' => $begin,
                     'begin_editable' => ! is_numeric($previousEnding),
-                    'end' => is_numeric($source['ending'] ?? null) ? (int) $source['ending'] : null,
-                    'system' => (int) data_get($closing['system_cycles'], "{$machine}.{$type}", 0),
+                    // Client: End fills in as Start + job order cycles; staff change it if the machine shows otherwise.
+                    'end' => is_numeric($source['ending'] ?? null) ? (int) $source['ending'] : ($begin !== null ? $begin + $system : null),
+                    'system' => $system,
                     'reasons' => collect(self::NON_JOB_CYCLE_REASONS)->map(fn ($label, $reason) => (int) data_get($source, "non_job_cycles.{$reason}", 0))->all(),
                     'notes' => $source['notes'] ?? '',
                     'jo_ref' => $source['jo_ref'] ?? '',

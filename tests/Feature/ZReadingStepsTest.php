@@ -178,6 +178,19 @@ class ZReadingStepsTest extends TestCase
             ->assertSee('Titan 15 kg');
     }
 
+    public function test_end_counter_fills_in_as_start_plus_job_order_cycles(): void
+    {
+        CycleRecord::query()->create([
+            'job_order_id' => $this->order->id, 'user_id' => $this->admin->id, 'cycle_type' => 'wash',
+            'machine_number' => 1, 'cycle_number' => 1, 'started_at' => self::DATE.' 10:00:00', 'ended_at' => self::DATE.' 11:00:00',
+        ]);
+
+        $this->actingAs($this->attendant)->get(route('admin.z-readings.create', ['business_date' => self::DATE]))
+            ->assertOk()
+            ->assertSee('\\u0022begin\\u0022:100,\\u0022begin_editable\\u0022:false,\\u0022end\\u0022:101', false)
+            ->assertSee('\\u0022begin\\u0022:200,\\u0022begin_editable\\u0022:false,\\u0022end\\u0022:200', false);
+    }
+
     public function test_saved_z_is_locked_for_staff_and_admin_edit_recalculates_later_openings(): void
     {
         $this->actingAs($this->attendant)->post(route('admin.z-readings.store'), $this->payload(['float_for_tomorrow' => 1814]))->assertSessionHasNoErrors();
