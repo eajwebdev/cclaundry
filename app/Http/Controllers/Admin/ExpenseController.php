@@ -7,6 +7,7 @@ use App\Models\AccountsPayable;
 use App\Models\AttendanceEmployee;
 use App\Models\Branch;
 use App\Models\BranchExpense;
+use App\Models\ZReading;
 use App\Support\Activity;
 use App\Support\ExpenseReceipt;
 use App\Support\ShopCash;
@@ -105,6 +106,10 @@ class ExpenseController extends Controller
     {
         $user = $request->user();
         $validated = $this->validatedExpense($request);
+        $closed = ZReading::query()->where('branch_id', $validated['branch_id'])->whereDate('business_date', $validated['expense_date'])->exists();
+        if ($closed && ! $user->isAdmin()) {
+            throw ValidationException::withMessages(['expense_date' => 'That day is already closed (Z-Reading saved). Ask an admin to add this expense.']);
+        }
         $validated += $this->drawerStatus($request, $validated);
         $receiptPath = $request->hasFile('receipt') ? ExpenseReceipt::store($request->file('receipt')) : null;
 
@@ -462,6 +467,8 @@ class ExpenseController extends Controller
             abort_unless((int) $request->user()->branch_id === (int) $expense->branch_id, 403);
         }
 
+        // Bank-paid expenses are hidden from staff, so are their receipts.
+        abort_if(! $request->user()->isAdmin() && (float) $expense->bank_amount > 0, 404);
         abort_unless(ExpenseReceipt::exists($expense->receipt_path), 404);
 
         return ExpenseReceipt::response($expense->receipt_path);

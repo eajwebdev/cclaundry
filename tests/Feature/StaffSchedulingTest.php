@@ -268,6 +268,23 @@ class StaffSchedulingTest extends TestCase
         $this->assertDatabaseCount('employee_attendance_records', 0);
     }
 
+    public function test_a_kiosk_clock_running_fast_is_saved_at_server_time(): void
+    {
+        Storage::fake('uploads');
+        $this->travelTo(now()->setTime(9, 0));
+        $this->withSession(['attendance_employee_id' => $this->employee->id])->postJson(route('attendance.sync-punch'), [
+            'event_id' => (string) Str::uuid(), 'employee_id' => $this->employee->id, 'branch_id' => $this->branch->id,
+            'action' => 'in', 'captured_at' => now()->addMinutes(10)->toIso8601String(),
+            'face_image' => 'data:image/png;base64,'.base64_encode('test-photo'),
+        ])->assertOk();
+
+        $this->assertSame(['09:00:00'], EmployeeAttendanceRecord::sole()->clock_in);
+        $this->actingAs(\App\Models\User::factory()->create(['role' => 'super_admin']))
+            ->get(route('admin.attendance.index'))
+            ->assertOk()
+            ->assertSee('09:00 AM');
+    }
+
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
     public function test_schedule_pdf_renders_for_day_week_and_month(): void

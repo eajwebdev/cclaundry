@@ -29,10 +29,21 @@ window.attendancePunchQueue = (employeeId, url) => ({
         await this.write('put', event);
         return event;
     },
-    async pending() { return (await this.write('list')).filter(e => e.employee_id === this.employeeId).sort((a, b) => a.captured_at.localeCompare(b.captured_at)); },
-    async discardRejected() { const pending = await this.pending(); if (pending.length) await this.write('delete', pending[0].event_id); },
+    async all() { return (await this.write('list')).filter(e => e.employee_id === this.employeeId).sort((a, b) => a.captured_at.localeCompare(b.captured_at)); },
+    async pending() { return (await this.all()).filter(e => !e.rejected); },
+    async discardRejected() { const rejected = (await this.all()).find(e => e.rejected); if (rejected) await this.write('delete', rejected.event_id); },
+    async status(extra = {}) {
+        const all = await this.all();
+        const rejected = all.filter(e => e.rejected);
+        return {
+            pending: all.length - rejected.length,
+            rejected: rejected.length > 0,
+            message: rejected.length ? `${rejected.length} punch(es) were not accepted: ${rejected[0].rejected} Ask a manager to record a correction.` : '',
+            ...extra,
+        };
+    },
     async flush() {
-        if (this.syncing) return { pending: (await this.pending()).length };
+        if (this.syncing) return await this.status();
         this.syncing = true;
         let last = null;
         try {
@@ -45,13 +56,19 @@ window.attendancePunchQueue = (employeeId, url) => ({
                         headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
                         body: JSON.stringify(event), signal: AbortSignal.timeout(15000),
                     });
-                } catch { return { pending: (await this.pending()).length, offline: true }; }
+                } catch { return await this.status({ offline: true }); }
                 const data = await response.json().catch(() => ({}));
-                if (!response.ok) return { rejected: response.status === 422 || response.status === 403, pending: (await this.pending()).length, message: Object.values(data.errors || {})[0]?.[0] || data.message || 'Sign in again to sync pending punches.' };
+                const reason = Object.values(data.errors || {})[0]?.[0] || data.message;
+                // A punch the server refuses is set aside, so it never blocks the punches after it.
+                if (response.status === 422 || response.status === 403) {
+                    await this.write('put', { ...event, rejected: reason || 'Rejected by the server.' });
+                    continue;
+                }
+                if (!response.ok) return await this.status({ message: reason || 'Sign in again to sync pending punches.' });
                 await this.write('delete', event.event_id);
                 last = data;
             }
-            return { pending: 0, data: last };
+            return await this.status({ data: last });
         } finally { this.syncing = false; }
     },
 });

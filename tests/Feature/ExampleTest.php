@@ -1253,6 +1253,7 @@ class ExampleTest extends TestCase
                 'cash_count' => [
                     '200' => 2,
                 ],
+                'gcash_opening' => '0',
                 'actual_gcash_amount' => '310.00',
                 'float_for_tomorrow' => '0',
                 'remarks' => 'Short counted twice.',
@@ -1269,12 +1270,12 @@ class ExampleTest extends TestCase
         $this->assertSame('425.00', $reading->expected_cash_drawer_amount);
         $this->assertSame('400.00', $reading->actual_cash_amount);
         $this->assertSame('-25.00', $reading->cash_diff);
-        $this->assertSame('300.00', $reading->expected_gcash_amount);
+        $this->assertSame('450.00', $reading->expected_gcash_amount); // 0 + 300 paid + 200 owner funding − 50 payable
         $this->assertSame('310.00', $reading->actual_gcash_amount);
-        $this->assertSame('10.00', $reading->gcash_diff);
+        $this->assertSame('-140.00', $reading->gcash_diff);
         $this->assertSame('0.00', $reading->actual_bank_amount);
         $this->assertSame('with_over_short', $reading->status);
-        $this->assertSame('-15.00', $reading->over_short_amount);
+        $this->assertSame('-165.00', $reading->over_short_amount);
         $this->assertSame(5055, $reading->machine_counters[1]['wash']['beginning']);
         $this->assertSame(5061, $reading->machine_counters[1]['wash']['ending']);
         $this->assertSame(6, $reading->machine_counters[1]['wash']['total']);
