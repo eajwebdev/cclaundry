@@ -224,9 +224,8 @@ class FinancialReconciliationTest extends TestCase
                 'business_date' => $date,
             ]))
             ->assertOk()
-            ->assertSee('PHP 120.00')
-            ->assertSee('PHP 125.00')
-            ->assertSee('Expected Bank net balance')
+            ->assertSee('₱120.00')
+            ->assertDontSee('Expected Bank')
             ->assertDontSee('Monthly Billing');
 
         $collectionSummary = FinancialReconciliation::forPeriod($collectionBranch->id, $date, $date);

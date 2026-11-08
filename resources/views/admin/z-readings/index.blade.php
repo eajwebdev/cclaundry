@@ -78,10 +78,14 @@
                                     <p class="mt-1 text-[11px] text-muted">{{ $history->documentedNonJobCycles() }} documented non-job</p>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-right">{{ $currency }} {{ number_format((float) $history->expected_total_amount, 2) }}</td>
-                            <td class="px-4 py-3 text-right">{{ $currency }} {{ number_format((float) $history->actual_total_amount, 2) }}</td>
+                            @php($showTotals = $history->status !== null || auth()->user()->isAdmin())
+                            <td class="px-4 py-3 text-right">{{ $showTotals ? \App\Support\ShopCash::money($history->expected_total_amount) : '—' }}</td>
+                            <td class="px-4 py-3 text-right">{{ $showTotals ? \App\Support\ShopCash::money($history->actual_total_amount) : '—' }}</td>
                             <td class="px-4 py-3 text-right font-semibold {{ (float) $history->over_short_amount < 0 ? 'text-red-600' : ((float) $history->over_short_amount > 0 ? 'text-emerald-600' : '') }}">
-                                {{ $currency }} {{ number_format((float) $history->over_short_amount, 2) }}
+                                {{ $showTotals ? \App\Support\ShopCash::money($history->over_short_amount) : '—' }}
+                                @if($history->status)
+                                    <p class="mt-1 text-[11px] font-semibold {{ $history->status === 'balanced' ? 'text-emerald-700' : 'text-red-700' }}">{{ $history->status === 'balanced' ? 'Balanced' : 'With over/short' }}</p>
+                                @endif
                             </td>
                             <td class="px-4 py-3">
                                 <div class="flex justify-end gap-2">

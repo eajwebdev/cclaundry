@@ -5,8 +5,12 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\BranchExpense;
 use App\Models\Branch;
+use App\Models\CashOpening;
+use App\Models\CycleRecord;
 use App\Models\InventoryMovement;
+use App\Support\Activity;
 use App\Support\FinancialReconciliation;
+use App\Support\MachineClass;
 use App\Support\ShopCash;
 use App\Models\JobOrder;
 use App\Models\JobOrderItem;
@@ -20,31 +24,36 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class ZReadingController extends Controller
 {
     private const DENOMINATIONS = [
-        '1000' => 'PHP 1,000',
-        '500' => 'PHP 500',
-        '200' => 'PHP 200',
-        '100' => 'PHP 100',
-        '50' => 'PHP 50',
-        '20' => 'PHP 20',
-        '10' => 'PHP 10',
-        '5' => 'PHP 5',
-        '1' => 'PHP 1',
-        '0.25' => 'PHP 0.25',
+        '1000' => '₱1,000',
+        '500' => '₱500',
+        '200' => '₱200',
+        '100' => '₱100',
+        '50' => '₱50',
+        '20' => '₱20',
+        '10' => '₱10',
+        '5' => '₱5',
+        '1' => '₱1',
+        '0.25' => '25¢',
     ];
 
-    private const NON_JOB_CYCLE_REASONS = [
+    public const NON_JOB_CYCLE_REASONS = [
+        'not_recorded' => 'Customer wash/dry not clicked in POS',
+        'rewash_quality_check' => 'Rewash / quality check (free)',
         'tub_cleaning' => 'Tub cleaning',
-        'accidental_start' => 'Accidental start',
         'testing_maintenance' => 'Testing / maintenance',
-        'rewash_quality_check' => 'Rewash / quality check',
+        'accidental_start' => 'Accidental start',
         'power_restart' => 'Power interruption / restart',
-        'other' => 'Other',
+        'other' => 'Other (explain)',
     ];
+
+    /** Cycles created from a Z-Reading "not clicked in POS" reason carry this note prefix. */
+    private const AUTO_CYCLE_NOTE = 'Z-Reading ';
 
     public function index(Request $request)
     {
@@ -110,21 +119,11 @@ class ZReadingController extends Controller
 
         $summary = $this->summary((int) $branch->id, $businessDate);
         $reading = ZReading::query()
-            ->with(['branch', 'preparer'])
+            ->with(['branch', 'preparer', 'closer'])
             ->where('branch_id', $branch->id)
             ->whereDate('business_date', $businessDate)
             ->first();
-        $machineCount = max(
-            1,
-            (int) $branch->machine_count,
-            (int) collect($summary['machine_cycles'])->max('machine_number'),
-            (int) collect(array_keys($reading?->machine_counters ?? []))->max()
-        );
-        $machineCounters = $this->machineCountersForDate((int) $branch->id, $businessDate, $machineCount, $summary, $reading);
-        $oldMachineCounters = $request->old('machine_counters');
-        if (is_array($oldMachineCounters)) {
-            $machineCounters = $this->normalizedMachineCounters($oldMachineCounters, $this->machineCycleCounts($summary));
-        }
+        $closing = $this->closing($branch, $businessDate, $summary);
 
         return view('admin.z-readings.create', [
             'branch' => $branch,
@@ -134,44 +133,59 @@ class ZReadingController extends Controller
             'denominations' => self::DENOMINATIONS,
             'reading' => $reading,
             'summary' => $summary,
-            'machineCount' => $machineCount,
-            'machineCounters' => $machineCounters,
+            'closing' => $closing,
+            'machines' => $this->machineRowsForForm($branch, $closing, $reading, $request->old('machine_counters')),
             'nonJobCycleReasons' => self::NON_JOB_CYCLE_REASONS,
+            'isAdmin' => $user->isAdmin(),
         ]);
     }
 
     public function store(Request $request)
     {
         $user = $request->user();
-        $canChooseBranch = $user->canManageAllBranches();
+        $isAdmin = $user->isAdmin();
 
         $validated = $request->validate([
-            'branch_id' => [$canChooseBranch ? 'required' : 'nullable', 'exists:branches,id'],
+            'branch_id' => [$isAdmin ? 'required' : 'nullable', 'exists:branches,id'],
             'business_date' => ['required', 'date'],
             'cash_count' => ['nullable', 'array'],
             'cash_count.*' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'actual_gcash_amount' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
-            'actual_bank_amount' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
-            'float_for_tomorrow' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
+            'gcash_opening' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
+            'gcash_transfer' => ['nullable', 'boolean'],
+            'gcash_transfer_amount' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
+            'gcash_transfer_fee' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'gcash_transfer_ref' => ['nullable', 'string', 'max:50'],
+            'deposit_carried_over' => ['nullable', 'boolean'],
+            'deposit_slip_amount' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
+            'deposit_slip_ref' => ['nullable', 'string', 'max:50'],
+            'float_for_tomorrow' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
             'machine_counters' => ['nullable', 'array'],
-            'machine_counters.*.wash.beginning' => ['nullable', 'integer', 'min:0', 'max:999999999'],
-            'machine_counters.*.wash.ending' => ['nullable', 'integer', 'min:0', 'max:999999999'],
-            'machine_counters.*.dry.beginning' => ['nullable', 'integer', 'min:0', 'max:999999999'],
-            'machine_counters.*.dry.ending' => ['nullable', 'integer', 'min:0', 'max:999999999'],
+            'machine_counters.*.*.beginning' => ['nullable', 'integer', 'min:0', 'max:999999999'],
+            'machine_counters.*.*.ending' => ['nullable', 'integer', 'min:0', 'max:999999999'],
             'machine_counters.*.*.non_job_cycles' => ['nullable', 'array'],
             'machine_counters.*.*.non_job_cycles.*' => ['nullable', 'integer', 'min:0', 'max:999999'],
             'machine_counters.*.*.notes' => ['nullable', 'string', 'max:500'],
+            'machine_counters.*.*.jo_ref' => ['nullable', 'string', 'max:50'],
             'remarks' => ['nullable', 'string', 'max:1000'],
+            'edit_reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $branchId = $canChooseBranch ? (int) $validated['branch_id'] : (int) $user->branch_id;
+        $branchId = $isAdmin ? (int) $validated['branch_id'] : (int) $user->branch_id;
         abort_unless($branchId, 403);
-
+        $branch = Branch::query()->findOrFail($branchId);
         $businessDate = Carbon::parse($validated['business_date'])->toDateString();
-        $cashCount = $this->normalizedCashCount($validated['cash_count'] ?? []);
-        $actualCash = $this->cashCountTotal($cashCount);
-        $actualGcash = round((float) ($validated['actual_gcash_amount'] ?? 0), 2);
-        $actualBank = round((float) ($validated['actual_bank_amount'] ?? 0), 2);
+        $existing = ZReading::query()->where('branch_id', $branchId)->whereDate('business_date', $businessDate)->first();
+        $remarks = filled($validated['remarks'] ?? null) ? trim($validated['remarks']) : null;
+
+        // Saved Zs are locked: only an admin may change one, and must say why.
+        if ($existing && ! $isAdmin) {
+            throw ValidationException::withMessages(['locked' => 'This Z-Reading is already saved. Only an admin can change it.']);
+        }
+        if ($existing && ! filled($validated['edit_reason'] ?? null)) {
+            throw ValidationException::withMessages(['edit_reason' => 'Give a reason for changing a saved Z-Reading.']);
+        }
+
         $summary = $this->summary($branchId, $businessDate);
         $shopCash = $summary['shop_cash'];
         if (! $shopCash['opening']) {
@@ -180,120 +194,122 @@ class ZReadingController extends Controller
         if ($shopCash['pending']->isNotEmpty()) {
             throw ValidationException::withMessages(['shop_cash' => $shopCash['pending']->count().' drawer expense(s) still wait for confirmation in Shop Cash.']);
         }
-        $floatForTomorrow = round((float) $validated['float_for_tomorrow'], 2);
-        if ($floatForTomorrow > $actualCash) {
-            throw ValidationException::withMessages(['float_for_tomorrow' => 'The float for tomorrow cannot be more than the cash counted ('.ShopCash::money($actualCash).').']);
+
+        $closing = $this->closing($branch, $businessDate, $summary);
+        if ($closing['first'] && ! $isAdmin) {
+            throw ValidationException::withMessages(['setup' => 'The first Z-Reading of this branch sets the opening counters and GCash balance. An admin must do it.']);
         }
-        $machineCount = max(
-            1,
-            (int) Branch::query()->whereKey($branchId)->value('machine_count'),
-            (int) collect($summary['machine_cycles'])->max('machine_number'),
-            (int) collect(array_keys($validated['machine_counters'] ?? []))->max()
-        );
-        $systemCycleCounts = $this->machineCycleCounts($summary);
-        $submittedMachineCounters = $validated['machine_counters']
-            ?? $this->machineCountersForDate($branchId, $businessDate, $machineCount, $summary);
-        $this->validateMachineCounterReconciliation($submittedMachineCounters, $systemCycleCounts);
-        $machineCounters = $this->normalizedMachineCounters(
-            $submittedMachineCounters,
-            $systemCycleCounts
-        );
-        $actualTotal = round($actualCash + $actualGcash + $actualBank, 2);
-        $overShort = round($actualTotal - (float) $summary['expected_total_amount'], 2);
-        $remarks = $validated['remarks'] ?? null;
-
-        $reading = DB::transaction(function () use ($branchId, $businessDate, $cashCount, $machineCounters, $actualCash, $actualGcash, $actualBank, $actualTotal, $overShort, $summary, $remarks, $user, $floatForTomorrow, $shopCash): ZReading {
-            $reading = ZReading::query()
-                ->where('branch_id', $branchId)
-                ->whereDate('business_date', $businessDate)
-                ->lockForUpdate()
-                ->first();
-
-            if (! $reading) {
-                $reading = new ZReading([
-                    'branch_id' => $branchId,
-                    'business_date' => $businessDate,
-                    'reading_number' => $this->nextReadingNumber($branchId, $businessDate),
-                ]);
+        if ($closing['missed_date']) {
+            $missed = Carbon::parse($closing['missed_date'])->format('M d, Y');
+            if (! $isAdmin) {
+                throw ValidationException::withMessages(['missed_day' => "No Z-Reading was saved for {$missed}. Close that day first, or ask an admin."]);
             }
+            if (! $remarks) {
+                throw ValidationException::withMessages(['remarks' => "Explain in Remarks why {$missed} has no Z-Reading."]);
+            }
+        }
+
+        $steps = $this->steps($branch, $closing, $validated);
+        if ($steps['errors'] !== []) {
+            throw ValidationException::withMessages($steps['errors']);
+        }
+        if ($steps['status'] === 'with_over_short' && ! $remarks) {
+            throw ValidationException::withMessages(['remarks' => 'Explain the over/short in Remarks.']);
+        }
+        if (! $steps['sales']['matches']) {
+            // A sales mismatch is a POS bug, not a staff error: show it, log it for the developer.
+            Log::warning('Z-Reading sales check failed', ['branch_id' => $branchId, 'date' => $businessDate, 'sales' => $steps['sales']]);
+        }
+
+        $reading = DB::transaction(function () use ($branchId, $businessDate, $existing, $steps, $summary, $closing, $remarks, $user, $shopCash): ZReading {
+            $reading = $existing ? ZReading::query()->lockForUpdate()->findOrFail($existing->id) : new ZReading([
+                'branch_id' => $branchId,
+                'business_date' => $businessDate,
+                'reading_number' => $this->nextReadingNumber($branchId, $businessDate),
+                'prepared_by' => $user->id,
+            ]);
 
             $reading->fill([
-                'prepared_by' => $user->id,
-                'cash_count' => $cashCount,
+                'cash_count' => $steps['cash_count'],
                 'payment_breakdown' => $summary['payment_breakdown'],
                 'expense_breakdown' => $summary['expense_breakdown'],
-                'machine_counters' => $machineCounters,
+                'machine_counters' => $steps['machines'],
                 'expected_cash_amount' => $summary['expected_cash_amount'],
                 'cash_expense_amount' => $summary['cash_expense_amount'],
-                'expected_cash_drawer_amount' => $summary['expected_cash_drawer_amount'],
-                'actual_cash_amount' => $actualCash,
-                'expected_gcash_amount' => $summary['expected_gcash_amount'],
-                'actual_gcash_amount' => $actualGcash,
-                'expected_bank_amount' => $summary['expected_bank_amount'],
-                'actual_bank_amount' => $actualBank,
-                'expected_total_amount' => $summary['expected_total_amount'],
-                'actual_total_amount' => $actualTotal,
-                'over_short_amount' => $overShort,
+                'opening_float' => $closing['opening_float'],
+                'expected_cash_drawer_amount' => $steps['cash']['expected'],
+                'actual_cash_amount' => $steps['cash']['actual'],
+                'cash_diff' => $steps['cash']['diff'],
+                'gcash_opening' => $closing['gcash_opening'] ?? $steps['gcash']['opening'],
+                'expected_gcash_amount' => $steps['gcash']['expected'],
+                'actual_gcash_amount' => $steps['gcash']['actual'],
+                'gcash_diff' => $steps['gcash']['diff'],
+                'gcash_transfer_amount' => $steps['gcash']['transfer_amount'],
+                'gcash_transfer_fee' => $steps['gcash']['transfer_fee'],
+                'gcash_transfer_ref' => $steps['gcash']['transfer_ref'],
+                // No bank step: staff never enter or see a bank balance.
+                'expected_bank_amount' => 0,
+                'actual_bank_amount' => 0,
+                'bag_due' => $closing['bag_due'],
+                'deposit_carried_over' => $steps['deposit']['carried'],
+                'deposit_slip_amount' => $steps['deposit']['slip_amount'],
+                'deposit_slip_ref' => $steps['deposit']['slip_ref'],
+                'deposit_diff' => $steps['deposit']['diff'],
+                'expected_total_amount' => round($steps['cash']['expected'] + $steps['gcash']['expected'], 2),
+                'actual_total_amount' => round($steps['cash']['actual'] + $steps['gcash']['actual'], 2),
+                'over_short_amount' => round($steps['cash']['diff'] + $steps['gcash']['diff'], 2),
                 'transaction_count' => $summary['transaction_count'],
                 'first_job_order_number' => $summary['first_job_order_number'],
                 'last_job_order_number' => $summary['last_job_order_number'],
-                'signature_name' => $user->name,
+                'signature_name' => $reading->signature_name ?? $user->name,
                 'remarks' => $remarks,
+                'status' => $steps['status'],
+                'closed_by' => $user->id,
                 'closed_at' => now(),
-                // The rest of the counted cash goes in the sealed bag for tomorrow's bank deposit.
-                'float_for_tomorrow' => $floatForTomorrow,
-                'deposit_bag_amount' => round($actualCash - $floatForTomorrow, 2),
+                'float_for_tomorrow' => $steps['float_for_tomorrow'],
+                'deposit_bag_amount' => $steps['deposit_bag_amount'],
                 'cash_opening_id' => $shopCash['opening']->id,
             ]);
             $reading->save();
+            $this->createMissingCycles($reading, $steps['missing_cycles'], $user->id);
 
             return $reading;
         });
 
+        $message = "Z-Reading {$reading->reading_number} saved.";
+        if ($existing) {
+            Activity::log($request, 'z_reading_edited', $reading, [
+                'reason' => trim($validated['edit_reason']),
+                'before' => collect($existing->getAttributes())->only(array_keys($reading->getChanges()))->except(['updated_at', 'closed_at'])->all(),
+            ], $branchId);
+            $changed = $this->recalculateFollowing($reading);
+            if ($changed !== []) {
+                $message .= ' Openings recalculated for: '.implode(', ', $changed).'.';
+            }
+        }
+        if ($steps['status'] === 'with_over_short') {
+            ShopCash::alert($request, $reading, $branchId, "Z-Reading {$reading->reading_number} saved with over/short: ".$steps['off_summary'].'.');
+        }
+
         return redirect()
             ->route('admin.z-readings.index', ['branch_id' => $branchId, 'business_date' => $businessDate])
-            ->with('success', "Z Reading {$reading->reading_number} saved successfully.");
+            ->with('success', $message);
     }
 
     public function pdf(Request $request, ZReading $zReading)
     {
         $this->authorizeReading($request, $zReading);
 
-        $zReading->load(['branch', 'preparer']);
+        $zReading->load(['branch', 'preparer', 'closer']);
         $details = $this->summary((int) $zReading->branch_id, $zReading->business_date->toDateString());
-        $printReading = $zReading->replicate();
-        $printReading->exists = true;
-        $printReading->setRelation('branch', $zReading->branch);
-        $printReading->setRelation('preparer', $zReading->preparer);
-        $actualTotal = round((float) $zReading->actual_cash_amount + (float) $zReading->actual_gcash_amount + (float) $zReading->actual_bank_amount, 2);
-        $printReading->forceFill([
-            'id' => $zReading->id,
-            'reading_number' => $zReading->reading_number,
-            'expected_cash_amount' => $details['expected_cash_amount'],
-            'cash_expense_amount' => $details['cash_expense_amount'],
-            'expected_cash_drawer_amount' => $details['expected_cash_drawer_amount'],
-            'expected_gcash_amount' => $details['expected_gcash_amount'],
-            'expected_bank_amount' => $details['expected_bank_amount'],
-            'expected_total_amount' => $details['expected_total_amount'],
-            'actual_total_amount' => $actualTotal,
-            'over_short_amount' => round($actualTotal - (float) $details['expected_total_amount'], 2),
-            'transaction_count' => $details['transaction_count'],
-            'first_job_order_number' => $details['first_job_order_number'],
-            'last_job_order_number' => $details['last_job_order_number'],
-            'machine_counters' => $this->normalizedMachineCounters(
-                $zReading->machine_counters ?? [],
-                $this->machineCycleCounts($details),
-                true
-            ),
-        ]);
-
         $pdf = Pdf::loadView('admin.z-readings.pdf', [
             'denominations' => self::DENOMINATIONS,
             'details' => $details,
-            'reading' => $printReading,
+            'reading' => $zReading,
             'settings' => SystemSetting::current(),
             'signatories' => $this->signatories((int) $zReading->branch_id),
             'nonJobCycleReasons' => self::NON_JOB_CYCLE_REASONS,
+            'showBank' => $request->user()->isAdmin(),
         ])->setPaper('a4', 'landscape');
 
         return $pdf->stream($zReading->reading_number.'.pdf');
@@ -388,6 +404,8 @@ class ZReadingController extends Controller
             ->whereNull('job_orders.deleted_at')
             ->whereIn('cycle_records.cycle_type', ['wash', 'dry'])
             ->whereNotNull('cycle_records.machine_number')
+            // Cycles a Z-Reading added for "not clicked in POS" are already counted as its reasons.
+            ->where(fn ($query) => $query->whereNull('cycle_records.notes')->orWhere('cycle_records.notes', 'not like', self::AUTO_CYCLE_NOTE.'%'))
             ->whereRaw('COALESCE(job_orders.processing_branch_id, job_orders.branch_id) = ?', [$branchId])
             ->whereDate('cycle_records.started_at', $businessDate)
             ->groupBy('cycle_records.machine_number', 'cycle_records.cycle_type')
@@ -573,49 +591,6 @@ class ZReadingController extends Controller
             ->all();
     }
 
-    private function machineCountersForDate(int $branchId, string $businessDate, int $machineCount, array $summary, ?ZReading $reading = null): array
-    {
-        $cycleCounts = $this->machineCycleCounts($summary);
-
-        if ($reading?->machine_counters) {
-            return $this->normalizedMachineCounters($reading->machine_counters, $cycleCounts, true);
-        }
-
-        $previousReading = ZReading::query()
-            ->where('branch_id', $branchId)
-            ->whereDate('business_date', '<', $businessDate)
-            ->latest('business_date')
-            ->latest('id')
-            ->first(['machine_counters']);
-        $previousCounters = $previousReading?->machine_counters ?? [];
-
-        return collect(range(1, $machineCount))
-            ->mapWithKeys(function (int $machine) use ($previousCounters, $cycleCounts) {
-                $types = [];
-
-                foreach (['wash', 'dry'] as $type) {
-                    $beginning = (int) (data_get($previousCounters, "{$machine}.{$type}.ending") ?? 0);
-                    $total = (int) data_get($cycleCounts, "{$machine}.{$type}", 0);
-                    $ending = $beginning + $total;
-
-                    $types[$type] = [
-                        'beginning' => $beginning,
-                        'ending' => $ending,
-                        'total' => $total,
-                        'system_cycles' => $total,
-                        'non_job_cycles' => collect(self::NON_JOB_CYCLE_REASONS)->map(fn () => 0)->all(),
-                        'non_job_total' => 0,
-                        'unexplained_cycles' => 0,
-                        'notes' => null,
-                        'reconciliation_status' => 'matched',
-                    ];
-                }
-
-                return [$machine => $types];
-            })
-            ->all();
-    }
-
     private function cashCountTotal(array $cashCount): float
     {
         $total = 0.0;
@@ -627,53 +602,382 @@ class ZReadingController extends Controller
         return round($total, 2);
     }
 
-    private function normalizedMachineCounters(array $counters, array $systemCycleCounts = [], bool $preserveStoredSystemCycles = false): array
+    /** Everything the 5 steps need that staff do not type: carried openings, POS totals, gates. */
+    private function closing(Branch $branch, string $date, array $summary): array
     {
-        return collect($counters)
-            ->mapWithKeys(function ($types, $machineNumber) use ($systemCycleCounts, $preserveStoredSystemCycles) {
-                $machineNumber = (int) $machineNumber;
-                if ($machineNumber < 1) {
-                    return [];
+        $branchId = (int) $branch->id;
+        $shopCash = $summary['shop_cash'];
+        $previous = ZReading::query()
+            ->where('branch_id', $branchId)
+            ->whereDate('business_date', '<', $date)
+            ->latest('business_date')
+            ->latest('id')
+            ->first();
+
+        // Missed day: a date with sales after the last Z that never got its own Z.
+        $missedDate = null;
+        if ($previous) {
+            $after = $previous->business_date->toDateString();
+            $firstSale = collect([
+                JobOrder::query()->where('branch_id', $branchId)->where('status', '!=', 'cancelled')
+                    ->whereDate('created_at', '>', $after)->whereDate('created_at', '<', $date)->min('created_at'),
+                Payment::query()->where('collected_branch_id', $branchId)
+                    ->whereDate('paid_at', '>', $after)->whereDate('paid_at', '<', $date)->min('paid_at'),
+            ])->filter()->min();
+            $missedDate = $firstSale ? Carbon::parse($firstSale)->toDateString() : null;
+        }
+
+        $bagDeposits = MoneyMovement::query()
+            ->where('branch_id', $branchId)
+            ->whereDate('movement_date', $date)
+            ->where('type', 'bank_deposit')
+            ->whereNull('voided_at')
+            ->where('bag_amount', '>', 0)
+            ->get(['bag_amount', 'reference_no']);
+
+        $cash = (float) data_get($summary, 'payment_breakdown.current_sales.cash', 0);
+        $gcash = (float) data_get($summary, 'payment_breakdown.current_sales.gcash', 0);
+        $bank = (float) data_get($summary, 'payment_breakdown.current_sales.bank', 0);
+        $unpaid = (float) $summary['daily_unpaid_amount'];
+        $total = (float) $summary['daily_total_sales'];
+        $salesDiff = round($cash + $gcash + $bank + $unpaid - $total, 2);
+
+        return [
+            'previous' => $previous,
+            'first' => $previous === null,
+            'opening_float' => (float) $shopCash['opening_float'],
+            'should_be' => (float) $shopCash['should_be'],
+            'gcash_opening' => $previous ? (float) $previous->actual_gcash_amount : null,
+            'gcash_payments' => (float) data_get($summary, 'payment_breakdown.amounts.gcash', 0),
+            'gcash_expenses' => (float) data_get($summary, 'expense_breakdown.store_gcash', 0),
+            'bag_due' => (float) $shopCash['bag_due'],
+            'bag_deposited' => round((float) $bagDeposits->sum('bag_amount'), 2),
+            'bag_refs' => $bagDeposits->pluck('reference_no')->filter()->implode(', '),
+            'previous_counters' => $previous?->machine_counters ?? [],
+            'system_cycles' => $this->machineCycleCounts($summary),
+            'missed_date' => $missedDate,
+            'sales' => [
+                'job_orders' => (int) $summary['transaction_count'],
+                'total' => $total,
+                'cash' => $cash,
+                'gcash' => $gcash,
+                'bank' => $bank,
+                'old_orders_paid' => (float) $summary['previous_payment_total'],
+                'unpaid' => $unpaid,
+                'diff' => $salesDiff,
+                'matches' => abs($salesDiff) < 0.005,
+            ],
+        ];
+    }
+
+    /**
+     * Server copy of the page's step math (never trust the client).
+     * Returns the computed step results plus the blockers as validation errors.
+     */
+    private function steps(Branch $branch, array $closing, array $input): array
+    {
+        $errors = [];
+        $balanced = fn (float $diff) => abs($diff) < 0.005;
+        $number = fn ($value) => is_numeric($value) ? round((float) $value, 2) : null;
+
+        // Step 2 · Machines
+        $machines = [];
+        $missingCycles = [];
+        foreach ($this->machineNumbers($branch, $closing) as $machine) {
+            foreach (['wash', 'dry'] as $type) {
+                $in = (array) data_get($input, "machine_counters.{$machine}.{$type}", []);
+                $previousEnding = data_get($closing['previous_counters'], "{$machine}.{$type}.ending");
+                $begin = is_numeric($previousEnding) ? (int) $previousEnding : (is_numeric($in['beginning'] ?? null) ? (int) $in['beginning'] : null);
+                $end = is_numeric($in['ending'] ?? null) ? (int) $in['ending'] : null;
+                $row = $this->machineRow($begin, $end, (int) data_get($closing['system_cycles'], "{$machine}.{$type}", 0), (array) ($in['non_job_cycles'] ?? []), $in['notes'] ?? null, $in['jo_ref'] ?? null);
+                $machines[$machine][$type] = $row;
+
+                $key = "machine_counters.{$machine}.{$type}";
+                $label = ucfirst($type)." {$machine}";
+                $extra = (int) $row['total'] - $row['system_cycles'];
+                if ($begin === null) {
+                    $errors["{$key}.beginning"] = "{$label}: enter the Start counter.";
+                } elseif ($row['reconciliation_status'] === 'empty') {
+                    $errors["{$key}.ending"] = "{$label}: enter the End counter.";
+                } elseif ($row['reconciliation_status'] === 'end_low') {
+                    $errors["{$key}.ending"] = "{$label}: End is lower than Start.";
+                } elseif ($row['reconciliation_status'] === 'counter_low') {
+                    $errors["{$key}.ending"] = "{$label}: counter is lower than the job orders. Check the machine on the JOs or re-read the counter.";
+                } elseif ($row['non_job_total'] !== max(0, $extra)) {
+                    $errors["{$key}.non_job_cycles"] = "{$label}: the reasons must add up to {$extra} extra cycle(s).";
+                } elseif ($row['non_job_cycles']['not_recorded'] > 0 && ! $row['jo_ref']) {
+                    $errors["{$key}.jo_ref"] = "{$label}: give the job order # for the wash/dry not clicked in POS.";
+                } elseif ($row['non_job_cycles']['other'] > 0 && ! $row['notes']) {
+                    $errors["{$key}.notes"] = "{$label}: explain the cycles marked Other.";
+                } elseif ($row['non_job_cycles']['not_recorded'] > 0) {
+                    $order = JobOrder::query()
+                        ->where('job_order_number', $row['jo_ref'])
+                        ->where(fn ($query) => $query->where('branch_id', $branch->id)->orWhere('processing_branch_id', $branch->id))
+                        ->first(['id']);
+                    if (! $order) {
+                        $errors["{$key}.jo_ref"] = "{$label}: no job order {$row['jo_ref']} at this branch.";
+                    } else {
+                        $missingCycles[] = ['job_order_id' => $order->id, 'machine' => $machine, 'type' => $type, 'count' => $row['non_job_cycles']['not_recorded']];
+                    }
                 }
+            }
+        }
 
-                $normalized = [];
-                foreach (['wash', 'dry'] as $type) {
-                    $beginning = data_get($types, "{$type}.beginning");
-                    $ending = data_get($types, "{$type}.ending");
-                    $total = is_numeric($beginning) && is_numeric($ending)
-                        ? max(0, (int) $ending - (int) $beginning)
-                        : null;
-                    $storedSystemCycles = data_get($types, "{$type}.system_cycles");
-                    $systemCycles = $preserveStoredSystemCycles && is_numeric($storedSystemCycles)
-                        ? max(0, (int) $storedSystemCycles)
-                        : max(0, (int) data_get($systemCycleCounts, "{$machineNumber}.{$type}", 0));
-                    $reasonCounts = collect(self::NON_JOB_CYCLE_REASONS)
-                        ->mapWithKeys(fn ($label, $reason) => [
-                            $reason => max(0, (int) data_get($types, "{$type}.non_job_cycles.{$reason}", 0)),
-                        ])
-                        ->all();
-                    $nonJobTotal = array_sum($reasonCounts);
-                    $unexplained = $total === null ? null : $total - $systemCycles - $nonJobTotal;
+        // Step 3 · Cash drawer
+        $cashCount = $this->normalizedCashCount((array) ($input['cash_count'] ?? []));
+        $actualCash = $this->cashCountTotal($cashCount);
+        $cashDiff = round($actualCash - $closing['should_be'], 2);
 
-                    $normalized[$type] = [
-                        'beginning' => is_numeric($beginning) ? (int) $beginning : null,
-                        'ending' => is_numeric($ending) ? (int) $ending : null,
-                        'total' => $total,
-                        'system_cycles' => $systemCycles,
-                        'non_job_cycles' => $reasonCounts,
-                        'non_job_total' => $nonJobTotal,
-                        'unexplained_cycles' => $unexplained,
-                        'notes' => filled(data_get($types, "{$type}.notes"))
-                            ? trim((string) data_get($types, "{$type}.notes"))
-                            : null,
-                        'reconciliation_status' => $unexplained === 0 ? 'matched' : 'mismatch',
-                    ];
-                }
+        // Step 4 · GCash wallet
+        $gcashOpening = $closing['first'] ? $number($input['gcash_opening'] ?? null) : $closing['gcash_opening'];
+        if ($gcashOpening === null) {
+            $errors['gcash_opening'] = 'Enter the GCash balance at the start (first Z-Reading).';
+        }
+        $actualGcash = $number($input['actual_gcash_amount'] ?? null);
+        if ($actualGcash === null) {
+            $errors['actual_gcash_amount'] = 'Enter the balance shown in the GCash app.';
+        }
+        $transfer = filter_var($input['gcash_transfer'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $transferAmount = $transfer ? $number($input['gcash_transfer_amount'] ?? null) : null;
+        $transferFee = $transfer ? ($number($input['gcash_transfer_fee'] ?? null) ?? 0.0) : 0.0;
+        $transferRef = $transfer && filled($input['gcash_transfer_ref'] ?? null) ? trim($input['gcash_transfer_ref']) : null;
+        if ($transfer && ! $transferAmount) {
+            $errors['gcash_transfer_amount'] = 'Enter the amount sent to the bank.';
+        }
+        if ($transfer && ! $transferRef) {
+            $errors['gcash_transfer_ref'] = 'Enter the GCash reference #.';
+        }
+        $expectedGcash = round((float) $gcashOpening + $closing['gcash_payments'] - $closing['gcash_expenses'] - (float) $transferAmount - $transferFee, 2);
+        $gcashDiff = round((float) $actualGcash - $expectedGcash, 2);
 
-                return [$machineNumber => $normalized];
-            })
-            ->sortKeys()
+        // Step 5 · Bank deposit (last night's sealed bag)
+        $bagDue = $closing['bag_due'];
+        $carried = $bagDue > 0 && filter_var($input['deposit_carried_over'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $slipAmount = $bagDue > 0 && ! $carried ? $number($input['deposit_slip_amount'] ?? null) : null;
+        $slipRef = $bagDue > 0 && ! $carried && filled($input['deposit_slip_ref'] ?? null) ? trim($input['deposit_slip_ref']) : null;
+        $depositDiff = 0.0;
+        if ($bagDue > 0 && ! $carried) {
+            if ($slipAmount === null) {
+                $errors['deposit_slip_amount'] = 'Enter the amount on the deposit slip, or tick "Not deposited today".';
+            }
+            if (! $slipRef) {
+                $errors['deposit_slip_ref'] = 'Enter the slip / reference #.';
+            }
+            $depositDiff = round((float) $slipAmount - $bagDue, 2);
+        }
+
+        // Close the day
+        $float = $number($input['float_for_tomorrow'] ?? null);
+        if ($float === null) {
+            $errors['float_for_tomorrow'] = 'Enter the float left in the drawer for tomorrow.';
+        } elseif ($float > $actualCash) {
+            $errors['float_for_tomorrow'] = 'The float for tomorrow cannot be more than the cash counted ('.ShopCash::money($actualCash).').';
+        }
+
+        $off = collect([
+            'Cash' => $cashDiff,
+            'GCash' => $gcashDiff,
+            'Deposit slip' => $depositDiff,
+        ])->reject(fn ($diff) => $balanced($diff))
+            ->map(fn ($diff, $step) => $step.' '.($diff > 0 ? 'over ' : 'short ').ShopCash::money(abs($diff)));
+
+        return [
+            'errors' => $errors,
+            'machines' => $machines,
+            'missing_cycles' => $missingCycles,
+            'cash_count' => $cashCount,
+            'cash' => ['expected' => $closing['should_be'], 'actual' => $actualCash, 'diff' => $cashDiff],
+            'gcash' => [
+                'opening' => $gcashOpening,
+                'expected' => $expectedGcash,
+                'actual' => (float) $actualGcash,
+                'diff' => $gcashDiff,
+                'transfer_amount' => $transferAmount,
+                'transfer_fee' => $transferFee,
+                'transfer_ref' => $transferRef,
+            ],
+            'deposit' => ['carried' => $carried, 'slip_amount' => $slipAmount, 'slip_ref' => $slipRef, 'diff' => $depositDiff],
+            'float_for_tomorrow' => (float) $float,
+            'deposit_bag_amount' => round($actualCash - (float) $float + ($carried ? $bagDue : 0), 2),
+            'status' => $off->isEmpty() ? 'balanced' : 'with_over_short',
+            'off_summary' => $off->implode(', '),
+            'sales' => $closing['sales'],
+        ];
+    }
+
+    /** One machine counter row. Reasons only count when the counter moved more than the job orders. */
+    private function machineRow(?int $begin, ?int $end, int $system, array $reasons, ?string $notes, ?string $joRef): array
+    {
+        $used = $begin !== null && $end !== null ? $end - $begin : null;
+        $diff = $used === null ? null : $used - $system;
+        $reasons = collect(self::NON_JOB_CYCLE_REASONS)
+            ->map(fn ($label, $reason) => $diff > 0 ? max(0, (int) ($reasons[$reason] ?? 0)) : 0)
             ->all();
+        $reasonTotal = array_sum($reasons);
+        $notes = filled($notes) ? trim($notes) : null;
+        $joRef = $reasons['not_recorded'] > 0 && filled($joRef) ? trim($joRef) : null;
+
+        return [
+            'beginning' => $begin,
+            'ending' => $end,
+            'total' => $used === null ? null : max(0, $used),
+            'system_cycles' => $system,
+            'non_job_cycles' => $reasons,
+            'non_job_total' => $reasonTotal,
+            'unexplained_cycles' => $diff === null ? null : $diff - $reasonTotal,
+            'notes' => $notes,
+            'jo_ref' => $joRef,
+            'reconciliation_status' => match (true) {
+                $used === null => 'empty',
+                $used < 0 => 'end_low',
+                $diff === 0 => 'matched',
+                $diff < 0 => 'counter_low',
+                $reasonTotal === $diff && ($reasons['not_recorded'] === 0 || $joRef) && ($reasons['other'] === 0 || $notes) => 'explained',
+                default => 'off',
+            },
+        ];
+    }
+
+    /** @return list<int> */
+    private function machineNumbers(Branch $branch, array $closing): array
+    {
+        $count = max(
+            (int) $branch->machine_count,
+            (int) collect(array_keys($closing['system_cycles']))->max(),
+        );
+
+        return $count > 0 ? range(1, $count) : [];
+    }
+
+    /** Rows for the Step 2 table: Wash 1→n, then Dry 1→n. */
+    private function machineRowsForForm(Branch $branch, array $closing, ?ZReading $reading, mixed $old): array
+    {
+        $rows = [];
+        foreach (['wash', 'dry'] as $type) {
+            foreach ($this->machineNumbers($branch, $closing) as $machine) {
+                $source = is_array($old) ? (array) data_get($old, "{$machine}.{$type}", []) : (array) data_get($reading?->machine_counters, "{$machine}.{$type}", []);
+                $previousEnding = data_get($closing['previous_counters'], "{$machine}.{$type}.ending");
+                $class = MachineClass::forMachine($branch, $machine);
+
+                $rows[] = [
+                    'machine' => $machine,
+                    'type' => $type,
+                    'label' => ucfirst($type)." {$machine}",
+                    'model' => MachineClass::label($class).' '.MachineClass::definitions()[$class]['rated_kg'].' kg',
+                    'begin' => is_numeric($previousEnding) ? (int) $previousEnding : (is_numeric($source['beginning'] ?? null) ? (int) $source['beginning'] : null),
+                    'begin_editable' => ! is_numeric($previousEnding),
+                    'end' => is_numeric($source['ending'] ?? null) ? (int) $source['ending'] : null,
+                    'system' => (int) data_get($closing['system_cycles'], "{$machine}.{$type}", 0),
+                    'reasons' => collect(self::NON_JOB_CYCLE_REASONS)->map(fn ($label, $reason) => (int) data_get($source, "non_job_cycles.{$reason}", 0))->all(),
+                    'notes' => $source['notes'] ?? '',
+                    'jo_ref' => $source['jo_ref'] ?? '',
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    /** Put the "not clicked in POS" cycles on their job orders so job-order cycles stay true. */
+    private function createMissingCycles(ZReading $reading, array $missing, int $userId): void
+    {
+        $note = self::AUTO_CYCLE_NOTE.$reading->reading_number.': not clicked in POS';
+        CycleRecord::query()->where('notes', $note)->delete();
+        $at = Carbon::parse($reading->business_date->toDateString().' '.now()->format('H:i:s'));
+
+        foreach ($missing as $cycle) {
+            $last = (int) CycleRecord::query()->where('job_order_id', $cycle['job_order_id'])->where('cycle_type', $cycle['type'])->max('cycle_number');
+            for ($i = 1; $i <= $cycle['count']; $i++) {
+                CycleRecord::query()->create([
+                    'job_order_id' => $cycle['job_order_id'],
+                    'user_id' => $userId,
+                    'cycle_type' => $cycle['type'],
+                    'machine_number' => $cycle['machine'],
+                    'cycle_number' => $last + $i,
+                    'started_at' => $at,
+                    'ended_at' => $at,
+                    'notes' => $note,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * After an admin edits a Z, every later Z's openings (counters, GCash, bag) and the
+     * Shop Cash openings that expect its float are carried forward again.
+     *
+     * @return list<string> reading numbers that changed
+     */
+    private function recalculateFollowing(ZReading $edited): array
+    {
+        $changed = [];
+        $previous = $edited;
+        $later = ZReading::query()
+            ->where('branch_id', $edited->branch_id)
+            ->whereDate('business_date', '>', $edited->business_date->toDateString())
+            ->orderBy('business_date')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($later as $reading) {
+            $this->syncShopCashOpenings($previous, $reading->business_date->toDateString());
+
+            if ($reading->status !== null) {
+                $gcashOpening = (float) $previous->actual_gcash_amount;
+                $bagDue = (float) ($previous->deposit_bag_amount ?? 0);
+                $expectedGcash = round((float) $reading->expected_gcash_amount - (float) $reading->gcash_opening + $gcashOpening, 2);
+                $gcashDiff = round((float) $reading->actual_gcash_amount - $expectedGcash, 2);
+                $depositDiff = $reading->deposit_carried_over || $bagDue <= 0 ? 0.0 : round((float) $reading->deposit_slip_amount - $bagDue, 2);
+                $counters = collect($reading->machine_counters ?? [])->map(fn ($types, $machine) => collect($types)->map(fn ($row, $type) => $this->machineRow(
+                    is_numeric($ending = data_get($previous->machine_counters, "{$machine}.{$type}.ending")) ? (int) $ending : ($row['beginning'] ?? null),
+                    $row['ending'] ?? null,
+                    (int) ($row['system_cycles'] ?? 0),
+                    $row['non_job_cycles'] ?? [],
+                    $row['notes'] ?? null,
+                    $row['jo_ref'] ?? null,
+                ))->all())->all();
+
+                $reading->fill([
+                    'gcash_opening' => $gcashOpening,
+                    'expected_gcash_amount' => $expectedGcash,
+                    'gcash_diff' => $gcashDiff,
+                    'bag_due' => $bagDue,
+                    'deposit_diff' => $depositDiff,
+                    'deposit_bag_amount' => round((float) $reading->deposit_bag_amount + ($reading->deposit_carried_over ? $bagDue - (float) $reading->bag_due : 0), 2),
+                    'machine_counters' => $counters,
+                    'expected_total_amount' => round((float) $reading->expected_cash_drawer_amount + $expectedGcash, 2),
+                    'over_short_amount' => round((float) $reading->cash_diff + $gcashDiff, 2),
+                    'status' => collect([(float) $reading->cash_diff, $gcashDiff, $depositDiff])->every(fn ($diff) => abs($diff) < 0.005) ? 'balanced' : 'with_over_short',
+                ]);
+                if ($reading->isDirty()) {
+                    $reading->save();
+                    $changed[] = $reading->reading_number;
+                }
+            }
+
+            $previous = $reading;
+        }
+        $this->syncShopCashOpenings($previous, null);
+
+        return $changed;
+    }
+
+    private function syncShopCashOpenings(ZReading $previous, ?string $untilDate): void
+    {
+        if ($previous->float_for_tomorrow === null) {
+            return;
+        }
+
+        CashOpening::query()
+            ->where('branch_id', $previous->branch_id)
+            ->whereDate('business_date', '>', $previous->business_date->toDateString())
+            ->when($untilDate, fn ($query) => $query->whereDate('business_date', '<=', $untilDate))
+            ->get()
+            ->each(fn (CashOpening $opening) => $opening->update([
+                'expected_float' => $previous->float_for_tomorrow,
+                'difference' => round((float) $opening->counted_amount - (float) $previous->float_for_tomorrow, 2),
+                'bag_due' => $previous->deposit_bag_amount ?? 0,
+            ]));
     }
 
     private function machineCycleCounts(array $summary): array
@@ -684,51 +988,6 @@ class ZReadingController extends Controller
                 $row['cycle_type'] => (int) $row['cycle_count'],
             ])->all())
             ->all();
-    }
-
-    private function validateMachineCounterReconciliation(array $counters, array $systemCycleCounts): void
-    {
-        $errors = [];
-
-        foreach ($counters as $machineNumber => $types) {
-            $machineNumber = (int) $machineNumber;
-            if ($machineNumber < 1) {
-                continue;
-            }
-
-            foreach (['wash', 'dry'] as $type) {
-                $beginning = data_get($types, "{$type}.beginning");
-                $ending = data_get($types, "{$type}.ending");
-                if (! is_numeric($beginning) || ! is_numeric($ending)) {
-                    continue;
-                }
-
-                $key = "machine_counters.{$machineNumber}.{$type}";
-                if ((int) $ending < (int) $beginning) {
-                    $errors["{$key}.ending"] = 'The ending counter cannot be lower than the beginning counter.';
-                    continue;
-                }
-
-                $actualCycles = (int) $ending - (int) $beginning;
-                $systemCycles = max(0, (int) data_get($systemCycleCounts, "{$machineNumber}.{$type}", 0));
-                $availableDifference = max(0, $actualCycles - $systemCycles);
-                $reasonTotal = collect(array_keys(self::NON_JOB_CYCLE_REASONS))
-                    ->sum(fn ($reason) => max(0, (int) data_get($types, "{$type}.non_job_cycles.{$reason}", 0)));
-
-                if ($reasonTotal > $availableDifference) {
-                    $errors["{$key}.non_job_cycles"] = "Documented non-job cycles cannot exceed the {$availableDifference}-cycle counter difference.";
-                }
-
-                if ((int) data_get($types, "{$type}.non_job_cycles.other", 0) > 0
-                    && ! filled(data_get($types, "{$type}.notes"))) {
-                    $errors["{$key}.notes"] = 'Explain the cycles recorded as Other.';
-                }
-            }
-        }
-
-        if ($errors !== []) {
-            throw ValidationException::withMessages($errors);
-        }
     }
 
     private function nextReadingNumber(int $branchId, string $businessDate): string

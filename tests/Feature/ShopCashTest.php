@@ -336,7 +336,9 @@ class ShopCashTest extends TestCase
             'business_date' => self::DATE,
             'cash_count' => ['1' => (int) $counted],
             'float_for_tomorrow' => $float,
-            'machine_counters' => [],
+            'actual_gcash_amount' => 0,
+            'deposit_slip_amount' => 1500,
+            'deposit_slip_ref' => 'BDO-558213',
         ];
     }
 

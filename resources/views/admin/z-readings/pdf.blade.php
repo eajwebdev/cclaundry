@@ -164,10 +164,10 @@
                 <tr><td>Cash Collections + Cash In</td><td class="right">{{ $money($cashOnHand) }}</td></tr>
                 <tr><td>Store Cash Expenses</td><td class="right">{{ $money($storeCashExpenses) }}</td></tr>
                 <tr><td>Cash Out (including bank deposits)</td><td class="right">{{ $money(data_get($details, 'expense_breakdown.money_movements.cash_out', 0)) }}</td></tr>
-                <tr><td>Bank Deposits Included Above</td><td class="right">{{ $money(data_get($details, 'expense_breakdown.money_movements.bank_deposits', 0)) }}</td></tr>
+                <tr><td>Bank Deposits (bag + extra)</td><td class="right">{{ $money(data_get($details, 'expense_breakdown.money_movements.bank_deposits', 0)) }}</td></tr>
                 <tr class="yellow"><td>Expected Cash Drawer</td><td class="right">{{ $money($reading->expected_cash_drawer_amount) }}</td></tr>
                 <tr><td>Store GCash Expenses</td><td class="right">{{ $money($storeGcashExpenses) }}</td></tr>
-                <tr><td>Store Bank Expenses</td><td class="right">{{ $money($storeBankExpenses) }}</td></tr>
+                @if($showBank ?? false)<tr><td>Store Bank Expenses</td><td class="right">{{ $money($storeBankExpenses) }}</td></tr>@endif
                 <tr><td>Owner-Paid Expenses (Not Counted)</td><td class="right">{{ $money(data_get($details, 'expense_breakdown.owner', 0)) }}</td></tr>
                 <tr class="total"><td>All Recorded Expenses</td><td class="right">{{ $money($totalExpenses) }}</td></tr>
             </table>
@@ -207,30 +207,7 @@
 <table>
     <tr>
         <td class="no-border" style="width:50%; padding-right:6px;">
-            @for($machine = $machineCount; $machine >= 1; $machine--)
-                @php
-                    $counter = data_get($reading->machine_counters, $machine.'.dry', []);
-                    $systemCycles = (int) ($counter['system_cycles'] ?? $machineCycles->where('machine_number', $machine)->where('cycle_type', 'dry')->sum('cycle_count'));
-                    $nonJobTotal = (int) ($counter['non_job_total'] ?? 0);
-                    $unexplained = (int) ($counter['unexplained_cycles'] ?? (($counter['total'] ?? $systemCycles) - $systemCycles - $nonJobTotal));
-                    $reasonSummary = collect($counter['non_job_cycles'] ?? [])->filter(fn ($count) => (int) $count > 0)->map(fn ($count, $reason) => ($nonJobCycleReasons[$reason] ?? str($reason)->replace('_', ' ')->title()).': '.$count)->implode(', ');
-                @endphp
-                <table class="machine">
-                    <tr><th colspan="2">Dry {{ $machine }}</th></tr>
-                    <tr><td>Dry Beginning</td><td class="right">{{ $counter['beginning'] ?? '' }}</td></tr>
-                    <tr><td>Dry Ending</td><td class="right">{{ $counter['ending'] ?? '' }}</td></tr>
-                    <tr class="blue"><td>Physical Counter Cycles</td><td class="right">{{ $counter['total'] ?? $systemCycles }}</td></tr>
-                    <tr><td>Job-order Cycles</td><td class="right">{{ $systemCycles }}</td></tr>
-                    <tr><td>Documented Non-job</td><td class="right">{{ $nonJobTotal }}</td></tr>
-                    <tr class="{{ $unexplained === 0 ? '' : 'yellow' }}"><td>Unexplained Difference</td><td class="right">{{ $unexplained }}</td></tr>
-                    @if($reasonSummary || filled($counter['notes'] ?? null))
-                        <tr><td colspan="2"><strong>Reason:</strong> {{ $reasonSummary ?: 'See notes' }}{{ filled($counter['notes'] ?? null) ? ' — '.$counter['notes'] : '' }}</td></tr>
-                    @endif
-                </table>
-            @endfor
-        </td>
-        <td class="no-border" style="width:50%; padding-left:6px;">
-            @for($machine = $machineCount; $machine >= 1; $machine--)
+            @for($machine = 1; $machine <= $machineCount; $machine++)
                 @php
                     $counter = data_get($reading->machine_counters, $machine.'.wash', []);
                     $systemCycles = (int) ($counter['system_cycles'] ?? $machineCycles->where('machine_number', $machine)->where('cycle_type', 'wash')->sum('cycle_count'));
@@ -247,7 +224,30 @@
                     <tr><td>Documented Non-job</td><td class="right">{{ $nonJobTotal }}</td></tr>
                     <tr class="{{ $unexplained === 0 ? '' : 'yellow' }}"><td>Unexplained Difference</td><td class="right">{{ $unexplained }}</td></tr>
                     @if($reasonSummary || filled($counter['notes'] ?? null))
-                        <tr><td colspan="2"><strong>Reason:</strong> {{ $reasonSummary ?: 'See notes' }}{{ filled($counter['notes'] ?? null) ? ' — '.$counter['notes'] : '' }}</td></tr>
+                        <tr><td colspan="2"><strong>Reason:</strong> {{ $reasonSummary ?: 'See notes' }}{{ filled($counter['jo_ref'] ?? null) ? ' (JO '.$counter['jo_ref'].')' : '' }}{{ filled($counter['notes'] ?? null) ? ' — '.$counter['notes'] : '' }}</td></tr>
+                    @endif
+                </table>
+            @endfor
+        </td>
+        <td class="no-border" style="width:50%; padding-left:6px;">
+            @for($machine = 1; $machine <= $machineCount; $machine++)
+                @php
+                    $counter = data_get($reading->machine_counters, $machine.'.dry', []);
+                    $systemCycles = (int) ($counter['system_cycles'] ?? $machineCycles->where('machine_number', $machine)->where('cycle_type', 'dry')->sum('cycle_count'));
+                    $nonJobTotal = (int) ($counter['non_job_total'] ?? 0);
+                    $unexplained = (int) ($counter['unexplained_cycles'] ?? (($counter['total'] ?? $systemCycles) - $systemCycles - $nonJobTotal));
+                    $reasonSummary = collect($counter['non_job_cycles'] ?? [])->filter(fn ($count) => (int) $count > 0)->map(fn ($count, $reason) => ($nonJobCycleReasons[$reason] ?? str($reason)->replace('_', ' ')->title()).': '.$count)->implode(', ');
+                @endphp
+                <table class="machine">
+                    <tr><th colspan="2">Dry {{ $machine }}</th></tr>
+                    <tr><td>Dry Beginning</td><td class="right">{{ $counter['beginning'] ?? '' }}</td></tr>
+                    <tr><td>Dry Ending</td><td class="right">{{ $counter['ending'] ?? '' }}</td></tr>
+                    <tr class="blue"><td>Physical Counter Cycles</td><td class="right">{{ $counter['total'] ?? $systemCycles }}</td></tr>
+                    <tr><td>Job-order Cycles</td><td class="right">{{ $systemCycles }}</td></tr>
+                    <tr><td>Documented Non-job</td><td class="right">{{ $nonJobTotal }}</td></tr>
+                    <tr class="{{ $unexplained === 0 ? '' : 'yellow' }}"><td>Unexplained Difference</td><td class="right">{{ $unexplained }}</td></tr>
+                    @if($reasonSummary || filled($counter['notes'] ?? null))
+                        <tr><td colspan="2"><strong>Reason:</strong> {{ $reasonSummary ?: 'See notes' }}{{ filled($counter['jo_ref'] ?? null) ? ' (JO '.$counter['jo_ref'].')' : '' }}{{ filled($counter['notes'] ?? null) ? ' — '.$counter['notes'] : '' }}</td></tr>
                     @endif
                 </table>
             @endfor
@@ -286,16 +286,36 @@
                     @endphp
                     <tr><td>{{ $label }}</td><td class="right">{{ $quantity }}</td><td class="right">{{ $money((float) $value * $quantity) }}</td></tr>
                 @endforeach
-                <tr class="total"><td colspan="2">Actual Cash</td><td class="right">{{ $money($reading->actual_cash_amount) }}</td></tr>
-                <tr><td colspan="2">Expected Cash Drawer</td><td class="right">{{ $money($reading->expected_cash_drawer_amount) }}</td></tr>
-                <tr><td colspan="2">Expected GCash</td><td class="right">{{ $money($reading->expected_gcash_amount) }}</td></tr>
-                <tr><td colspan="2">Actual GCash</td><td class="right">{{ $money($reading->actual_gcash_amount) }}</td></tr>
-                <tr><td colspan="2">Expected Bank</td><td class="right">{{ $money($reading->expected_bank_amount) }}</td></tr>
-                <tr><td colspan="2">Actual Bank</td><td class="right">{{ $money($reading->actual_bank_amount) }}</td></tr>
-                <tr class="total"><td colspan="2">Expected Total</td><td class="right">{{ $money($reading->expected_total_amount) }}</td></tr>
-                <tr class="total"><td colspan="2">Actual Total</td><td class="right">{{ $money($reading->actual_total_amount) }}</td></tr>
-                <tr class="yellow"><td colspan="2">Over / Short</td><td class="right">{{ $money($reading->over_short_amount) }}</td></tr>
+                <tr class="total"><td colspan="2">You counted</td><td class="right">{{ $money($reading->actual_cash_amount) }}</td></tr>
             </table>
+            @if($reading->status)
+                @php
+                    $diffText = fn ($diff) => abs((float) $diff) < 0.005 ? 'Balanced' : (((float) $diff > 0 ? 'Over ' : 'Short ').$money(abs((float) $diff)));
+                    $machineOff = collect($reading->machine_counters ?? [])->flatMap(fn ($types) => array_values($types))->whereNotIn('reconciliation_status', ['matched', 'explained'])->count();
+                @endphp
+                <table style="margin-top:4px;">
+                    <tr><th colspan="3">Closing steps — {{ $reading->status === 'balanced' ? 'BALANCED' : 'WITH OVER/SHORT' }}</th></tr>
+                    <tr><td>1 Sales</td><td colspan="2" class="right">{{ $money($details['daily_total_sales']) }}</td></tr>
+                    <tr><td>2 Machines</td><td colspan="2" class="right">{{ $machineOff ? $machineOff.' machine(s) off' : 'All machines OK' }}</td></tr>
+                    <tr><td>3 Cash drawer</td><td>Opening {{ $money($reading->opening_float) }} · Should be {{ $money($reading->expected_cash_drawer_amount) }} · Counted {{ $money($reading->actual_cash_amount) }}</td><td class="right">{{ $diffText($reading->cash_diff) }}</td></tr>
+                    <tr><td>4 GCash</td><td>Last Z {{ $money($reading->gcash_opening) }} · Should be {{ $money($reading->expected_gcash_amount) }} · App {{ $money($reading->actual_gcash_amount) }}@if($reading->gcash_transfer_amount) · Sent to bank {{ $money($reading->gcash_transfer_amount) }} (fee {{ $money($reading->gcash_transfer_fee) }}, ref {{ $reading->gcash_transfer_ref }})@endif</td><td class="right">{{ $diffText($reading->gcash_diff) }}</td></tr>
+                    <tr><td>5 Bank deposit</td><td>Bag {{ $money($reading->bag_due) }}@if($reading->deposit_carried_over) · Not deposited, carried to tonight's bag @elseif((float) $reading->bag_due > 0) · Slip {{ $money($reading->deposit_slip_amount) }} #{{ $reading->deposit_slip_ref }}@endif</td><td class="right">{{ (float) $reading->bag_due <= 0 ? 'No bag' : ($reading->deposit_carried_over ? 'Carried' : $diffText($reading->deposit_diff)) }}</td></tr>
+                    <tr class="yellow"><td>Float for tomorrow</td><td colspan="2" class="right">{{ $money($reading->float_for_tomorrow) }}</td></tr>
+                    <tr class="yellow"><td>Deposit bag sealed</td><td colspan="2" class="right">{{ $money($reading->deposit_bag_amount) }}</td></tr>
+                    <tr><td>Closed by</td><td colspan="2" class="right">{{ $reading->closer?->name ?? $reading->signature_name }} · {{ $reading->closed_at?->format('M d, Y h:i A') }}</td></tr>
+                </table>
+            @else
+                <table style="margin-top:4px;">
+                    <tr><td colspan="2">Expected Cash Drawer</td><td class="right">{{ $money($reading->expected_cash_drawer_amount) }}</td></tr>
+                    <tr><td colspan="2">Expected GCash</td><td class="right">{{ $money($reading->expected_gcash_amount) }}</td></tr>
+                    <tr><td colspan="2">Actual GCash</td><td class="right">{{ $money($reading->actual_gcash_amount) }}</td></tr>
+                    @if($showBank ?? false)
+                        <tr><td colspan="2">Expected Bank</td><td class="right">{{ $money($reading->expected_bank_amount) }}</td></tr>
+                        <tr><td colspan="2">Actual Bank</td><td class="right">{{ $money($reading->actual_bank_amount) }}</td></tr>
+                    @endif
+                    <tr class="yellow"><td colspan="2">Over / Short</td><td class="right">{{ $money($reading->over_short_amount) }}</td></tr>
+                </table>
+            @endif
         </td>
     </tr>
 </table>

@@ -1187,24 +1187,13 @@ class ExampleTest extends TestCase
                 'business_date' => today()->toDateString(),
             ]))
             ->assertOk()
-            ->assertSee('Create Z Reading')
-            ->assertSee('Expected Cash Drawer')
-            ->assertSee('Daily Operations Summary')
-            ->assertSee('Previous Payments')
-            ->assertSee('Wash Cycles')
-            ->assertSee('Dry Cycles')
-            ->assertSee('Machine Counter Readings')
-            ->assertSee('lg:grid-cols-5', false)
-            ->assertSee('Beginning comes from the previous Z Reading ending')
-            ->assertSeeInOrder(['Daily Operations Summary', 'Cash Count', 'Machine Counter Readings'])
-            ->assertSeeInOrder(['Dry 5', 'Dry 1', 'Wash 5', 'Wash 1'])
-            ->assertSee('aria-label="Beginning Wash 1"', false)
-            ->assertSee('disabled', false)
+            ->assertSee('Step 1 · Today')
+            ->assertSee('Giant 10 kg')
+            ->assertSeeInOrder(['Step 1', 'Step 2', 'Step 3', 'Step 4', 'Step 5', 'Close the day'])
             ->assertSee('5055')
-            ->assertSee('5061')
             ->assertSee('7073')
-            ->assertSee('7081')
-            ->assertSee('Expected Bank net balance');
+            ->assertDontSee('Bank Balance')
+            ->assertDontSee('Expected Bank');
 
         $this
             ->actingAs($admin)
@@ -1265,8 +1254,10 @@ class ExampleTest extends TestCase
                     '200' => 2,
                 ],
                 'actual_gcash_amount' => '310.00',
-                'actual_bank_amount' => '375.00',
                 'float_for_tomorrow' => '0',
+                'remarks' => 'Short counted twice.',
+                'machine_counters' => [1 => ['wash' => ['ending' => 5061], 'dry' => ['ending' => 7081]]]
+                    + array_fill(2, 4, ['wash' => ['beginning' => 0, 'ending' => 0], 'dry' => ['beginning' => 0, 'ending' => 0]]),
             ])
             ->assertRedirect(route('admin.z-readings.index', [
                 'branch_id' => $branch->id,
@@ -1277,13 +1268,13 @@ class ExampleTest extends TestCase
 
         $this->assertSame('425.00', $reading->expected_cash_drawer_amount);
         $this->assertSame('400.00', $reading->actual_cash_amount);
-        $this->assertSame('450.00', $reading->expected_gcash_amount);
+        $this->assertSame('-25.00', $reading->cash_diff);
+        $this->assertSame('300.00', $reading->expected_gcash_amount);
         $this->assertSame('310.00', $reading->actual_gcash_amount);
-        $this->assertSame('375.00', $reading->expected_bank_amount);
-        $this->assertSame('375.00', $reading->actual_bank_amount);
-        $this->assertSame('1250.00', $reading->expected_total_amount);
-        $this->assertSame('1085.00', $reading->actual_total_amount);
-        $this->assertSame('-165.00', $reading->over_short_amount);
+        $this->assertSame('10.00', $reading->gcash_diff);
+        $this->assertSame('0.00', $reading->actual_bank_amount);
+        $this->assertSame('with_over_short', $reading->status);
+        $this->assertSame('-15.00', $reading->over_short_amount);
         $this->assertSame(5055, $reading->machine_counters[1]['wash']['beginning']);
         $this->assertSame(5061, $reading->machine_counters[1]['wash']['ending']);
         $this->assertSame(6, $reading->machine_counters[1]['wash']['total']);
