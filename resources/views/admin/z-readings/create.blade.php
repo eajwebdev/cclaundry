@@ -42,6 +42,8 @@
         'blocked' => $gates !== [] || $readOnly,
         'salesMatch' => $sales['matches'],
         'machines' => $machines,
+        'extraReasons' => array_keys($nonJobCycleReasons),
+        'faultReasons' => array_keys($counterFaultReasons),
     ];
     $chip = [
         'green' => 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300',
@@ -69,17 +71,19 @@ function zReading(state, chips) {
         field(row, name) { return `machine_counters[${row.machine}][${row.type}][${name}]`; },
         used(row) { return this.empty(row.begin) || this.empty(row.end) ? null : Number(row.end) - Number(row.begin); },
         diff(row) { const used = this.used(row); return used === null ? 0 : used - row.system; },
+        // The picked reason, if it belongs to this row's list (extra cycles vs. too few).
+        rowReason(row) {
+            return (this.diff(row) > 0 ? this.extraReasons : this.faultReasons).includes(row.reason) ? row.reason : '';
+        },
         machineState(row) {
             const used = this.used(row);
             if (used === null) return { tone: 'grey', text: 'Enter End' };
-            if (used < 0) return { tone: 'red', text: 'End is lower than start' };
             const diff = used - row.system;
             if (diff === 0) return { tone: 'green', text: 'Matches' };
+            const reason = this.rowReason(row);
+            if (reason && (diff < 0 || reason !== 'not_recorded' || String(row.jo_ref).trim()) && (reason !== 'other' || String(row.notes).trim())) return { tone: 'amber', text: 'Explained' };
+            if (used < 0) return { tone: 'red', text: 'End is lower than start' };
             if (diff < 0) return { tone: 'red', text: 'Counter lower than job orders' };
-            const sum = Object.values(row.reasons).reduce((total, count) => total + Math.max(0, Number(count || 0)), 0);
-            const notRecorded = Number(row.reasons.not_recorded || 0) > 0;
-            const other = Number(row.reasons.other || 0) > 0;
-            if (sum === diff && (! notRecorded || String(row.jo_ref).trim()) && (! other || String(row.notes).trim())) return { tone: 'amber', text: 'Explained' };
             return { tone: 'red', text: 'Off by ' + diff };
         },
         totalsLine() {
@@ -312,26 +316,38 @@ function zReading(state, chips) {
                                     <td class="px-2 py-2 font-semibold" x-text="used(row) === null ? '—' : signed(diff(row))"></td>
                                     <td class="px-2 py-2"><span class="inline-block rounded-full border px-3 py-1 text-xs font-semibold" :class="tone(machineState(row).tone)" x-text="machineState(row).text"></span></td>
                                 </tr>
-                                <tr x-show="diff(row) > 0" x-cloak>
+                                <tr x-show="used(row) !== null && diff(row) !== 0" x-cloak>
                                     <td colspan="8" class="px-2 pb-3">
-                                        <div class="rounded-md border border-border bg-smoke p-3 dark:border-gray-800 dark:bg-gray-950">
-                                            <p class="text-xs font-semibold" x-text="'Why did the counter move ' + diff(row) + ' extra time(s)? Put each cycle under a reason.'"></p>
-                                            <div class="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                                                @foreach($nonJobCycleReasons as $reason => $reasonLabel)
-                                                    <label class="text-xs text-muted">{{ $reasonLabel }}
-                                                        <input :name="field(row, 'non_job_cycles') + '[{{ $reason }}]'" x-model.number="row.reasons['{{ $reason }}']" type="number" min="0" step="1" inputmode="numeric" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-2 text-right font-semibold dark:border-gray-800 dark:bg-gray-900">
-                                                    </label>
-                                                @endforeach
-                                            </div>
-                                            <div class="mt-2 grid gap-2 sm:grid-cols-2">
-                                                <label x-show="Number(row.reasons.not_recorded) > 0" class="text-xs text-muted">Job order # (required)
-                                                    <input :name="field(row, 'jo_ref')" x-model="row.jo_ref" maxlength="50" placeholder="JO-0412" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 dark:border-gray-800 dark:bg-gray-900">
-                                                </label>
-                                                <label class="text-xs text-muted"><span x-text="Number(row.reasons.other) > 0 ? 'Explain (required)' : 'Notes (optional)'"></span>
-                                                    <input :name="field(row, 'notes')" x-model="row.notes" maxlength="500" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 dark:border-gray-800 dark:bg-gray-900">
-                                                </label>
-                                            </div>
-                                            <p x-show="Number(row.reasons.not_recorded) > 0 && row.jo_ref" class="mt-2 text-xs text-muted" x-text="'The cycle will be added to job order ' + row.jo_ref + ' so the job-order cycles stay true.'"></p>
+                                        <div class="grid gap-2 rounded-md border border-border bg-smoke p-3 sm:grid-cols-3 dark:border-gray-800 dark:bg-gray-950">
+                                            <label class="text-xs text-muted"><span x-text="diff(row) > 0 ? 'Why did the counter move ' + diff(row) + ' extra time(s)?' : 'Why is the counter ' + Math.abs(diff(row)) + ' lower than the job orders?'"></span>
+                                                <template x-if="diff(row) > 0">
+                                                    <select x-model="row.reason" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-2 font-semibold dark:border-gray-800 dark:bg-gray-900" :aria-label="'Reason ' + row.label">
+                                                        <option value="">Pick a reason…</option>
+                                                        @foreach($nonJobCycleReasons as $reason => $reasonLabel)
+                                                            <option value="{{ $reason }}">{{ $reasonLabel }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </template>
+                                                <template x-if="diff(row) < 0">
+                                                    <select :name="field(row, 'fault')" x-model="row.reason" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-2 font-semibold dark:border-gray-800 dark:bg-gray-900" :aria-label="'Reason ' + row.label">
+                                                        <option value="">Pick a reason…</option>
+                                                        @foreach($counterFaultReasons as $reason => $reasonLabel)
+                                                            <option value="{{ $reason }}">{{ $reasonLabel }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </template>
+                                            </label>
+                                            {{-- All extra cycles go under the one picked reason. --}}
+                                            <template x-if="diff(row) > 0 && rowReason(row)">
+                                                <input type="hidden" :name="field(row, 'non_job_cycles') + '[' + rowReason(row) + ']'" :value="diff(row)">
+                                            </template>
+                                            <label x-show="diff(row) > 0 && row.reason === 'not_recorded'" class="text-xs text-muted">Job order # (required)
+                                                <input :name="field(row, 'jo_ref')" x-model="row.jo_ref" maxlength="50" placeholder="JO-0412" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 dark:border-gray-800 dark:bg-gray-900">
+                                            </label>
+                                            <label class="text-xs text-muted"><span x-text="row.reason === 'other' ? 'Explain (required)' : 'Notes (optional)'"></span>
+                                                <input :name="field(row, 'notes')" x-model="row.notes" maxlength="500" class="mt-1 h-11 w-full rounded-md border border-border bg-white px-3 dark:border-gray-800 dark:bg-gray-900">
+                                            </label>
+                                            <p x-show="diff(row) > 0 && row.reason === 'not_recorded' && row.jo_ref" class="text-xs text-muted sm:col-span-3" x-text="'The cycle(s) will be added to job order ' + row.jo_ref + ' so the job-order cycles stay true.'"></p>
                                         </div>
                                     </td>
                                 </tr>

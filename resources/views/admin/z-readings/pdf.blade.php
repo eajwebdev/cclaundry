@@ -213,7 +213,7 @@
                     $systemCycles = (int) ($counter['system_cycles'] ?? $machineCycles->where('machine_number', $machine)->where('cycle_type', 'wash')->sum('cycle_count'));
                     $nonJobTotal = (int) ($counter['non_job_total'] ?? 0);
                     $unexplained = (int) ($counter['unexplained_cycles'] ?? (($counter['total'] ?? $systemCycles) - $systemCycles - $nonJobTotal));
-                    $reasonSummary = collect($counter['non_job_cycles'] ?? [])->filter(fn ($count) => (int) $count > 0)->map(fn ($count, $reason) => ($nonJobCycleReasons[$reason] ?? str($reason)->replace('_', ' ')->title()).': '.$count)->implode(', ');
+                    $reasonSummary = collect($counter['non_job_cycles'] ?? [])->filter(fn ($count) => (int) $count > 0)->map(fn ($count, $reason) => ($nonJobCycleReasons[$reason] ?? str($reason)->replace('_', ' ')->title()).': '.$count)->implode(', ') ?: ($counterFaultReasons[$counter['fault'] ?? ''] ?? '');
                 @endphp
                 <table class="machine">
                     <tr><th colspan="2">Wash {{ $machine }}</th></tr>
@@ -236,7 +236,7 @@
                     $systemCycles = (int) ($counter['system_cycles'] ?? $machineCycles->where('machine_number', $machine)->where('cycle_type', 'dry')->sum('cycle_count'));
                     $nonJobTotal = (int) ($counter['non_job_total'] ?? 0);
                     $unexplained = (int) ($counter['unexplained_cycles'] ?? (($counter['total'] ?? $systemCycles) - $systemCycles - $nonJobTotal));
-                    $reasonSummary = collect($counter['non_job_cycles'] ?? [])->filter(fn ($count) => (int) $count > 0)->map(fn ($count, $reason) => ($nonJobCycleReasons[$reason] ?? str($reason)->replace('_', ' ')->title()).': '.$count)->implode(', ');
+                    $reasonSummary = collect($counter['non_job_cycles'] ?? [])->filter(fn ($count) => (int) $count > 0)->map(fn ($count, $reason) => ($nonJobCycleReasons[$reason] ?? str($reason)->replace('_', ' ')->title()).': '.$count)->implode(', ') ?: ($counterFaultReasons[$counter['fault'] ?? ''] ?? '');
                 @endphp
                 <table class="machine">
                     <tr><th colspan="2">Dry {{ $machine }}</th></tr>

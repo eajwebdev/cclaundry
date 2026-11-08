@@ -95,7 +95,7 @@ class ZReadingStepsTest extends TestCase
         $this->actingAs($this->attendant)->post(route('admin.z-readings.store'), $payload)->assertSessionHasErrors('machine_counters.1.wash.jo_ref');
 
         $payload['machine_counters'][1]['wash'] = ['ending' => 99];
-        $this->actingAs($this->attendant)->post(route('admin.z-readings.store'), $payload)->assertSessionHasErrors('machine_counters.1.wash.ending');
+        $this->actingAs($this->attendant)->post(route('admin.z-readings.store'), $payload)->assertSessionHasErrors('machine_counters.1.wash.fault');
 
         $this->assertDatabaseCount('z_readings', 1);
     }
@@ -189,6 +189,33 @@ class ZReadingStepsTest extends TestCase
             ->assertOk()
             ->assertSee('\\u0022begin\\u0022:100,\\u0022begin_editable\\u0022:false,\\u0022end\\u0022:101', false)
             ->assertSee('\\u0022begin\\u0022:200,\\u0022begin_editable\\u0022:false,\\u0022end\\u0022:200', false);
+    }
+
+    public function test_a_counter_that_skips_cycles_can_be_explained_with_a_reason(): void
+    {
+        // Washer 3 case: one job-order wash, but the counter did not move.
+        CycleRecord::query()->create([
+            'job_order_id' => $this->order->id, 'user_id' => $this->admin->id, 'cycle_type' => 'wash',
+            'machine_number' => 2, 'cycle_number' => 1, 'started_at' => self::DATE.' 10:00:00', 'ended_at' => self::DATE.' 11:00:00',
+        ]);
+        $payload = $this->payload();
+
+        $this->actingAs($this->attendant)->post(route('admin.z-readings.store'), $payload)
+            ->assertSessionHasErrors('machine_counters.2.wash.fault');
+
+        $payload['machine_counters'][2]['wash']['fault'] = 'other';
+        $this->actingAs($this->attendant)->post(route('admin.z-readings.store'), $payload)
+            ->assertSessionHasErrors('machine_counters.2.wash.fault');
+
+        $payload['machine_counters'][2]['wash']['fault'] = 'counter_not_working';
+        $this->actingAs($this->attendant)->post(route('admin.z-readings.store'), $payload)->assertSessionHasNoErrors();
+
+        $row = $this->z()->machine_counters[2]['wash'];
+        $this->assertSame('explained', $row['reconciliation_status']);
+        $this->assertSame('counter_not_working', $row['fault']);
+        $this->assertSame(0, $row['unexplained_cycles']);
+
+        $this->actingAs($this->admin)->get(route('admin.z-readings.pdf', $this->z()))->assertOk();
     }
 
     public function test_saved_z_is_locked_for_staff_and_admin_edit_recalculates_later_openings(): void
