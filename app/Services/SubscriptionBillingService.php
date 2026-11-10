@@ -128,6 +128,40 @@ class SubscriptionBillingService
     }
 
     /**
+     * The last day the branch stays covered, following paid records that overlap
+     * or continue right after the active one (e.g. advance or yearly payments).
+     */
+    public function paidCoverageEnd(Branch $branch, ?Carbon $date = null): ?Carbon
+    {
+        $active = $this->activePaidRecord($branch, $date);
+
+        if (! $active?->subscription_end_date) {
+            return null;
+        }
+
+        $end = $active->subscription_end_date->copy()->startOfDay();
+
+        $records = $branch->billingRecords()
+            ->where('status', 'paid')
+            ->whereNotNull('subscription_start_date')
+            ->whereDate('subscription_end_date', '>', $end->toDateString())
+            ->orderBy('subscription_start_date')
+            ->get(['id', 'subscription_start_date', 'subscription_end_date']);
+
+        foreach ($records as $record) {
+            if ($record->subscription_start_date->copy()->startOfDay()->gt($end->copy()->addDay())) {
+                break;
+            }
+
+            if ($record->subscription_end_date->copy()->startOfDay()->gt($end)) {
+                $end = $record->subscription_end_date->copy()->startOfDay();
+            }
+        }
+
+        return $end;
+    }
+
+    /**
      * Create the cycle that follows the branch's latest coverage (for advance pay).
      */
     public function createNextAfterLatest(Branch $branch): ?BranchBillingRecord

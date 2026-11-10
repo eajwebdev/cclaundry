@@ -95,8 +95,9 @@ class EnsureBranchBillingAccess
         $paidRecord = $this->billing->activePaidRecord($branch, $today);
 
         if ($paidRecord) {
-            $daysUntilEnd = $paidRecord->subscription_end_date
-                ? (int) $today->copy()->startOfDay()->diffInDays($paidRecord->subscription_end_date->copy()->startOfDay(), false)
+            $coverageEnd = $this->billing->paidCoverageEnd($branch, $today);
+            $daysUntilEnd = $coverageEnd
+                ? (int) $today->copy()->startOfDay()->diffInDays($coverageEnd, false)
                 : null;
 
             // Prompt to renew (advance pay) as the coverage window nears its end.
@@ -107,8 +108,8 @@ class EnsureBranchBillingAccess
                     'type' => 'billing',
                     'dismissible' => true,
                     'autoOpen' => true,
-                    'key' => 'billing-renew-'.($nextRecord?->id ?? $paidRecord->id).'-'.$paidRecord->subscription_end_date->toDateString(),
-                    'message' => 'Your subscription ends in '.$daysUntilEnd.' day'.($daysUntilEnd === 1 ? '' : 's').' ('.$paidRecord->subscription_end_date->format('M d, Y').'). Pay now to keep the system active.',
+                    'key' => 'billing-renew-'.($nextRecord?->id ?? $paidRecord->id).'-'.$coverageEnd->toDateString(),
+                    'message' => 'Your subscription ends in '.$daysUntilEnd.' day'.($daysUntilEnd === 1 ? '' : 's').' ('.$coverageEnd->format('M d, Y').'). Pay now to keep the system active.',
                     'payRecordId' => $nextRecord?->isPayable() ? $nextRecord->id : null,
                 ]);
             }
@@ -206,18 +207,25 @@ class EnsureBranchBillingAccess
             ->whereDate('subscription_start_date', '<=', $today->toDateString())
             ->whereDate('subscription_end_date', '>=', $today->toDateString())
             ->latest('subscription_end_date')
-            ->limit(5)
             ->get()
+            ->unique('branch_id')
+            ->take(5)
             ->map(function (BranchBillingRecord $record) use ($today, $notifyDays) {
-                $daysUntilEnd = $record->subscription_end_date
-                    ? (int) $today->copy()->startOfDay()->diffInDays($record->subscription_end_date->copy()->startOfDay(), false)
+                // Follow later paid records (advance / yearly payments) so a branch that
+                // is already paid ahead isn't told its renewal is coming up.
+                $coverageEnd = $record->branch
+                    ? $this->billing->paidCoverageEnd($record->branch, $today)
+                    : $record->subscription_end_date?->copy()->startOfDay();
+
+                $daysUntilEnd = $coverageEnd
+                    ? (int) $today->copy()->startOfDay()->diffInDays($coverageEnd, false)
                     : null;
 
                 if ($daysUntilEnd !== null && $daysUntilEnd >= 0 && $daysUntilEnd <= $notifyDays) {
                     return [
                         'type' => 'billing',
                         'title' => ($record->branch?->name ? $record->branch->name.' - ' : '').'Renewal coming up',
-                        'message' => 'Paid through '.$record->subscription_end_date->format('M d, Y').'. Renews in '.$daysUntilEnd.' day'.($daysUntilEnd === 1 ? '' : 's').'.',
+                        'message' => 'Paid through '.$coverageEnd->format('M d, Y').'. Renews in '.$daysUntilEnd.' day'.($daysUntilEnd === 1 ? '' : 's').'.',
                         'key' => 'billing-paid-'.$record->id,
                     ];
                 }
