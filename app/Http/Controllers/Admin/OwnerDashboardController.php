@@ -7,6 +7,7 @@ use App\Models\ZReading;
 use App\Support\OwnerDashboard\ClosingView;
 use App\Support\OwnerDashboard\OverviewStats;
 use App\Support\OwnerDashboard\Period;
+use App\Support\OwnerDashboard\SuppliesStats;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -18,6 +19,13 @@ class OwnerDashboardController extends Controller
         abort_unless($request->user()->isAdmin(), 403);
 
         return response()->json(OverviewStats::for(Period::fromRequest($request)));
+    }
+
+    public function supplies(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+
+        return response()->json(SuppliesStats::for(Period::fromRequest($request)));
     }
 
     public function closing(Request $request): JsonResponse

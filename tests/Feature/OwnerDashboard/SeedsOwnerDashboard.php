@@ -4,6 +4,8 @@ namespace Tests\Feature\OwnerDashboard;
 
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\Inventory;
+use App\Models\InventoryMovement;
 use App\Models\JobOrder;
 use App\Models\LaundryService;
 use App\Models\LaundryServiceCategory;
@@ -30,9 +32,9 @@ trait SeedsOwnerDashboard
         return User::factory()->create(['role' => 'super_admin']);
     }
 
-    protected function service(string $name, string $pricingType, float $price, bool $addon = false): LaundryService
+    protected function service(string $name, string $pricingType, float $price, bool $addon = false, string $category = 'Add-ons'): LaundryService
     {
-        $category = $addon ? LaundryServiceCategory::query()->firstOrCreate(['name' => 'Add-ons'], ['is_addon' => true]) : null;
+        $category = $addon ? LaundryServiceCategory::query()->firstOrCreate(['name' => $category], ['is_addon' => true]) : null;
 
         return LaundryService::query()->create([
             'name' => $name, 'report_category' => 'regular', 'pricing_type' => $pricingType, 'price' => $price,
@@ -85,5 +87,26 @@ trait SeedsOwnerDashboard
             'branch_id' => $b->id, 'reading_number' => "ZR-{$b->code}-{$date}", 'business_date' => $date,
             'signature_name' => 'Cashier', 'status' => 'balanced',
         ]);
+    }
+
+    protected function stockItem(Branch $b, string $name, string $unit, float $unitCost, array $attrs = []): Inventory
+    {
+        return Inventory::query()->create($attrs + [
+            'branch_id' => $b->id, 'name' => $name, 'unit' => $unit, 'quantity' => 0, 'reorder_level' => 0,
+            'unit_cost' => $unitCost, 'is_active' => true,
+        ]);
+    }
+
+    /** Stores the item's current cost unless $attrs says otherwise; quantity defaults to |change| (pass the new level for adjustments). */
+    protected function movement(Inventory $i, string $dateTime, string $type, float $changeQty, array $attrs = []): InventoryMovement
+    {
+        // forceFill: created_at is not fillable.
+        $movement = (new InventoryMovement)->forceFill($attrs + [
+            'inventory_id' => $i->id, 'movement_type' => $type, 'quantity' => abs($changeQty), 'change_qty' => $changeQty,
+            'unit_cost' => $i->unit_cost, 'created_at' => $dateTime, 'updated_at' => $dateTime,
+        ]);
+        $movement->save();
+
+        return $movement;
     }
 }

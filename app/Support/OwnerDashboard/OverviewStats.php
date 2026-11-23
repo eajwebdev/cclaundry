@@ -8,6 +8,7 @@ use App\Models\Payment;
 use App\Models\ZReading;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -225,15 +226,25 @@ final class OverviewStats
         return [$hour % 12 ?: 12, $hour < 12 ? 'AM' : 'PM'];
     }
 
-    private static function services(Period $period): array
+    /** Lines of the counted orders, joined to service `s` and category `c` (both may be null). */
+    public static function lines(Period $period): QueryBuilder
     {
-        $lines = DB::table('job_order_items')
+        return DB::table('job_order_items')
             ->leftJoin('laundry_services as s', 's.id', '=', 'job_order_items.laundry_service_id')
             ->leftJoin('laundry_service_categories as c', 'c.id', '=', 's.service_category_id')
             ->whereIn('job_order_items.job_order_id', self::orderQuery($period)->select('job_orders.id'));
+    }
 
-        $addonsTotal = (float) (clone $lines)->where('c.is_addon', true)->sum('job_order_items.total');
-        $rows = (clone $lines)
+    /** Add-on lines: their service's category is flagged is_addon. */
+    public static function addonLines(Period $period): QueryBuilder
+    {
+        return self::lines($period)->where('c.is_addon', true);
+    }
+
+    private static function services(Period $period): array
+    {
+        $addonsTotal = (float) self::addonLines($period)->sum('job_order_items.total');
+        $rows = self::lines($period)
             ->where(fn ($q) => $q->whereNull('c.is_addon')->orWhere('c.is_addon', false))
             ->groupByRaw('COALESCE(s.name, job_order_items.description)')
             ->selectRaw('COALESCE(s.name, job_order_items.description) as name, MAX(s.pricing_type) as pricing_type, SUM(job_order_items.quantity) as qty, SUM(job_order_items.total) as amount')
