@@ -227,11 +227,12 @@ function busiest(root, d) {
             h('span', {}, 'Chip = busiest 2 hours · open Mon–Sat 8 AM–7 PM, Sun 10 AM–5 PM')));
 }
 
-/** "5,190 kg · ₱30/kg", "18 loads · ₱175"; no price part when the API has none. */
+/** "5,190 kg · ₱30/kg", "18 loads · ₱175/load"; no price part when the API has none. */
 function priceLine(r) {
     if (r.price === null || r.price === undefined) return qty(r.qty, r.unit);
     const price = Number.isInteger(Number(r.price)) ? peso(r.price) : pesoCents(r.price);
-    return `${qty(r.qty, r.unit)} · ${price}${r.unit === 'kg' ? '/kg' : ''}`;
+    const per = { kg: 'kg', loads: 'load', pcs: 'pc' }[r.unit] ?? r.unit;
+    return `${qty(r.qty, r.unit)} · ${price}${per ? `/${per}` : ''}`;
 }
 
 function services(root, d) {

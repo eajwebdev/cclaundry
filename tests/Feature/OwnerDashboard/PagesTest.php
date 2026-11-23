@@ -160,6 +160,20 @@ class PagesTest extends TestCase
         }
     }
 
+    public function test_page_scripts_carry_no_fixed_period_wording(): void
+    {
+        $files = [resource_path('js/owner-dashboard.js'), ...glob(resource_path('js/owner-dashboard/*.js'))];
+        $this->assertGreaterThan(1, count($files));
+
+        foreach ($files as $file) {
+            // The one allowed occurrence: flatpickr's config value, never shown.
+            $source = mb_strtolower(str_replace("maxDate: 'today'", '', file_get_contents($file)));
+            foreach (['today', 'this week', 'this month', 'last 7 days', 'vs last', 'next payday', 'still to pay'] as $phrase) {
+                $this->assertStringNotContainsString($phrase, $source, basename($file)." contains \"$phrase\"");
+            }
+        }
+    }
+
     public function test_menu_shows_owner_dashboard_to_admins_only(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'access' => ['dashboard']]);
