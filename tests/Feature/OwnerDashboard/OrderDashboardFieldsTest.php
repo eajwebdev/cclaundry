@@ -205,6 +205,29 @@ class OrderDashboardFieldsTest extends TestCase
         $this->assertTrue(Schema::hasColumns('branch_expenses', ['bill_type', 'period_start', 'period_end']));
     }
 
+    public function test_date_filters_have_indexes_and_down_drops_only_its_own(): void
+    {
+        $file = database_path('migrations/2026_11_24_000001_add_owner_dashboard_date_indexes.php');
+        $indexes = ['job_orders' => 'created_at', 'inventory_movements' => 'created_at', 'payments' => 'paid_at'];
+        foreach ($indexes as $table => $column) {
+            $this->assertTrue(Schema::hasIndex($table, [$column]), "{$table}.{$column}");
+        }
+
+        $migration = require $file;
+        $migration->up(); // re-run: nothing to add
+        $migration->down();
+        foreach ($indexes as $table => $column) {
+            $this->assertFalse(Schema::hasIndex($table, [$column]), "{$table}.{$column} dropped");
+        }
+
+        // An index someone already made is kept by up() and never dropped by down().
+        Schema::table('payments', fn ($table) => $table->index('paid_at', 'payments_paid_on'));
+        $migration->up();
+        $migration->down();
+        $this->assertTrue(Schema::hasIndex('payments', 'payments_paid_on'));
+        $this->assertFalse(Schema::hasIndex('job_orders', ['created_at']));
+    }
+
     public function test_backfill_fills_old_orders(): void
     {
         $kilo = $this->service('Regular', 'kilo', 30);

@@ -264,7 +264,7 @@ class InventoryController extends Controller
             'unit' => ['required', 'string', 'max:30'],
             'quantity' => ['required', 'numeric', 'min:0'],
             'reorder_level' => ['required', 'numeric', 'min:0'],
-            'unit_cost' => ['required', 'numeric', 'min:0'],
+            'unit_cost' => ['required', 'numeric', 'min:0', 'decimal:0,4'],
             'is_active' => ['nullable', 'boolean'],
         ];
     }

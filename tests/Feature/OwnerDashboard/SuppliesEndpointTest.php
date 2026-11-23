@@ -146,6 +146,24 @@ class SuppliesEndpointTest extends TestCase
             ->assertJsonPath('adjustments', []);
     }
 
+    public function test_item_cost_keeps_four_decimals_so_per_ml_costs_add_up(): void
+    {
+        $this->withoutVite();
+        $this->actingAs($this->owner)->post(route('admin.inventory.store'), $this->itemForm(['name' => 'Vinegar', 'quantity' => 0, 'unit_cost' => 0.042]))
+            ->assertSessionHasNoErrors();
+        $vinegar = Inventory::query()->where('name', 'Vinegar')->firstOrFail();
+        $this->assertSame('0.0420', $vinegar->unit_cost);
+        $this->actingAs($this->owner)->post(route('admin.inventory.store'), $this->itemForm(['name' => 'Too fine', 'unit_cost' => 0.00001]))
+            ->assertSessionHasErrors('unit_cost');
+
+        $this->movement($vinegar, '2026-11-10 09:00:00', 'out', -9000);
+        $this->supplies('2026-11-01', '2026-11-23')->assertJsonPath('kpis.supplies_used', 378);
+
+        $this->actingAs($this->owner)->get(route('admin.inventory.index', ['branch_id' => $this->a->id]))->assertOk()
+            ->assertSee('PHP 0.042</td>', false)
+            ->assertSee('PHP 0.00</td>', false); // money totals stay at 2 decimals
+    }
+
     public function test_edit_form_stock_change_is_a_count_adjustment(): void
     {
         $this->detergent->update(['quantity' => 19000]);

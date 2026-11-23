@@ -118,7 +118,7 @@
                                 <span class="text-muted">{{ $item->unit }}</span>
                             </td>
                             <td class="px-4 py-3">{{ rtrim(rtrim(number_format((float) $item->reorder_level, 4, '.', ''), '0'), '.') }} {{ $item->unit }}</td>
-                            <td class="px-4 py-3">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $item->unit_cost, 2) }}</td>
+                            <td class="px-4 py-3">{{ $appSettings?->currency ?? 'PHP' }} {{ preg_replace('/(\.\d{2}\d*?)0+$/', '$1', number_format((float) $item->unit_cost, 4)) }}</td>
                             <td class="px-4 py-3 font-medium">{{ $appSettings?->currency ?? 'PHP' }} {{ number_format((float) $item->quantity * (float) $item->unit_cost, 2) }}</td>
                             <td class="px-4 py-3">
                                 <span class="{{ \App\Support\StatusBadge::classes($isLow ? 'low' : ($item->is_active ? 'active' : 'inactive')) }}">

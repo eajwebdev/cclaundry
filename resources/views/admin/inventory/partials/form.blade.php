@@ -56,7 +56,7 @@
 
         <div>
             <label class="mb-1.5 block text-sm font-medium">Unit Cost</label>
-            <input type="number" step="0.01" min="0" name="unit_cost" value="{{ old('unit_cost', $item->unit_cost ?? 0) }}" required class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+            <input type="number" step="0.0001" min="0" name="unit_cost" value="{{ old('unit_cost', $item->unit_cost ?? 0) }}" required class="h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
         </div>
 
         <div class="md:col-span-2">
