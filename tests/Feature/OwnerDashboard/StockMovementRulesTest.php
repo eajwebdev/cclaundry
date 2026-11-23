@@ -89,7 +89,9 @@ class StockMovementRulesTest extends TestCase
         $this->setUpShop();
 
         $this->move(['movement_type' => 'adjustment', 'quantity' => 900])->assertSessionHasErrors('reason');
-        $this->move(['movement_type' => 'adjustment', 'quantity' => 900, 'reason' => 'order_edit'])->assertSessionHasErrors('reason');
+        foreach (['order_edit', 'cancelled_order'] as $systemReason) {
+            $this->move(['movement_type' => 'adjustment', 'quantity' => 900, 'reason' => $systemReason])->assertSessionHasErrors('reason');
+        }
         $this->assertSame(0, InventoryMovement::query()->count());
 
         $this->move(['movement_type' => 'adjustment', 'quantity' => 900, 'reason' => 'spill'])->assertSessionDoesntHaveErrors();
@@ -151,5 +153,25 @@ class StockMovementRulesTest extends TestCase
         $outs = InventoryMovement::query()->where('movement_type', 'out')->orderBy('id')->get();
         $this->assertCount(2, $outs);
         $this->assertSame(-0.03, (float) $outs->last()->change_qty);
+    }
+
+    public function test_updating_an_order_to_cancelled_tags_the_restore_as_cancelled_order(): void
+    {
+        $this->setUpShop(1);
+        [$order, $service, $customer] = $this->deductedOrder();
+
+        $this->actingAs($this->admin)->put(route('admin.job-orders.update', $order), [
+            'customer_id' => $customer->id,
+            'processing_branch_id' => $this->branch->id,
+            'items' => [['laundry_service_id' => $service->id, 'description' => 'Regular Laundry', 'quantity' => 7, 'unit_price' => 30]],
+            'discount' => 0, 'status' => 'cancelled', 'transaction_type' => 'walk_in',
+        ])->assertSessionDoesntHaveErrors();
+
+        $this->assertSame(2, InventoryMovement::query()->count());
+        $back = InventoryMovement::query()->where('movement_type', 'in')->firstOrFail();
+        $this->assertSame('cancelled_order', $back->reason);
+        $this->assertSame(0.03, (float) $back->change_qty);
+        $this->assertSame(1.0, (float) $this->stock->fresh()->quantity);
+        $this->assertNull($order->fresh()->inventory_deducted_at);
     }
 }

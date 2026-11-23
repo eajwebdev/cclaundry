@@ -716,7 +716,7 @@ class JobOrderController extends Controller
             $paid = (float) $jobOrder->payments()->sum('amount');
 
             if ($inventoryWasDeducted) {
-                $this->restoreInventoryForOrder($jobOrder, $request->user()?->id, 'order_edit');
+                $this->restoreInventoryForOrder($jobOrder, $request->user()?->id, $validated['status'] === 'cancelled' ? 'cancelled_order' : 'order_edit');
             }
 
             $jobOrder->items()->delete();

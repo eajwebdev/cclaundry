@@ -189,7 +189,7 @@ class InventoryController extends Controller
         $validated = $request->validate([
             'movement_type' => ['required', Rule::in(['in', 'out', 'adjustment'])],
             'quantity' => ['required', 'numeric', 'min:0.01'],
-            'reason' => [Rule::requiredIf($request->input('movement_type') === 'adjustment'), 'nullable', Rule::in(InventoryMovement::REASONS)],
+            'reason' => [Rule::requiredIf($request->input('movement_type') === 'adjustment'), 'nullable', Rule::in(array_diff(InventoryMovement::REASONS, ['cancelled_order']))],
             'remarks' => ['nullable', 'string', 'max:500'],
         ]);
 
