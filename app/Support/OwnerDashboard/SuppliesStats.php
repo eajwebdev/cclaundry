@@ -4,18 +4,20 @@ namespace App\Support\OwnerDashboard;
 
 use App\Models\InventoryMovement;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Page 2 of the owner dashboard: supplies used, bought and adjusted, valued at cost.
  * Movement classes follow ruling R1; sums run at full precision and are rounded once, at output.
+ * The use class is summed in SQL (it is most of the rows); purchases and adjustments are read row by row.
  */
 final class SuppliesStats
 {
     public static function for(Period $period): array
     {
-        $moves = self::movements($period);
+        $moves = self::used($period)->concat(self::listed($period));
         $orders = OverviewStats::orders($period);
 
         return [
@@ -43,7 +45,7 @@ final class SuppliesStats
      */
     public static function usedSummary(Period $period): array
     {
-        $used = self::movements($period)->where('class', 'use');
+        $used = self::used($period);
 
         return [
             'cost' => (float) $used->sum('cost'),
@@ -54,17 +56,52 @@ final class SuppliesStats
         ];
     }
 
-    /**
-     * Every classified movement in range, newest first, with signed `qty` and `cost`
-     * (use: out +, order_edit restore −; purchase +; adjust signed like change_qty). Unclassified rows are dropped.
-     */
-    private static function movements(Period $period): Collection
+    /** Movements in range, joined to their item `i`, scoped to the branch of the item. */
+    private static function inRange(Period $period): Builder
     {
         return DB::table('inventory_movements')
             ->join('inventories as i', 'i.id', '=', 'inventory_movements.inventory_id')
-            ->leftJoin('suppliers as s', 's.id', '=', 'i.supplier_id')
             ->whereBetween('inventory_movements.created_at', [$period->from.' 00:00:00', $period->to.' 23:59:59'])
-            ->when($period->branchId, fn ($q, $id) => $q->where('i.branch_id', $id))
+            ->when($period->branchId, fn ($q, $id) => $q->where('i.branch_id', $id));
+    }
+
+    /**
+     * The "use" class (R1) summed in SQL per local date and item: out rows count +, order_edit restores −,
+     * each by |change| at the movement's cost (the item's cost when none was stored). DATE() of a stored
+     * local datetime gives the same 'Y-m-d' on SQLite and MySQL. Unrounded.
+     */
+    private static function used(Period $period): Collection
+    {
+        $sign = "CASE WHEN inventory_movements.movement_type = 'out' THEN 1 ELSE -1 END * ABS(COALESCE(inventory_movements.change_qty, inventory_movements.quantity))";
+        $day = 'DATE(inventory_movements.created_at)';
+
+        return self::inRange($period)
+            ->where(fn ($q) => $q
+                ->where(fn ($q) => $q->where('inventory_movements.movement_type', 'out')
+                    ->where(fn ($q) => $q->whereNull('inventory_movements.reason')->orWhere('inventory_movements.reason', '!=', 'opening_stock')))
+                ->orWhere(fn ($q) => $q->where('inventory_movements.movement_type', 'in')->where('inventory_movements.reason', 'order_edit')))
+            // Grouped by item id, as rows were before: two items that share a name and unit are merged in PHP, not by collation.
+            ->groupByRaw("{$day}, inventory_movements.inventory_id, i.name, i.unit")
+            ->selectRaw("{$day} as day, i.name, i.unit, SUM({$sign}) as qty, SUM({$sign} * COALESCE(inventory_movements.unit_cost, i.unit_cost)) as cost")
+            ->get()
+            ->map(fn ($r) => (object) [
+                'class' => 'use', 'date' => (string) $r->day, 'name' => $r->name, 'unit' => $r->unit,
+                'qty' => (float) $r->qty, 'cost' => (float) $r->cost,
+            ]);
+    }
+
+    /**
+     * Purchases and adjustments (R1), one row each since the page lists them, newest first, with signed `qty`
+     * and `cost` (purchase +; adjust signed like change_qty). Opening stock and the use class are left out.
+     */
+    private static function listed(Period $period): Collection
+    {
+        return self::inRange($period)
+            ->leftJoin('suppliers as s', 's.id', '=', 'i.supplier_id')
+            ->where(fn ($q) => $q->whereNull('inventory_movements.reason')->orWhere('inventory_movements.reason', '!=', 'opening_stock'))
+            ->where(fn ($q) => $q->where('inventory_movements.movement_type', 'adjustment')
+                ->orWhere(fn ($q) => $q->where('inventory_movements.movement_type', 'in')
+                    ->where(fn ($q) => $q->whereNull('inventory_movements.reason')->orWhereIn('inventory_movements.reason', InventoryMovement::REASONS))))
             ->orderByDesc('inventory_movements.created_at')->orderByDesc('inventory_movements.id')
             ->get([
                 'inventory_movements.movement_type as type', 'inventory_movements.quantity', 'inventory_movements.change_qty',
@@ -75,15 +112,7 @@ final class SuppliesStats
             ->map(function ($m) {
                 // Old adjustment rows have no usable change; quantity there is a stock level, not a delta.
                 $change = (float) ($m->change_qty ?? ($m->type === 'adjustment' ? 0 : $m->quantity));
-                [$class, $sign] = match (true) {
-                    // An item's opening stock is in no class: it was not bought, used or adjusted in the range.
-                    $m->reason === 'opening_stock' => [null, 0],
-                    $m->type === 'out' => ['use', 1],
-                    $m->type === 'in' && $m->reason === 'order_edit' => ['use', -1],
-                    $m->type === 'in' && $m->reason === null => ['purchase', 1],
-                    $m->type === 'adjustment', $m->type === 'in' && in_array($m->reason, InventoryMovement::REASONS, true) => ['adjust', $change < 0 ? -1 : 1],
-                    default => [null, 0],
-                };
+                [$class, $sign] = $m->type === 'in' && $m->reason === null ? ['purchase', 1] : ['adjust', $change < 0 ? -1 : 1];
                 $qty = $sign * abs($change);
 
                 return (object) [
@@ -91,9 +120,7 @@ final class SuppliesStats
                     'qty' => $qty, 'cost' => $qty * (float) $m->unit_value, 'reason' => $m->reason ?? 'other',
                     'source' => $m->supplier ?? $m->remarks, 'note' => $m->remarks,
                 ];
-            })
-            ->whereNotNull('class')
-            ->values();
+            });
     }
 
     private static function kpis(Period $period, Collection $moves, int $orders): array

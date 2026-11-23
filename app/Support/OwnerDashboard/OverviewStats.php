@@ -38,14 +38,18 @@ final class OverviewStats
         return (float) JobOrderItem::query()->whereIn('job_order_id', self::orderQuery($period)->select('id'))->sum('total');
     }
 
-    /** @return array<string, float> Sales per local order date ('Y-m-d'), only days with sales. Grouped in PHP. */
+    /**
+     * @return array<string, float> Sales per local order date ('Y-m-d'), only days with sales.
+     * DATE() of a stored local datetime gives the same 'Y-m-d' on SQLite and MySQL.
+     */
     public static function salesByDay(Period $period): array
     {
         return self::lines($period)
             ->join('job_orders', 'job_orders.id', '=', 'job_order_items.job_order_id')
-            ->get(['job_orders.created_at', 'job_order_items.total'])
-            ->groupBy(fn ($l) => substr((string) $l->created_at, 0, 10))
-            ->map(fn ($lines) => (float) $lines->sum('total'))
+            ->groupByRaw('DATE(job_orders.created_at)')
+            ->selectRaw('DATE(job_orders.created_at) as day, SUM(job_order_items.total) as total')
+            ->pluck('total', 'day')
+            ->map(fn ($total) => (float) $total)
             ->all();
     }
 
@@ -131,6 +135,12 @@ final class OverviewStats
     private static function closings(Period $period): array
     {
         $closings = ZReading::query()
+            // Only what ClosingView and the summary read (the large JSON step columns stay in the database).
+            ->select([
+                'id', 'branch_id', 'business_date', 'prepared_by', 'closed_by', 'machine_counters',
+                'cash_diff', 'gcash_diff', 'deposit_diff', 'expected_cash_drawer_amount', 'actual_cash_amount',
+                'expected_gcash_amount', 'actual_gcash_amount', 'deposit_bag_amount', 'float_for_tomorrow', 'gcash_transfer_amount',
+            ])
             ->whereDate('business_date', '>=', $period->from)
             ->whereDate('business_date', '<=', $period->to)
             ->when($period->branchId, fn ($q, $id) => $q->where('branch_id', $id))
@@ -157,15 +167,27 @@ final class OverviewStats
         ];
     }
 
-    /** Grouped in PHP, not SQL: tests run on SQLite, production on MySQL. */
+    /**
+     * Counted per weekday and hour in one pass over two columns, without a model per order.
+     * Grouped in PHP, not SQL: tests run on SQLite, production on MySQL.
+     */
     private static function busiest(Period $period): array
     {
-        $orders = self::orderQuery($period)->get(['id', 'created_at', 'kg_weighed']);
+        $counts = array_fill(0, 7, []); // weekday => [hour => orders]
+        $kg = array_fill(0, 7, 0.0);
+        $weekdayOf = [];
+        foreach (self::orderQuery($period)->toBase()->select(['job_orders.created_at', 'job_orders.kg_weighed'])->cursor() as $o) {
+            $at = (string) $o->created_at; // local time, 'Y-m-d H:i:s'
+            $weekday = $weekdayOf[substr($at, 0, 10)] ??= CarbonImmutable::parse(substr($at, 0, 10))->dayOfWeek;
+            $hour = (int) substr($at, 11, 2);
+            $counts[$weekday][$hour] = ($counts[$weekday][$hour] ?? 0) + 1;
+            $kg[$weekday] += (float) $o->kg_weighed;
+        }
 
         if ($period->from === $period->to) {
             [$open, $close] = self::openingHours(CarbonImmutable::parse($period->from)->dayOfWeek);
-            $byHour = $orders->countBy(fn ($o) => $o->created_at->hour);
-            $hours = collect(range($open, $close - 1))->merge($byHour->keys())->unique()->sort()->values();
+            $byHour = $counts[CarbonImmutable::parse($period->from)->dayOfWeek];
+            $hours = collect(range($open, $close - 1))->merge(array_keys($byHour))->unique()->sort()->values();
 
             return ['mode' => 'hourly', 'rows' => $hours->map(fn ($h) => ['hour' => $h, 'label' => self::hourLabel($h), 'orders' => $byHour[$h] ?? 0])->all()];
         }
@@ -175,35 +197,37 @@ final class OverviewStats
             $inRange[$d->dayOfWeek] = true;
         }
         $openDays = collect($period->openDates())->countBy(fn ($date) => CarbonImmutable::parse($date)->dayOfWeek);
-        $byDay = $orders->groupBy(fn ($o) => $o->created_at->dayOfWeek);
 
         $rows = [];
         foreach (self::DAYS as $weekday => $day) {
-            $dayOrders = $byDay->get($weekday, collect());
+            $byHour = $counts[$weekday];
             $divisor = $openDays[$weekday] ?? 0;
             $avg = fn (float $x) => $divisor ? round($x / $divisor, 1) : 0.0;
-            $beforeNoon = $dayOrders->filter(fn ($o) => $o->created_at->hour < 12)->count();
+            $beforeNoon = array_sum(array_filter($byHour, fn ($hour) => $hour < 12, ARRAY_FILTER_USE_KEY));
             $before = $avg($beforeNoon);
-            $after = $avg($dayOrders->count() - $beforeNoon);
+            $after = $avg(array_sum($byHour) - $beforeNoon);
             $rows[] = [
                 'day' => $day,
                 'in_range' => isset($inRange[$weekday]),
                 'before_noon' => $before,
                 'after_noon' => $after,
                 'total' => round($before + $after, 1), // the sum of the two shown figures, so the page adds up
-                'kg' => $avg($dayOrders->sum(fn ($o) => (float) $o->kg_weighed)),
-                'peak' => self::peak($weekday, $dayOrders),
+                'kg' => $avg($kg[$weekday]),
+                'peak' => self::peak($weekday, $byHour),
             ];
         }
 
         return ['mode' => 'weekday', 'rows' => $rows];
     }
 
-    /** Label of the busiest 2-hour window inside opening hours, earliest on ties; null when no order falls in one. */
-    private static function peak(int $weekday, Collection $orders): ?string
+    /**
+     * Label of the busiest 2-hour window inside opening hours, earliest on ties; null when no order falls in one.
+     *
+     * @param  array<int, int>  $byHour  orders per hour of that weekday
+     */
+    private static function peak(int $weekday, array $byHour): ?string
     {
         [$open, $close] = self::openingHours($weekday);
-        $byHour = $orders->countBy(fn ($o) => $o->created_at->hour);
         $best = null;
         $bestCount = 0;
         for ($h = $open; $h + 1 < $close; $h++) {

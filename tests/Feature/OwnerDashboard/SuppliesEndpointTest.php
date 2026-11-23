@@ -8,6 +8,8 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Support\OwnerDashboard\Period;
 use App\Support\OwnerDashboard\SuppliesStats;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -159,6 +161,67 @@ class SuppliesEndpointTest extends TestCase
             ->assertJsonPath('kpis.adjustments', -30)
             ->assertJsonPath('adjustments.0.reason', 'count')
             ->assertJsonPath('adjustments.0.qty', -500);
+    }
+
+    public function test_long_range_totals_equal_a_plain_sum_over_the_rows(): void
+    {
+        mt_srand(7);
+        $items = [$this->detergent, $this->stockItem($this->a, 'Fabcon', 'mL', 0.05), $this->stockItem($this->a, 'Bags', 'pcs', 1.5)];
+        for ($n = 0; $n < 300; $n++) {
+            $item = $items[$n % 3];
+            $at = CarbonImmutable::parse('2026-01-01 07:00:00')->addDays(mt_rand(0, 303))->addMinutes(mt_rand(0, 16 * 60))->toDateTimeString();
+            $qty = mt_rand(1, 5000) / 10;
+            $cost = $n % 17 === 0 ? ['unit_cost' => null] : ($n % 5 === 0 ? ['unit_cost' => mt_rand(1, 900) / 1000] : []);
+            match ($n % 6) {
+                0, 1, 2 => $this->movement($item, $at, 'out', -$qty, $cost),
+                3 => $this->movement($item, $at, 'in', $qty, $cost + ['reason' => 'order_edit']),
+                4 => $this->movement($item, $at, 'in', $qty, $cost),
+                5 => $this->movement($item, $at, 'adjustment', $n % 4 ? -$qty : $qty, $cost + ['reason' => 'count', 'quantity' => 100]),
+            };
+        }
+
+        // Straight from the rows, R1 by hand: out is use, an order_edit restore is negative use.
+        $used = $bought = $adjusted = 0.0;
+        $usedBy = [];
+        $purchases = $adjustments = 0;
+        $rows = DB::table('inventory_movements as m')->join('inventories as i', 'i.id', '=', 'm.inventory_id')
+            ->whereBetween('m.created_at', ['2026-01-01 00:00:00', '2026-10-31 23:59:59'])
+            ->get(['m.movement_type', 'm.reason', 'm.change_qty', 'm.unit_cost', 'i.unit_cost as item_cost', 'i.name']);
+        $this->assertGreaterThan(300, $rows->count());
+        $this->assertTrue($rows->contains(fn ($r) => $r->unit_cost === null));
+        foreach ($rows as $r) {
+            $value = abs((float) $r->change_qty) * (float) ($r->unit_cost ?? $r->item_cost);
+            if ($r->movement_type === 'out' || $r->reason === 'order_edit') {
+                $signed = $r->movement_type === 'out' ? $value : -$value;
+                $used += $signed;
+                $usedBy[$r->name] = ($usedBy[$r->name] ?? 0) + $signed;
+            } elseif ($r->movement_type === 'in' && $r->reason === null) {
+                $bought += $value;
+                $purchases++;
+            } else {
+                $adjusted += (float) $r->change_qty < 0 ? -$value : $value;
+                $adjustments++;
+            }
+        }
+
+        $res = $this->supplies('2026-01-01', '2026-10-31')->assertJsonPath('period.bucket', 'month');
+        $this->assertEqualsWithDelta(round($used, 2), $res->json('kpis.supplies_used'), 0.011);
+        $this->assertEqualsWithDelta(round($bought, 2), $res->json('kpis.stock_purchased'), 0.011);
+        $this->assertEqualsWithDelta(round($adjusted, 2), $res->json('kpis.adjustments'), 0.011);
+        $this->assertSame($purchases, $res->json('kpis.purchases_count'));
+        $this->assertSame($adjustments, $res->json('kpis.adjustments_count'));
+        $this->assertCount($purchases, $res->json('purchases'));
+        $this->assertCount($adjustments, $res->json('adjustments'));
+        $this->assertSame($res->json('kpis.supplies_used'), $res->json('items_total.cost_used'));
+        foreach ($res->json('items') as $row) {
+            $this->assertEqualsWithDelta($usedBy[$row['name']], $row['cost_used'], 0.006, $row['name']);
+        }
+        $this->assertEqualsWithDelta($used, array_sum(array_column($res->json('usage_buckets'), 'cost')), 0.06);
+        $this->assertEqualsWithDelta($used, SuppliesStats::usedCost(Period::make('2026-01-01', '2026-10-31', null)), 1e-6);
+
+        $this->actingAs($this->owner)
+            ->getJson(route('owner-dashboard.api.profit', ['from' => '2026-01-01', 'to' => '2026-10-31', 'branch' => 'all']))
+            ->assertJsonPath('money_out.supplies.amount', $res->json('kpis.supplies_used'));
     }
 
     public function test_usage_buckets_follow_the_bucket_rule_and_flag_saturdays(): void

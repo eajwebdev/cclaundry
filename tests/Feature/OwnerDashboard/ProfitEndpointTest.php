@@ -175,7 +175,11 @@ class ProfitEndpointTest extends TestCase
             ->assertJsonPath('staff.kg', 300)
             ->assertJsonPath('supplies_items', ['Bleach', 'Detergent', 'Fabcon', 'Bags', 'Spray'])
             ->assertJsonPath('money_out.supplies.amount', 2050);
-        $this->assertSame(1, $queries, 'the profit request reads stock movements once');
+        $this->assertSame(1, $queries, 'the profit request reads stock movements once: the use-class aggregate');
+
+        $queries = 0;
+        $this->actingAs($this->owner)->getJson(route('owner-dashboard.api.supplies', ['from' => '2026-09-19', 'to' => '2026-09-25', 'branch' => 'all']))->assertOk();
+        $this->assertSame(2, $queries, 'the supplies request reads stock movements twice: the use-class aggregate and the listed purchase/adjustment rows');
     }
 
     public function test_break_even_covered_on_day(): void
