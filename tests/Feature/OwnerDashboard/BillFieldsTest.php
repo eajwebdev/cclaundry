@@ -119,6 +119,21 @@ class BillFieldsTest extends TestCase
         $this->assertNull($expense->period_end);
     }
 
+    public function test_changing_only_the_date_of_a_bill_keeps_its_stored_period(): void
+    {
+        $september = ['period_start' => '2026-09-01', 'period_end' => '2026-09-30'];
+        $this->actingAs($this->admin)->post(route('admin.expenses.store'), $this->bill($september + ['expense_date' => '2026-10-02']))
+            ->assertSessionHasNoErrors();
+        $expense = BranchExpense::query()->firstOrFail();
+
+        $this->actingAs($this->admin)->put(route('admin.expenses.update', $expense), $this->bill($september + ['expense_date' => '2026-10-03']))
+            ->assertSessionHasNoErrors();
+
+        $expense->refresh();
+        $this->assertSame('2026-10-03', $expense->expense_date->toDateString());
+        $this->assertSame(['2026-09-01', '2026-09-30'], [$expense->period_start->toDateString(), $expense->period_end->toDateString()]);
+    }
+
     public function test_counted_scope_excludes_pending_and_disputed(): void
     {
         foreach (['none', 'confirmed', 'pending', 'disputed'] as $status) {
@@ -143,6 +158,11 @@ class BillFieldsTest extends TestCase
             'electric' => ['utilities', 'Electric bill', 'utilities', '2026-03-15'],
             'tax' => ['government_fees', 'BIR', 'government_fees', '2026-03-15'],
             'other' => ['other', 'Mop', 'other', '2026-03-15'],
+            // Rows from before the `operating` remap keep their real type only in `category`.
+            'legacy_water' => ['operating', 'Water bill', 'Utilities', '2026-04-15'],
+            'legacy_rent' => ['regular', 'April', ' Rent ', '2026-04-15'],
+            'legacy_tax' => ['operating', 'Permit', 'Government Fees', '2026-04-15'],
+            'legacy_payroll' => ['operating', 'Salaries', 'payroll', '2026-04-15'],
         ];
         $ids = [];
         foreach ($rows as $key => [$type, $title, $category, $date]) {
@@ -164,6 +184,10 @@ class BillFieldsTest extends TestCase
             'electric' => ['electricity', '2026-03-01', '2026-03-31'],
             'tax' => ['taxes', '2026-03-01', '2026-03-31'],
             'other' => [null, null, null],
+            'legacy_water' => ['water', '2026-04-01', '2026-04-30'],
+            'legacy_rent' => ['rent', '2026-04-01', '2026-04-30'],
+            'legacy_tax' => ['taxes', '2026-04-01', '2026-04-30'],
+            'legacy_payroll' => [null, null, null],
         ];
         $read = fn () => collect($ids)->map(fn ($id) => array_values((array) DB::table('branch_expenses')->where('id', $id)->first(['bill_type', 'period_start', 'period_end'])))->all();
         $first = $read();
@@ -173,5 +197,6 @@ class BillFieldsTest extends TestCase
 
         $migration->backfill();
         $this->assertSame($first, $read());
+        $this->assertSame('operating', DB::table('branch_expenses')->where('id', $ids['legacy_water'])->value('expense_type'));
     }
 }

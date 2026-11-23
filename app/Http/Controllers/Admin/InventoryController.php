@@ -113,6 +113,8 @@ class InventoryController extends Controller
                     'quantity' => $item->quantity,
                     'unit_cost' => $item->unit_cost,
                     'change_qty' => $item->quantity,
+                    // System-only reason: the stock an item starts with is not bought, used or adjusted.
+                    'reason' => 'opening_stock',
                     'remarks' => 'Opening stock',
                 ]);
             }
@@ -148,6 +150,7 @@ class InventoryController extends Controller
                     'quantity' => $newQuantity,
                     'unit_cost' => $lockedInventory->unit_cost,
                     'change_qty' => round($newQuantity - $previousQuantity, 4),
+                    'reason' => 'count',
                     'remarks' => 'Physical count changed while editing item (previous: '
                         .rtrim(rtrim(number_format($previousQuantity, 4, '.', ''), '0'), '.').' '.$lockedInventory->unit.')',
                 ]);
@@ -191,7 +194,7 @@ class InventoryController extends Controller
             'quantity' => ['required', 'numeric', 'min:0.01'],
             'reason' => [Rule::requiredIf($request->input('movement_type') === 'adjustment'), 'nullable', Rule::in(array_diff(InventoryMovement::REASONS, ['cancelled_order']))],
             'remarks' => ['nullable', 'string', 'max:500'],
-        ]);
+        ], ['reason.required' => 'Choose a reason for the physical count adjustment.']);
 
         DB::transaction(function () use ($request, $inventory, $validated) {
             $inventory = Inventory::query()->whereKey($inventory->id)->lockForUpdate()->firstOrFail();

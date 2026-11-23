@@ -10,6 +10,7 @@ use App\Models\PickupRequest;
 use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -114,6 +115,15 @@ class OrderDashboardFieldsTest extends TestCase
         $this->assertSame('shop_pickup', JobOrder::query()->firstOrFail()->return_type);
     }
 
+    public function test_delivery_transaction_order_is_a_delivery_from_the_start(): void
+    {
+        $this->store([$this->line($this->service('Regular', 'kilo', 30), 6)], ['transaction_type' => 'delivery'])->assertSessionDoesntHaveErrors();
+
+        $order = JobOrder::query()->firstOrFail();
+        $this->assertSame('walk_in', $order->intake_type);
+        $this->assertSame('delivery', $order->return_type);
+    }
+
     public function test_walk_in_order_is_walk_in(): void
     {
         $order = $this->walkInOrder();
@@ -177,6 +187,24 @@ class OrderDashboardFieldsTest extends TestCase
         $this->assertSame('shop_pickup', $order->return_type);
     }
 
+    public function test_dashboard_migrations_can_run_again_after_an_interruption(): void
+    {
+        $this->walkInOrder();
+        foreach (glob(database_path('migrations/2026_11_23_00000*.php')) as $file) {
+            $migration = require $file;
+            // The columns exist but the run was never recorded: up() must not fail on a duplicate column.
+            $migration->up();
+            $migration->down();
+            $migration->down();
+            $migration->up();
+        }
+
+        $this->assertSame(6.0, (float) DB::table('job_orders')->value('kg_weighed'));
+        $this->assertTrue(Schema::hasColumns('attendance_employees', ['employer_share_rate']));
+        $this->assertTrue(Schema::hasColumns('inventory_movements', ['unit_cost', 'change_qty', 'reason']));
+        $this->assertTrue(Schema::hasColumns('branch_expenses', ['bill_type', 'period_start', 'period_end']));
+    }
+
     public function test_backfill_fills_old_orders(): void
     {
         $kilo = $this->service('Regular', 'kilo', 30);
@@ -193,12 +221,15 @@ class OrderDashboardFieldsTest extends TestCase
             'quantity' => $qty, 'unit_price' => 1, 'total' => $qty, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
-        $a = $order('A');
-        DB::table('pickup_requests')->insert([
-            'reference_no' => 'PU-A', 'customer_id' => $this->customer->id, 'branch_id' => $this->branch->id,
+        $booking = fn (string $ref, int $orderId, string $preference) => DB::table('pickup_requests')->insert([
+            'reference_no' => $ref, 'customer_id' => $this->customer->id, 'branch_id' => $this->branch->id,
             'contact_name' => 'C', 'contact_phone' => '0917', 'pickup_address' => 'x', 'pickup_date' => now()->toDateString(),
-            'status' => 'picked_up', 'job_order_id' => $a, 'created_at' => now(), 'updated_at' => now(),
+            'status' => 'picked_up', 'job_order_id' => $orderId, 'delivery_preference' => $preference, 'created_at' => now(), 'updated_at' => now(),
         ]);
+        $a = $order('A');
+        $booking('PU-A', $a, 'branch_pickup');
+        $f = $order('F');
+        $booking('PU-F', $f, 'deliver');
         $b = $order('B', ['transaction_type' => 'delivery']);
         $c = $order('C', ['deleted_at' => now()]);
         $item($c, $kilo, 6.5);
@@ -214,6 +245,9 @@ class OrderDashboardFieldsTest extends TestCase
 
         $row = fn (int $id) => DB::table('job_orders')->find($id);
         $this->assertSame('house_pickup', $row($a)->intake_type);
+        $this->assertSame('shop_pickup', $row($a)->return_type);
+        $this->assertSame('house_pickup', $row($f)->intake_type);
+        $this->assertSame('delivery', $row($f)->return_type);
         $this->assertSame('delivery', $row($b)->return_type);
         $this->assertEquals(22.5, $row($c)->kg_weighed);
         $this->assertEquals(0, $row($d)->kg_weighed);

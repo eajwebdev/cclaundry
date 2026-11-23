@@ -4,7 +4,12 @@
 
 @section('content')
 @php($activeBranch = $branches->firstWhere('id', $selectedBranchId))
-<div x-data="{ createOpen: false, supplierOpen: false, editOpen: null, movementOpen: null }" class="space-y-4">
+@php($failedMovement = $errors->any() && ctype_digit((string) old('_movement_form', '')) ? (int) old('_movement_form') : null)
+<div x-data="{ createOpen: false, supplierOpen: false, editOpen: null, movementOpen: {{ $failedMovement ?? 'null' }} }" class="space-y-4">
+    @if($errors->any())
+        <div role="alert" class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $errors->first() }}</div>
+    @endif
+
     <div class="flex flex-col gap-3 rounded-lg border border-border bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <div class="mb-2 inline-flex items-center gap-1.5 rounded-md border border-border bg-smoke px-2.5 py-1 text-xs font-medium text-muted dark:border-gray-800 dark:bg-gray-950">
@@ -221,10 +226,15 @@
                     </div>
                     <button type="button" @click="movementOpen = null" class="rounded-md p-2 hover:bg-smoke dark:hover:bg-gray-800"><span data-lucide="x" class="h-4 w-4"></span></button>
                 </div>
-                <form method="POST" action="{{ route('admin.inventory.movements.store', $item) }}" class="space-y-4">
+                @php($isFailed = $failedMovement === $item->id)
+                <form method="POST" action="{{ route('admin.inventory.movements.store', $item) }}" class="space-y-4" x-data="{ type: @js($isFailed ? old('movement_type', 'in') : 'in') }">
                     @csrf
+                    <input type="hidden" name="_movement_form" value="{{ $item->id }}">
+                    @if($isFailed)
+                        <div role="alert" class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ $errors->first() }}</div>
+                    @endif
                     <label class="block text-sm font-medium">Movement Type
-                        <select name="movement_type" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+                        <select name="movement_type" x-model="type" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
                             <option value="in">Stock In</option>
                             <option value="out">Stock Out</option>
                             <option value="adjustment">Physical Count Adjustment</option>
@@ -234,7 +244,7 @@
                         <input type="number" step="0.0001" min="0.0001" name="quantity" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
                     </label>
                     <label class="block text-sm font-medium">Reason (physical count adjustment only)
-                        <select name="reason" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+                        <select name="reason" :required="type === 'adjustment'" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
                             <option value="">-</option>
                             <option value="count">Count</option>
                             <option value="spill">Spill</option>

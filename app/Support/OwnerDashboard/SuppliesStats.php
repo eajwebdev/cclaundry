@@ -76,6 +76,8 @@ final class SuppliesStats
                 // Old adjustment rows have no usable change; quantity there is a stock level, not a delta.
                 $change = (float) ($m->change_qty ?? ($m->type === 'adjustment' ? 0 : $m->quantity));
                 [$class, $sign] = match (true) {
+                    // An item's opening stock is in no class: it was not bought, used or adjusted in the range.
+                    $m->reason === 'opening_stock' => [null, 0],
                     $m->type === 'out' => ['use', 1],
                     $m->type === 'in' && $m->reason === 'order_edit' => ['use', -1],
                     $m->type === 'in' && $m->reason === null => ['purchase', 1],

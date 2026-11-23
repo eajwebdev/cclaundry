@@ -558,7 +558,7 @@ class JobOrderController extends Controller
                 'is_rush' => (bool) ($validated['is_rush'] ?? false),
                 'kg_weighed' => $this->kgWeighed($validated['items'], $selectedServices),
                 'intake_type' => $pickupRequest ? 'house_pickup' : 'walk_in',
-                'return_type' => $pickupRequest?->wantsDelivery() ? 'delivery' : 'shop_pickup',
+                'return_type' => ($validated['transaction_type'] ?? 'walk_in') === 'delivery' || $pickupRequest?->wantsDelivery() ? 'delivery' : 'shop_pickup',
                 'subtotal' => $subtotal,
                 'discount' => $discount,
                 'tax' => $tax,
@@ -716,6 +716,9 @@ class JobOrderController extends Controller
             abort_if($jobOrder->archived_at, 422, 'Restore this job order before editing it.');
             $previousProcessingBranchId = (int) ($jobOrder->processing_branch_id ?: $jobOrder->branch_id);
             $inventoryWasDeducted = (bool) $jobOrder->inventory_deducted_at;
+            // Cancelling returned the stock and cleared inventory_deducted_at; a drop-off order the plant
+            // already accepted is not scanned again, so un-cancelling it here must take the stock again.
+            $reopensAcceptedOrder = $jobOrder->status === 'cancelled' && $jobOrder->production_accepted_at;
             $validated['processing_branch_id'] = $this->resolveProcessingBranchId($jobOrder->branch, $validated['processing_branch_id'] ?? null, $request->user());
             $processingBranchChanged = (int) $validated['processing_branch_id'] !== $previousProcessingBranchId;
             $settings = SystemSetting::current();
@@ -781,7 +784,7 @@ class JobOrderController extends Controller
             $jobOrder->update($orderUpdates);
 
             $shouldDeductInventory = $validated['status'] !== 'cancelled'
-                && (! $jobOrder->branch?->isPickupDropoff() || ($inventoryWasDeducted && ! $processingBranchChanged));
+                && (! $jobOrder->branch?->isPickupDropoff() || (($inventoryWasDeducted || $reopensAcceptedOrder) && ! $processingBranchChanged));
 
             if ($shouldDeductInventory) {
                 $this->deductInventoryForOrder($jobOrder, $validated['items'], $request->user()?->id);

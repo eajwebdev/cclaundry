@@ -122,6 +122,45 @@ class SuppliesEndpointTest extends TestCase
             ->assertJsonPath('adjustments.0.cost', 0);
     }
 
+    private function itemForm(array $overrides = []): array
+    {
+        return $overrides + ['branch_id' => $this->a->id, 'name' => 'Bleach', 'unit' => 'mL', 'quantity' => 5000, 'reorder_level' => 0, 'unit_cost' => 0.05, 'is_active' => 1];
+    }
+
+    public function test_opening_stock_of_a_new_item_appears_nowhere(): void
+    {
+        $this->actingAs($this->owner)->post(route('admin.inventory.store'), $this->itemForm())->assertSessionHasNoErrors();
+
+        $opening = Inventory::query()->where('name', 'Bleach')->firstOrFail()->movements()->sole();
+        $this->assertSame(['adjustment', 'opening_stock', 0.05, 5000.0], [$opening->movement_type, $opening->reason, (float) $opening->unit_cost, (float) $opening->change_qty]);
+        $this->assertNotContains('opening_stock', \App\Models\InventoryMovement::REASONS);
+
+        $this->supplies('2026-11-01', '2026-11-23')
+            ->assertJsonPath('kpis.supplies_used', 0)
+            ->assertJsonPath('kpis.purchases_count', 0)
+            ->assertJsonPath('kpis.adjustments_count', 0)
+            ->assertJsonPath('items', [])
+            ->assertJsonPath('purchases', [])
+            ->assertJsonPath('adjustments', []);
+    }
+
+    public function test_edit_form_stock_change_is_a_count_adjustment(): void
+    {
+        $this->detergent->update(['quantity' => 19000]);
+        $this->actingAs($this->owner)->put(route('admin.inventory.update', $this->detergent), $this->itemForm([
+            'name' => 'Detergent', 'quantity' => 18500, 'unit_cost' => 0.06,
+        ]))->assertSessionHasNoErrors();
+
+        $change = $this->detergent->movements()->latest('id')->firstOrFail();
+        $this->assertSame(['adjustment', 'count', 0.06, -500.0], [$change->movement_type, $change->reason, (float) $change->unit_cost, (float) $change->change_qty]);
+
+        $this->supplies('2026-11-01', '2026-11-23')
+            ->assertJsonPath('kpis.adjustments_count', 1)
+            ->assertJsonPath('kpis.adjustments', -30)
+            ->assertJsonPath('adjustments.0.reason', 'count')
+            ->assertJsonPath('adjustments.0.qty', -500);
+    }
+
     public function test_usage_buckets_follow_the_bucket_rule_and_flag_saturdays(): void
     {
         $month = $this->supplies()->assertJsonCount(30, 'usage_buckets');

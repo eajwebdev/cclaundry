@@ -52,6 +52,7 @@
         confirmDrawer: @js((bool) old('confirm_drawer')),
         expenseTitle: @js(old('title', '')),
         expenseDate: @js(old('expense_date', $formDate)),
+        previousDate: @js(old('expense_date', $formDate)),
         salaryPeriodStart: @js(old('salary_period_start', $salaryPeriodStart)),
         salaryPeriodEnd: @js(old('salary_period_end', $salaryPeriodEnd)),
         billTypeOptions: @js($billTypeOptions),
@@ -71,12 +72,22 @@
         // Rent and government fees have one bill type, so it is not asked.
         get askBillType() { return Object.keys(this.billChoices).length > 1; },
         // A bill covers the calendar month of the expense date unless the period is changed.
-        defaultPeriod() {
-            const [year, month] = String(this.expenseDate).split('-').map(Number);
-            if (!year || !month) return;
+        monthOf(date) {
+            const [year, month] = String(date).split('-').map(Number);
+            if (!year || !month) return null;
             const pad = value => String(value).padStart(2, '0');
-            this.periodStart = `${year}-${pad(month)}-01`;
-            this.periodEnd = `${year}-${pad(month)}-${pad(new Date(year, month, 0).getDate())}`;
+            return [`${year}-${pad(month)}-01`, `${year}-${pad(month)}-${pad(new Date(year, month, 0).getDate())}`];
+        },
+        defaultPeriod() {
+            const month = this.monthOf(this.expenseDate);
+            if (month) [this.periodStart, this.periodEnd] = month;
+        },
+        // A new date re-defaults the period only while it is empty or still the old date's month,
+        // so a period someone typed, or a stored bill's own period, is never moved silently.
+        dateChanged() {
+            const before = this.monthOf(this.previousDate);
+            if (!this.periodStart || (before && this.periodStart === before[0] && this.periodEnd === before[1])) this.defaultPeriod();
+            this.previousDate = this.expenseDate;
         },
         get drawerPart() {
             return this.isPayroll ? Number(this.split.drawer || 0) : (this.paidWith === 'drawer' ? Number(this.expenseAmount || 0) : 0);
@@ -151,6 +162,7 @@
         fill(values) {
             this.expenseBranchId = String(values.branch_id ?? '');
             this.expenseDate = values.expense_date ?? '';
+            this.previousDate = this.expenseDate;
             this.expenseCategory = values.category ?? 'supplies';
             this.expenseAmount = values.amount ?? '';
             this.paidWith = values.paid_with || 'drawer';
@@ -239,7 +251,7 @@
                     @else
                         <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id }}">
                     @endif
-                    <label class="text-sm font-medium">Expense Date<input type="date" name="expense_date" x-model="expenseDate" @change="defaultPeriod()" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
+                    <label class="text-sm font-medium">Expense Date<input type="date" name="expense_date" x-model="expenseDate" @change="dateChanged()" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
                     <label class="text-sm font-medium">What did you buy / pay?
                         <select name="category" x-model="expenseCategory" @change="billType = ''; if (!periodStart) defaultPeriod()" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
                             @foreach($categories as $category)

@@ -11,6 +11,7 @@ use App\Models\LaundryService;
 use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class StockMovementRulesTest extends TestCase
@@ -98,6 +99,25 @@ class StockMovementRulesTest extends TestCase
         $this->assertSame('spill', InventoryMovement::query()->firstOrFail()->reason);
     }
 
+    public function test_adjustment_without_a_reason_shows_the_error_on_the_inventory_page(): void
+    {
+        $this->setUpShop();
+        $this->withoutVite();
+        $index = route('admin.inventory.index', ['branch_id' => $this->branch->id]);
+
+        $this->actingAs($this->admin)->from($index)
+            ->post(route('admin.inventory.movements.store', $this->stock), [
+                '_movement_form' => $this->stock->id, 'movement_type' => 'adjustment', 'quantity' => 900, 'reason' => '',
+            ])
+            ->assertRedirect($index)
+            ->assertSessionHasErrors(['reason' => 'Choose a reason for the physical count adjustment.']);
+
+        $this->actingAs($this->admin)->get($index)->assertOk()
+            ->assertSee('Choose a reason for the physical count adjustment.')
+            ->assertSee('movementOpen: '.$this->stock->id, false); // the failed movement modal opens again
+        $this->assertSame(0, InventoryMovement::query()->count());
+    }
+
     public function test_cancelling_an_order_returns_its_supplies_as_a_positive_adjustment(): void
     {
         $this->setUpShop(1);
@@ -123,7 +143,7 @@ class StockMovementRulesTest extends TestCase
         $this->actingAs($this->admin)->patch(route('admin.job-orders.cancel', $order));
         $count = InventoryMovement::query()->count();
 
-        $this->actingAs($this->admin)->patch(route('admin.job-orders.cancel', $order));
+        $this->actingAs($this->admin)->patch(route('admin.job-orders.cancel', $order))->assertStatus(422);
         $this->assertSame($count, InventoryMovement::query()->count());
 
         $order2 = JobOrder::query()->whereKey($order->id)->firstOrFail()->replicate();
@@ -153,6 +173,93 @@ class StockMovementRulesTest extends TestCase
         $outs = InventoryMovement::query()->where('movement_type', 'out')->orderBy('id')->get();
         $this->assertCount(2, $outs);
         $this->assertSame(-0.03, (float) $outs->last()->change_qty);
+    }
+
+    public function test_uncancelling_an_accepted_drop_off_order_takes_its_supplies_again(): void
+    {
+        $this->setUpShop(1);
+        $plant = Branch::query()->create(['name' => 'Plant', 'code' => 'P001', 'branch_type' => 'full_service', 'is_active' => true]);
+        $plantStock = $this->stock->replicate();
+        $plantStock->branch_id = $plant->id;
+        $plantStock->save();
+        $this->branch->update(['branch_type' => 'pickup_dropoff']);
+        $customer = Customer::query()->create([
+            'branch_id' => $this->branch->id, 'name' => 'C', 'billing_type' => 'regular', 'unpaid_limit' => 1000, 'is_active' => true,
+        ]);
+        $service = LaundryService::query()->create([
+            'branch_id' => $this->branch->id, 'name' => 'Regular Laundry', 'report_category' => 'wash',
+            'pricing_type' => 'kilo', 'price' => 30, 'minimum_kilos' => 5, 'is_active' => true,
+        ]);
+        $service->inventoryUsages()->create(['inventory_id' => $this->stock->id, 'quantity' => 0.04]);
+        $this->actingAs($this->admin)->post(route('admin.job-orders.store'), ['processing_branch_id' => $plant->id] + $this->orderPayload($service->id, $customer->id))
+            ->assertSessionHasNoErrors();
+        $order = JobOrder::query()->sole();
+        $this->admin->update(['branch_id' => $plant->id]);
+        $this->actingAs($this->admin)->get(route('admin.cycles.scan', $order))->assertSessionHasNoErrors();
+        $this->actingAs($this->admin)->patch(route('admin.job-orders.cancel', $order))->assertSessionHasNoErrors();
+        $this->assertSame(1.0, (float) $plantStock->fresh()->quantity);
+
+        $this->actingAs($this->admin)->put(route('admin.job-orders.update', $order), [
+            'customer_id' => $customer->id, 'processing_branch_id' => $plant->id,
+            'items' => [['laundry_service_id' => $service->id, 'description' => 'Regular Laundry', 'quantity' => 7, 'unit_price' => 30]],
+            'discount' => 0, 'status' => 'pending', 'transaction_type' => 'walk_in',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(0.97, (float) $plantStock->fresh()->quantity);
+        $this->assertNotNull($order->fresh()->inventory_deducted_at);
+        $this->assertSame(1.0, (float) $this->stock->fresh()->quantity);
+    }
+
+    public function test_backfill_fills_old_movements(): void
+    {
+        $this->setUpShop(1000, 0.06);
+        $customer = Customer::query()->create([
+            'branch_id' => $this->branch->id, 'name' => 'C', 'billing_type' => 'regular', 'unpaid_limit' => 1000, 'is_active' => true,
+        ]);
+        $order = fn (string $no, string $status, array $extra = []) => DB::table('job_orders')->insert($extra + [
+            'branch_id' => $this->branch->id, 'customer_id' => $customer->id, 'job_order_number' => $no,
+            'status' => $status, 'transaction_type' => 'walk_in', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $order('JO-CANCELLED', 'cancelled');
+        $order('JO-ACTIVE', 'washing');
+        $order('JO-DELETED', 'cancelled', ['deleted_at' => now()]);
+        $move = fn (string $type, float $qty, ?string $remarks = null, array $extra = []) => DB::table('inventory_movements')->insertGetId($extra + [
+            'inventory_id' => $this->stock->id, 'movement_type' => $type, 'quantity' => $qty, 'remarks' => $remarks,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $ids = [
+            'in' => $move('in', 5),
+            'out' => $move('out', 2, 'Auto deducted for JO-ACTIVE'),
+            'adjustment' => $move('adjustment', 900, 'Counted'),
+            'opening' => $move('adjustment', 1000, 'Opening stock'),
+            'cancelled' => $move('in', 3, 'Auto restored for JO-CANCELLED'),
+            'edited' => $move('in', 4, 'Auto restored for JO-ACTIVE'),
+            'deleted' => $move('in', 6, 'Auto restored for JO-DELETED'),
+            'missing' => $move('in', 7, 'Auto restored for JO-GONE'),
+            // Written by the app after the columns existed: never touched.
+            'new' => $move('adjustment', 10, 'Spilled', ['unit_cost' => 0.05, 'change_qty' => -2, 'reason' => 'spill']),
+        ];
+
+        $migration = require database_path('migrations/2026_11_23_000001_add_cost_and_reason_to_inventory_movements.php');
+        $migration->backfill();
+
+        $read = fn () => collect($ids)->map(fn ($id) => (array) DB::table('inventory_movements')->where('id', $id)->first(['unit_cost', 'change_qty', 'reason']))
+            ->map(fn ($r) => [(float) $r['unit_cost'], (float) $r['change_qty'], $r['reason']])->all();
+        $this->assertSame([
+            'in' => [0.06, 5.0, null],
+            'out' => [0.06, -2.0, null],
+            'adjustment' => [0.06, 0.0, null],
+            'opening' => [0.06, 0.0, 'opening_stock'],
+            'cancelled' => [0.06, 3.0, 'cancelled_order'],
+            'edited' => [0.06, 4.0, 'order_edit'],
+            'deleted' => [0.06, 6.0, 'cancelled_order'],
+            'missing' => [0.06, 7.0, 'order_edit'],
+            'new' => [0.05, -2.0, 'spill'],
+        ], $first = $read());
+
+        $this->stock->update(['unit_cost' => 0.07]);
+        $migration->backfill();
+        $this->assertSame($first, $read());
     }
 
     public function test_updating_an_order_to_cancelled_tags_the_restore_as_cancelled_order(): void

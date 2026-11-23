@@ -9,10 +9,17 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Guarded so a run interrupted after the DDL (MySQL commits it at once) can be re-run.
         Schema::table('job_orders', function (Blueprint $table) {
-            $table->decimal('kg_weighed', 8, 2)->default(0)->after('is_rush');
-            $table->string('intake_type', 20)->default('walk_in')->after('kg_weighed');
-            $table->string('return_type', 20)->default('shop_pickup')->after('intake_type');
+            if (! Schema::hasColumn('job_orders', 'kg_weighed')) {
+                $table->decimal('kg_weighed', 8, 2)->default(0)->after('is_rush');
+            }
+            if (! Schema::hasColumn('job_orders', 'intake_type')) {
+                $table->string('intake_type', 20)->default('walk_in')->after('kg_weighed');
+            }
+            if (! Schema::hasColumn('job_orders', 'return_type')) {
+                $table->string('return_type', 20)->default('shop_pickup')->after('intake_type');
+            }
         });
 
         $this->backfill();
@@ -26,6 +33,10 @@ return new class extends Migration
             ->update(['intake_type' => 'house_pickup']);
 
         DB::table('job_orders')->where('transaction_type', 'delivery')->update(['return_type' => 'delivery']);
+        // Same rule as JobOrderController::store: a booking that wants its laundry delivered.
+        DB::table('job_orders')
+            ->whereIn('id', DB::table('pickup_requests')->whereNotNull('job_order_id')->where('delivery_preference', 'deliver')->select('job_order_id'))
+            ->update(['return_type' => 'delivery']);
 
         // Same rule as JobOrder::kgFromItems, summed in PHP so it runs the same on SQLite and MySQL.
         DB::table('job_orders')->orderBy('id')->chunkById(200, function ($orders) {
@@ -48,8 +59,9 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('job_orders', function (Blueprint $table) {
-            $table->dropColumn(['kg_weighed', 'intake_type', 'return_type']);
-        });
+        $existing = array_values(array_filter(['kg_weighed', 'intake_type', 'return_type'], fn ($column) => Schema::hasColumn('job_orders', $column)));
+        if ($existing) {
+            Schema::table('job_orders', fn (Blueprint $table) => $table->dropColumn($existing));
+        }
     }
 };
