@@ -111,6 +111,8 @@ class InventoryController extends Controller
                     'user_id' => $request->user()->id,
                     'movement_type' => 'adjustment',
                     'quantity' => $item->quantity,
+                    'unit_cost' => $item->unit_cost,
+                    'change_qty' => $item->quantity,
                     'remarks' => 'Opening stock',
                 ]);
             }
@@ -144,6 +146,8 @@ class InventoryController extends Controller
                     'user_id' => $request->user()->id,
                     'movement_type' => 'adjustment',
                     'quantity' => $newQuantity,
+                    'unit_cost' => $lockedInventory->unit_cost,
+                    'change_qty' => round($newQuantity - $previousQuantity, 4),
                     'remarks' => 'Physical count changed while editing item (previous: '
                         .rtrim(rtrim(number_format($previousQuantity, 4, '.', ''), '0'), '.').' '.$lockedInventory->unit.')',
                 ]);
@@ -185,6 +189,7 @@ class InventoryController extends Controller
         $validated = $request->validate([
             'movement_type' => ['required', Rule::in(['in', 'out', 'adjustment'])],
             'quantity' => ['required', 'numeric', 'min:0.01'],
+            'reason' => [Rule::requiredIf($request->input('movement_type') === 'adjustment'), 'nullable', Rule::in(InventoryMovement::REASONS)],
             'remarks' => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -207,6 +212,9 @@ class InventoryController extends Controller
                 'user_id' => $request->user()->id,
                 'movement_type' => $validated['movement_type'],
                 'quantity' => $validated['quantity'],
+                'unit_cost' => $inventory->unit_cost,
+                'change_qty' => round(max($newQuantity, 0) - (float) $inventory->quantity, 4),
+                'reason' => $validated['movement_type'] === 'adjustment' ? $validated['reason'] : null,
                 'remarks' => $validated['remarks'] ?? null,
             ]);
 

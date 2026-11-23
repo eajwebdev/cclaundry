@@ -65,7 +65,8 @@ class BackfillFinishingSpray extends Command
                     if ($this->option('apply')) {
                         if ($delta > 0) {
                             $adjustment = new InventoryMovement([
-                                'movement_type' => 'out', 'quantity' => $delta, 'remarks' => $outRemark,
+                                'movement_type' => 'out', 'quantity' => $delta, 'unit_cost' => $stock->unit_cost,
+                                'change_qty' => -$delta, 'remarks' => $outRemark,
                             ]);
                             // Keep consumption in its original reporting period.
                             $adjustment->forceFill(['created_at' => $order->inventory_deducted_at]);
@@ -76,7 +77,10 @@ class BackfillFinishingSpray extends Command
                             $remaining = abs($delta);
                             foreach ($movements->where('movement_type', 'out')->sortByDesc('id') as $movement) {
                                 $reduction = min($remaining, (float) $movement->quantity);
-                                $movement->update(['quantity' => round((float) $movement->quantity - $reduction, 4)]);
+                                $movement->update([
+                                    'quantity' => round((float) $movement->quantity - $reduction, 4),
+                                    'change_qty' => round((float) $movement->change_qty + $reduction, 4),
+                                ]);
                                 $remaining = round($remaining - $reduction, 4);
                                 if ($remaining <= 0) {
                                     break;

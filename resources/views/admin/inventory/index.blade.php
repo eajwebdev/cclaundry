@@ -233,6 +233,14 @@
                     <label class="block text-sm font-medium">Quantity
                         <input type="number" step="0.0001" min="0.0001" name="quantity" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
                     </label>
+                    <label class="block text-sm font-medium">Reason (physical count adjustment only)
+                        <select name="reason" class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+                            <option value="">-</option>
+                            <option value="count">Count</option>
+                            <option value="spill">Spill</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </label>
                     <label class="block text-sm font-medium">Remarks
                         <textarea name="remarks" rows="3" class="mt-1.5 w-full rounded-md border border-border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" placeholder="Purchase, usage, correction, damaged stock..."></textarea>
                     </label>

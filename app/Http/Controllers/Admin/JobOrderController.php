@@ -716,7 +716,7 @@ class JobOrderController extends Controller
             $paid = (float) $jobOrder->payments()->sum('amount');
 
             if ($inventoryWasDeducted) {
-                $this->restoreInventoryForOrder($jobOrder, $request->user()?->id);
+                $this->restoreInventoryForOrder($jobOrder, $request->user()?->id, 'order_edit');
             }
 
             $jobOrder->items()->delete();
@@ -852,12 +852,19 @@ class JobOrderController extends Controller
 
         abort_if(in_array($jobOrder->status, ['completed', 'cancelled'], true), 422, 'Completed or cancelled job orders cannot be cancelled.');
 
-        $jobOrder->endActiveCycles();
+        DB::transaction(function () use ($request, $jobOrder) {
+            $jobOrder->endActiveCycles();
 
-        $jobOrder->update([
-            'status' => 'cancelled',
-            'completed_at' => null,
-        ]);
+            $jobOrder->update([
+                'status' => 'cancelled',
+                'completed_at' => null,
+            ]);
+
+            if ($jobOrder->inventory_deducted_at) {
+                $this->restoreInventoryForOrder($jobOrder, $request->user()?->id, 'cancelled_order');
+                $jobOrder->update(['inventory_deducted_at' => null]);
+            }
+        });
 
         Activity::log($request, 'job_order_cancelled', $jobOrder, [
             'job_order_number' => $jobOrder->job_order_number,
@@ -925,7 +932,7 @@ class JobOrderController extends Controller
                 'cycles_count' => $jobOrder->cycles->count(),
             ];
 
-            $this->restoreInventoryForOrder($jobOrder, $request->user()?->id);
+            $this->restoreInventoryForOrder($jobOrder, $request->user()?->id, 'cancelled_order');
             $this->deleteInventoryMovementsForOrder($jobOrder);
 
             CustomerLedger::query()
@@ -1235,6 +1242,8 @@ class JobOrderController extends Controller
                 'user_id' => $userId,
                 'movement_type' => 'out',
                 'quantity' => $quantity,
+                'unit_cost' => $inventory->unit_cost,
+                'change_qty' => -$quantity,
                 'remarks' => "Auto deducted for {$order->job_order_number}",
             ]);
 
@@ -1269,7 +1278,7 @@ class JobOrderController extends Controller
         }, $kept);
     }
 
-    private function restoreInventoryForOrder(JobOrder $order, ?int $userId): void
+    private function restoreInventoryForOrder(JobOrder $order, ?int $userId, string $reason): void
     {
         $deductionRemark = "Auto deducted for {$order->job_order_number}";
         $restoreRemark = "Auto restored for {$order->job_order_number}";
@@ -1297,6 +1306,9 @@ class JobOrderController extends Controller
                 'user_id' => $userId,
                 'movement_type' => 'in',
                 'quantity' => $quantity,
+                'unit_cost' => $inventory->unit_cost,
+                'change_qty' => $quantity,
+                'reason' => $reason,
                 'remarks' => $restoreRemark,
             ]);
             $inventory->update(['quantity' => round((float) $inventory->quantity + $quantity, 4)]);
