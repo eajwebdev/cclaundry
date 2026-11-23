@@ -1,31 +1,59 @@
+{{--
+    Used two ways:
+    1. `php artisan down --render="maintenance"` pre-renders this once, with no data, no session and no user.
+    2. EnsureSystemNotUnderMaintenance renders it per request with $message and $since.
+    So it must stay self-contained: inline CSS only (a deploy rebuilds the Vite assets while the site is down)
+    and every variable optional.
+--}}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
     <title>System Under Maintenance</title>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <style>
+        :root { --bg: #F6F1EA; --card: #FFFFFF; --ink: #2B211A; --muted: #8A7A6B; --line: #E7DDD1; --brand: #A07148; --brand-soft: #F3E9DE; }
+        @media (prefers-color-scheme: dark) {
+            :root { --bg: #17120E; --card: #211A14; --ink: #F3ECE4; --muted: #B3A392; --line: #3A2E24; --brand: #C7AC94; --brand-soft: #33271D; }
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px;
+               background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+        main { width: 100%; max-width: 28rem; padding: 32px 24px; text-align: center; background: var(--card);
+               border: 1px solid var(--line); border-radius: 12px; }
+        .icon { width: 56px; height: 56px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;
+                border-radius: 50%; background: var(--brand-soft); color: var(--brand); }
+        .brand { margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--brand); }
+        h1 { margin: 0; font-size: 22px; line-height: 1.3; }
+        p { margin: 12px 0 0; font-size: 15px; line-height: 1.5; color: var(--muted); }
+        .since { font-size: 13px; }
+        button { margin-top: 20px; height: 40px; padding: 0 18px; font: inherit; font-size: 14px; font-weight: 500; color: var(--ink);
+                 background: transparent; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+        button:hover { background: var(--brand-soft); }
+    </style>
 </head>
-<body class="app-surface text-dark dark:text-gray-100">
-    <main class="flex min-h-screen items-center justify-center p-4">
-        <section class="w-full max-w-md rounded-lg border border-border bg-white p-6 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300">
-                <span data-lucide="wrench" class="h-6 w-6"></span>
-            </div>
-            <h1 class="text-xl font-semibold">System Under Maintenance</h1>
-            <p class="mt-2 text-sm text-muted">{{ $message }}</p>
+<body>
+    <main>
+        <div class="icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+        </div>
+        <p class="brand">Cane &amp; Cotton Laundry</p>
+        <h1>System Under Maintenance</h1>
+        <p>{{ $message ?? 'The system is temporarily unavailable while we perform scheduled maintenance. Please check back shortly.' }}</p>
 
-            @if(! empty($since))
-                <p class="mt-3 text-xs text-muted">In maintenance since {{ $since->format('M d, Y g:i A') }}.</p>
-            @endif
+        @if(! empty($since))
+            <p class="since">In maintenance since {{ $since->format('M d, Y g:i A') }}.</p>
+        @endif
 
-            <form method="POST" action="{{ route('logout') }}" class="mt-5">
+        @auth
+            <form method="POST" action="{{ route('logout') }}">
                 @csrf
-                <button type="submit" class="h-9 rounded-md border border-border px-4 text-sm font-medium hover:bg-smoke dark:border-gray-700 dark:hover:bg-gray-800">
-                    Logout
-                </button>
+                <button type="submit">Logout</button>
             </form>
-        </section>
+        @endauth
     </main>
 </body>
 </html>
