@@ -2,14 +2,18 @@
 
 namespace Tests\Feature\OwnerDashboard;
 
+use App\Models\AttendanceEmployee;
 use App\Models\Branch;
+use App\Models\BranchExpense;
 use App\Models\Customer;
+use App\Models\EmployeeAttendanceRecord;
 use App\Models\Inventory;
 use App\Models\InventoryMovement;
 use App\Models\JobOrder;
 use App\Models\LaundryService;
 use App\Models\LaundryServiceCategory;
 use App\Models\Payment;
+use App\Models\ScheduleShift;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\ZReading;
@@ -108,5 +112,50 @@ trait SeedsOwnerDashboard
         $movement->save();
 
         return $movement;
+    }
+
+    protected function employee(Branch $b, string $firstName, ?float $dailyRate, array $attrs = []): AttendanceEmployee
+    {
+        return AttendanceEmployee::query()->create($attrs + [
+            'branch_id' => $b->id, 'first_name' => $firstName, 'last_name' => 'Staff', 'daily_rate' => $dailyRate,
+            'username' => strtolower($firstName).'-'.(AttendanceEmployee::withTrashed()->count() + 1), 'password' => 'secret', 'status' => 'active',
+        ]);
+    }
+
+    /** One attendance record; $clockedIn false leaves clock_in empty (not a paid day). Defaults to the employee's branch. */
+    protected function attend(AttendanceEmployee $e, string $date, ?Branch $b = null, bool $clockedIn = true): EmployeeAttendanceRecord
+    {
+        return EmployeeAttendanceRecord::query()->create([
+            'attendance_employee_id' => $e->id, 'branch_id' => $b?->id ?? $e->branch_id, 'work_date' => $date,
+            'clock_in' => $clockedIn ? ['08:00:00'] : [], 'clock_out' => [],
+        ]);
+    }
+
+    protected function shift(AttendanceEmployee $e, string $date, string $template = 'opening', bool $published = true, ?Branch $b = null): ScheduleShift
+    {
+        return ScheduleShift::query()->create([
+            'attendance_employee_id' => $e->id, 'branch_id' => $b?->id ?? $e->branch_id, 'work_date' => $date,
+            'template' => $template, 'published_at' => $published ? $date.' 00:00:00' : null,
+        ]);
+    }
+
+    /** Paid from the drawer with the given drawer_status (default confirmed), so the model keeps that status. */
+    protected function expense(Branch $b, string $date, string $type, string $title, float $amount, array $attrs = []): BranchExpense
+    {
+        return BranchExpense::query()->create($attrs + [
+            'branch_id' => $b->id, 'category' => $type, 'expense_type' => $type, 'title' => $title, 'amount' => $amount,
+            'expense_date' => $date, 'payment_method' => 'cash', 'paid_from' => 'store_cash',
+            'drawer_amount' => $amount, 'gcash_amount' => 0, 'bank_amount' => 0, 'owner_amount' => 0, 'drawer_status' => 'confirmed',
+        ]);
+    }
+
+    /** A bill (bill_type set) covering $start..$end, entered on $start. */
+    protected function bill(Branch $b, string $billType, float $amount, ?string $start, ?string $end, array $attrs = []): BranchExpense
+    {
+        $type = collect(BranchExpense::BILL_TYPES_BY_EXPENSE_TYPE)->search(fn ($bills) => in_array($billType, $bills, true));
+
+        return $this->expense($b, $start ?? '2026-09-01', $type, BranchExpense::BILL_TYPES[$billType], $amount, $attrs + [
+            'bill_type' => $billType, 'period_start' => $start, 'period_end' => $end,
+        ]);
     }
 }

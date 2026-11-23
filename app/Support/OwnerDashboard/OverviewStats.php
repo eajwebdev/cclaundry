@@ -38,6 +38,17 @@ final class OverviewStats
         return (float) JobOrderItem::query()->whereIn('job_order_id', self::orderQuery($period)->select('id'))->sum('total');
     }
 
+    /** @return array<string, float> Sales per local order date ('Y-m-d'), only days with sales. Grouped in PHP. */
+    public static function salesByDay(Period $period): array
+    {
+        return self::lines($period)
+            ->join('job_orders', 'job_orders.id', '=', 'job_order_items.job_order_id')
+            ->get(['job_orders.created_at', 'job_order_items.total'])
+            ->groupBy(fn ($l) => substr((string) $l->created_at, 0, 10))
+            ->map(fn ($lines) => (float) $lines->sum('total'))
+            ->all();
+    }
+
     public static function orders(Period $period): int
     {
         return self::orderQuery($period)->count();
@@ -62,6 +73,7 @@ final class OverviewStats
         $sales = self::sales($period);
         $orders = self::orders($period);
         $kg = self::kg($period);
+        $profit = ProfitStats::summary($period);
 
         return [
             'sales' => round($sales, 2),
@@ -72,8 +84,8 @@ final class OverviewStats
             'kg_washed' => round($kg, 2),
             'kg_per_order' => round($orders ? $kg / $orders : 0.0, 2),
             'kg_per_day' => round($period->perOpenDay($kg), 2),
-            'profit' => 0, // Task 9
-            'profit_pct' => 0, // Task 9
+            'profit' => round($profit['profit'], 2),
+            'profit_pct' => $profit['profit_pct'],
         ];
     }
 

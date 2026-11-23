@@ -58,7 +58,8 @@ class OverviewEndpointTest extends TestCase
             ->assertJsonPath('kpis.kg_per_order', 7.5)
             ->assertJsonPath('period.open_days', 2)
             ->assertJsonPath('kpis.sales_per_day', 235)
-            ->assertJsonPath('kpis.profit', 0)
+            ->assertJsonPath('kpis.profit', 470) // no costs in this fixture
+            ->assertJsonPath('kpis.profit_pct', 100)
             ->assertJsonPath('closings.summary.count', 2)
             ->assertJsonPath('closings.summary.balanced', 2)
             ->assertJsonPath('closings.unbalanced', [])

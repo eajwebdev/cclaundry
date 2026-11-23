@@ -225,6 +225,7 @@ Route::middleware(['auth', 'not.rider', 'settings.completed', 'system.maintenanc
     Route::get('/api/dashboard/overview', [OwnerDashboardController::class, 'overview'])->name('owner-dashboard.api.overview');
     Route::get('/api/dashboard/closing', [OwnerDashboardController::class, 'closing'])->name('owner-dashboard.api.closing');
     Route::get('/api/dashboard/supplies', [OwnerDashboardController::class, 'supplies'])->name('owner-dashboard.api.supplies');
+    Route::get('/api/dashboard/profit', [OwnerDashboardController::class, 'profit'])->name('owner-dashboard.api.profit');
 
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::middleware('menu.access:scheduling')->prefix('scheduling')->name('scheduling.')->group(function () {
