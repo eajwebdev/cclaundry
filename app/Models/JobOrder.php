@@ -9,9 +9,31 @@ class JobOrder extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['branch_id', 'processing_branch_id', 'current_branch_id', 'release_branch_id', 'customer_id', 'created_by', 'job_order_number', 'status', 'transaction_type', 'is_rush', 'subtotal', 'discount', 'tax', 'total', 'paid_amount', 'balance', 'notes', 'completed_at', 'production_completed_at', 'production_accepted_at', 'inventory_deducted_at', 'returned_to_branch_at', 'released_at', 'archived_at', 'archived_by', 'replacement_job_order_id'];
+    protected $fillable = ['branch_id', 'processing_branch_id', 'current_branch_id', 'release_branch_id', 'customer_id', 'created_by', 'job_order_number', 'status', 'transaction_type', 'is_rush', 'kg_weighed', 'intake_type', 'return_type', 'subtotal', 'discount', 'tax', 'total', 'paid_amount', 'balance', 'notes', 'completed_at', 'production_completed_at', 'production_accepted_at', 'inventory_deducted_at', 'returned_to_branch_at', 'released_at', 'archived_at', 'archived_by', 'replacement_job_order_id'];
 
-    protected $casts = ['is_rush' => 'boolean', 'subtotal' => 'decimal:2', 'discount' => 'decimal:2', 'tax' => 'decimal:2', 'total' => 'decimal:2', 'paid_amount' => 'decimal:2', 'balance' => 'decimal:2', 'completed_at' => 'datetime', 'production_completed_at' => 'datetime', 'production_accepted_at' => 'datetime', 'inventory_deducted_at' => 'datetime', 'returned_to_branch_at' => 'datetime', 'released_at' => 'datetime', 'archived_at' => 'datetime'];
+    protected $casts = ['is_rush' => 'boolean', 'kg_weighed' => 'decimal:2', 'subtotal' => 'decimal:2', 'discount' => 'decimal:2', 'tax' => 'decimal:2', 'total' => 'decimal:2', 'paid_amount' => 'decimal:2', 'balance' => 'decimal:2', 'completed_at' => 'datetime', 'production_completed_at' => 'datetime', 'production_accepted_at' => 'datetime', 'inventory_deducted_at' => 'datetime', 'returned_to_branch_at' => 'datetime', 'released_at' => 'datetime', 'archived_at' => 'datetime'];
+
+    /** @param iterable<object{quantity: mixed, service: ?LaundryService}> $items */
+    public static function kgFromItems(iterable $items): float
+    {
+        $kg = 0.0;
+        foreach ($items as $item) {
+            // shortcut: kilos for load-priced lines are estimated from kilos_per_load, add a weighed-kg input if the owner needs exact kilos
+            $kg += match ($item->service?->pricing_type) {
+                'kilo' => (float) $item->quantity,
+                'load' => (float) $item->quantity * (float) $item->service->kilos_per_load,
+                default => 0.0,
+            };
+        }
+
+        return round($kg, 2);
+    }
+
+    /** The return leg is only known once the order is ready; other statuses leave it as is. */
+    public static function returnTypeForStatus(string $status): ?string
+    {
+        return ['ready_for_delivery' => 'delivery', 'ready_for_pickup' => 'shop_pickup'][$status] ?? null;
+    }
 
     public function branch() { return $this->belongsTo(Branch::class); }
     public function processingBranch() { return $this->belongsTo(Branch::class, 'processing_branch_id'); }

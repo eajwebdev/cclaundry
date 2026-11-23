@@ -556,6 +556,9 @@ class JobOrderController extends Controller
                 'status' => 'pending',
                 'transaction_type' => $validated['transaction_type'] ?? 'walk_in',
                 'is_rush' => (bool) ($validated['is_rush'] ?? false),
+                'kg_weighed' => $this->kgWeighed($validated['items'], $selectedServices),
+                'intake_type' => $pickupRequest ? 'house_pickup' : 'walk_in',
+                'return_type' => $pickupRequest?->delivery_preference === 'deliver' ? 'delivery' : 'shop_pickup',
                 'subtotal' => $subtotal,
                 'discount' => $discount,
                 'tax' => $tax,
@@ -651,6 +654,14 @@ class JobOrderController extends Controller
         });
     }
 
+    private function kgWeighed(array $items, $services): float
+    {
+        return JobOrder::kgFromItems(collect($items)->map(fn ($item) => (object) [
+            'quantity' => $item['quantity'],
+            'service' => $services->get((int) $item['laundry_service_id']),
+        ]));
+    }
+
     public function update(Request $request, JobOrder $jobOrder)
     {
         $this->authorizeJobOrder($request, $jobOrder);
@@ -739,6 +750,8 @@ class JobOrderController extends Controller
                 'status' => $validated['status'],
                 'transaction_type' => $validated['transaction_type'] ?? 'walk_in',
                 'is_rush' => (bool) ($validated['is_rush'] ?? false),
+                'kg_weighed' => $this->kgWeighed($validated['items'], $selectedServices),
+                'return_type' => JobOrder::returnTypeForStatus($validated['status']) ?? $jobOrder->return_type,
                 'subtotal' => $subtotal,
                 'discount' => $discount,
                 'tax' => $tax,
@@ -832,6 +845,7 @@ class JobOrderController extends Controller
 
         $jobOrder->update([
             'status' => $validated['status'],
+            'return_type' => JobOrder::returnTypeForStatus($validated['status']) ?? $jobOrder->return_type,
             'completed_at' => $validated['status'] === 'completed' ? now() : null,
         ]);
 

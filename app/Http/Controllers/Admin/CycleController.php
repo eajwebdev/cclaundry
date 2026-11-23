@@ -315,6 +315,7 @@ class CycleController extends Controller
         $processingBranchId = $jobOrder->processing_branch_id ?: $jobOrder->branch_id;
         $jobOrder->update([
             'status' => $validated['status'],
+            'return_type' => JobOrder::returnTypeForStatus($validated['status']) ?? $jobOrder->return_type,
             'completed_at' => $validated['status'] === 'completed' ? now() : null,
             'production_completed_at' => $jobOrder->production_completed_at ?: now(),
             'current_branch_id' => $processingBranchId,
