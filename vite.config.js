@@ -11,6 +11,8 @@ export default defineConfig({
                 // Separate entry: MapLibre is heavy, so only pages that show a
                 // map pull it in. It never lands in the main bundle.
                 'resources/js/maps.js',
+                // Owner dashboard pages only.
+                'resources/js/owner-dashboard.js',
             ],
             refresh: true,
         }),
