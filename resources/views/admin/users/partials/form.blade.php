@@ -83,6 +83,7 @@
         <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             @foreach($menuItems as $key => $item)
                 @continue(! empty($item['super_admin']) && ! auth()->user()->isSuperAdmin())
+                @continue(! empty($item['admin_only']))
                 <label class="flex items-center gap-2 rounded-md border border-border px-2.5 py-2 text-sm dark:border-gray-700">
                     <input
                         type="checkbox"

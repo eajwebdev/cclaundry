@@ -148,7 +148,9 @@ class User extends Authenticatable
 
         return array_filter(
             Menu::items(),
-            fn (array $item, string $key): bool => empty($item['super_admin']) && $this->hasMenuAccess($key),
+            fn (array $item, string $key): bool => empty($item['admin_only'])
+                ? empty($item['super_admin']) && $this->hasMenuAccess($key)
+                : $this->isAdmin(),
             ARRAY_FILTER_USE_BOTH
         );
     }

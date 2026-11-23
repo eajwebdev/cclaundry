@@ -8,6 +8,8 @@ class Menu
     {
         return [
             'dashboard' => ['label' => 'Dashboard', 'route' => 'dashboard', 'icon' => 'dashboard'],
+            // admin_only: shown to every admin and super admin, never assignable to other roles.
+            'owner_dashboard' => ['label' => 'Owner Dashboard', 'route' => 'owner-dashboard.overview', 'icon' => 'reports', 'admin_only' => true],
             'job_orders' => ['label' => 'Job Orders', 'route' => 'admin.job-orders.index', 'icon' => 'jobOrders'],
             'pickup_requests' => ['label' => 'Pickup Bookings', 'route' => 'admin.pickup-requests.index', 'icon' => 'truck'],
             'cycles' => ['label' => 'Cycle Monitoring', 'route' => 'admin.cycles.index', 'icon' => 'cycles'],
@@ -53,7 +55,7 @@ class Menu
 
         return array_keys(array_filter(
             self::items(),
-            fn (array $item): bool => empty($item['super_admin'])
+            fn (array $item): bool => empty($item['super_admin']) && empty($item['admin_only'])
         ));
     }
 }
