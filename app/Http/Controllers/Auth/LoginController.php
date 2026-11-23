@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\IpUtils;
 use App\Models\AttendanceEmployee;
 use App\Models\Branch;
 use App\Models\Customer;
@@ -97,6 +99,26 @@ class LoginController extends Controller
 
         return redirect()->route('customer.bookings.index')
             ->with('success', 'Signed in. Good to see you again, '.$customer->name.'.');
+    }
+
+    /**
+     * One-click sign-in as a demo super admin, for local testing (APP_DEMO=true).
+     * Answers only requests from this machine or the local network, so the flag
+     * left on by mistake on a public server still opens nothing.
+     */
+    public function demoLogin(Request $request)
+    {
+        abort_unless(config('app.demo') && IpUtils::checkIp((string) $request->ip(), IpUtils::PRIVATE_SUBNETS), 404);
+
+        $user = User::firstOrCreate(['username' => 'demo'], [
+            'name' => 'Demo Admin',
+            'role' => 'super_admin',
+            'status' => 'active',
+            // Never typed anywhere: the account can only be entered through this action.
+            'password' => Hash::make(Str::random(40)),
+        ]);
+
+        return $this->loginStaff($request, $user);
     }
 
     private function loginStaff(Request $request, User $user)

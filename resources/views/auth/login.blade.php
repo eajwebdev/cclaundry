@@ -65,6 +65,14 @@
                 </button>
             </form>
 
+            @if(config('app.demo'))
+                {{-- Local testing only (APP_DEMO=true): signs in as the demo super admin. --}}
+                <form method="POST" action="{{ route('login.demo') }}" class="mt-3">
+                    @csrf
+                    <button type="submit" class="cc-btn-outline w-full">Demo login (super admin)</button>
+                </form>
+            @endif
+
             <p class="mt-6 border-t border-cc-line pt-5 text-center text-sm text-cc-muted">
                 New here?
                 <a href="{{ route('customer.register') }}" class="font-bold text-cc-brown hover:underline">Create an account</a>

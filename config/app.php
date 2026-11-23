@@ -41,6 +41,9 @@ return [
 
     'debug' => (bool) env('APP_DEBUG', false),
 
+    // Local testing only: shows a one-click "Demo login" on the login page. Keep false on any real server.
+    'demo' => (bool) env('APP_DEMO', false),
+
     /*
     |--------------------------------------------------------------------------
     | Application URL
