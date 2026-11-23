@@ -4,13 +4,14 @@ namespace Tests\Feature\OwnerDashboard;
 
 use App\Models\Branch;
 use App\Models\Inventory;
+use App\Models\InventoryMovement;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Support\OwnerDashboard\Period;
 use App\Support\OwnerDashboard\SuppliesStats;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -135,7 +136,7 @@ class SuppliesEndpointTest extends TestCase
 
         $opening = Inventory::query()->where('name', 'Bleach')->firstOrFail()->movements()->sole();
         $this->assertSame(['adjustment', 'opening_stock', 0.05, 5000.0], [$opening->movement_type, $opening->reason, (float) $opening->unit_cost, (float) $opening->change_qty]);
-        $this->assertNotContains('opening_stock', \App\Models\InventoryMovement::REASONS);
+        $this->assertNotContains('opening_stock', InventoryMovement::REASONS);
 
         $this->supplies('2026-11-01', '2026-11-23')
             ->assertJsonPath('kpis.supplies_used', 0)

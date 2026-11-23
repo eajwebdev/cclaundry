@@ -9,7 +9,6 @@ use App\Models\ZReading;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /** Page 1 of the owner dashboard. Sums run at full precision and are rounded once, at output. */
@@ -39,8 +38,10 @@ final class OverviewStats
     }
 
     /**
-     * @return array<string, float> Sales per local order date ('Y-m-d'), only days with sales.
+     * Sales per local order date ('Y-m-d'), only days with sales.
      * DATE() of a stored local datetime gives the same 'Y-m-d' on SQLite and MySQL.
+     *
+     * @return array<string, float>
      */
     public static function salesByDay(Period $period): array
     {
