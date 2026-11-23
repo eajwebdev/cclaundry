@@ -44,6 +44,7 @@ class PagesTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withoutVite(); // the hooks, wording and menu checks read the Blade output, not a built manifest
         $this->travelTo('2026-11-23 10:00:00');
         $this->owner = $this->admin();
         $this->a = $this->seedBranch('Alpha');

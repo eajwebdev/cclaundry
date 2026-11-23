@@ -101,6 +101,49 @@ class OverviewEndpointTest extends TestCase
             ->assertJsonPath('intake.walk_in.count', 1);
     }
 
+    /** Ruling (review I6): Sales is the sum of line totals; an order discount lowers only what is still owed. */
+    public function test_sales_is_the_sum_of_lines_before_order_discounts(): void
+    {
+        $comforter = $this->service('Comforter', 'piece', 250);
+        $this->order($this->a, '2026-10-05 10:00:00', [[$comforter, 2]], ['discount' => 50, 'total' => 450, 'balance' => 450]);
+
+        $this->overview('2026-10-05', '2026-10-05')
+            ->assertJsonPath('kpis.sales', 500)
+            ->assertJsonPath('unpaid', 450);
+    }
+
+    public function test_payment_on_a_cancelled_order_counts_in_how_customers_paid_until_voided(): void
+    {
+        $regular = $this->order1->items()->first()->service;
+        $cancelled = $this->order($this->a, '2026-10-06 10:00:00', [[$regular, 5]], ['status' => 'cancelled']);
+        $payment = $this->pay($cancelled, '2026-10-06 10:05:00', 'cash', 150);
+
+        $this->overview('2026-10-06', '2026-10-06')
+            ->assertJsonPath('payments.total', 150)
+            ->assertJsonPath('payments.methods.0', ['method' => 'cash', 'amount' => 150, 'pct' => 100])
+            ->assertJsonPath('kpis.sales', 0)
+            ->assertJsonPath('kpis.orders', 0)
+            ->assertJsonPath('kpis.kg_washed', 0)
+            ->assertJsonPath('unpaid', 0);
+
+        $payment->update(['voided_at' => now()]);
+        $this->overview('2026-10-06', '2026-10-06')->assertJsonPath('payments.total', 0);
+    }
+
+    public function test_range_ends_are_inclusive_to_the_second(): void
+    {
+        $regular = $this->order1->items()->first()->service;
+        foreach (['2026-10-09 23:59:59' => 1, '2026-10-10 00:00:00' => 2, '2026-10-12 23:59:59' => 4, '2026-10-13 00:00:00' => 8] as $at => $kg) {
+            $this->pay($this->order($this->a, $at, [[$regular, $kg]]), $at, 'cash', $kg);
+        }
+
+        $this->overview('2026-10-10', '2026-10-12')
+            ->assertJsonPath('kpis.orders', 2)
+            ->assertJsonPath('kpis.kg_washed', 6)
+            ->assertJsonPath('kpis.sales', 180)
+            ->assertJsonPath('payments.total', 6);
+    }
+
     public function test_voided_payment_is_not_counted(): void
     {
         $this->cash->update(['voided_at' => now()]);
