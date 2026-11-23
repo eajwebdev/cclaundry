@@ -9,14 +9,15 @@ class AttendanceEmployee extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['user_id', 'branch_id', 'first_name', 'last_name', 'phone', 'username', 'password', 'monthly_salary', 'hourly_rate', 'daily_rate', 'schedule_role', 'status', 'last_login_at'];
+    protected $fillable = ['user_id', 'branch_id', 'first_name', 'last_name', 'phone', 'username', 'password', 'monthly_salary', 'hourly_rate', 'daily_rate', 'employer_share_rate', 'schedule_role', 'status', 'last_login_at'];
 
-    protected $hidden = ['password', 'hourly_rate', 'daily_rate'];
+    protected $hidden = ['password', 'hourly_rate', 'daily_rate', 'employer_share_rate'];
 
     protected $casts = [
         'monthly_salary' => 'decimal:2',
         'hourly_rate' => 'decimal:2',
         'daily_rate' => 'decimal:2',
+        'employer_share_rate' => 'decimal:2',
         'last_login_at' => 'datetime',
     ];
 

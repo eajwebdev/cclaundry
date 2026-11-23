@@ -238,9 +238,12 @@ class SchedulingController extends Controller
     {
         $branch = $this->branch($request, true);
         abort_unless((int) $employee->branch_id === (int) $branch->id, 403);
-        $data = $request->validate(['schedule_role' => ['required', Rule::in(['all_around', 'part_time', 'rider'])], 'daily_rate' => ['nullable', 'numeric', 'min:0', 'max:100000']]);
+        $data = $request->validate(['schedule_role' => ['required', Rule::in(['all_around', 'part_time', 'rider'])], 'daily_rate' => ['nullable', 'numeric', 'min:0', 'max:100000'], 'employer_share_rate' => ['nullable', 'numeric', 'min:0', 'max:100']]);
         if (! $request->user()->isSuperAdmin()) {
-            unset($data['daily_rate']);
+            unset($data['daily_rate'], $data['employer_share_rate']);
+        }
+        if (($data['employer_share_rate'] ?? null) === null) {
+            unset($data['employer_share_rate']); // column is not nullable: blank keeps the stored rate
         }
         $employee->update($data);
         Activity::log($request, 'schedule_employee_updated', $employee, [
