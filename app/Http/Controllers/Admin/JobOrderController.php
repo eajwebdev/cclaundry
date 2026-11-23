@@ -850,9 +850,11 @@ class JobOrderController extends Controller
     {
         $this->authorizeJobOrder($request, $jobOrder);
 
-        abort_if(in_array($jobOrder->status, ['completed', 'cancelled'], true), 422, 'Completed or cancelled job orders cannot be cancelled.');
-
         DB::transaction(function () use ($request, $jobOrder) {
+            // Lock and re-check so a double submit cannot return the stock twice.
+            $jobOrder = JobOrder::query()->whereKey($jobOrder->id)->lockForUpdate()->firstOrFail();
+            abort_if(in_array($jobOrder->status, ['completed', 'cancelled'], true), 422, 'Completed or cancelled job orders cannot be cancelled.');
+
             $jobOrder->endActiveCycles();
 
             $jobOrder->update([
