@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\CycleController;
 use App\Http\Controllers\Admin\DailyTaskController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\OwnerDashboardController;
 use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Admin\ExpenseController;
 use App\Http\Controllers\Admin\InventoryController;
@@ -221,6 +222,7 @@ Route::middleware(['auth', 'not.rider', 'settings.completed', 'system.maintenanc
     Route::get('/dashboard/data', [DashboardController::class, 'data'])->name('dashboard.data');
     Route::get('/dashboard/assistant/options', [DashboardController::class, 'assistantOptions'])->name('dashboard.assistant.options');
     Route::post('/dashboard/assistant', [DashboardController::class, 'assistant'])->name('dashboard.assistant');
+    Route::get('/api/dashboard/overview', [OwnerDashboardController::class, 'overview'])->name('owner-dashboard.api.overview');
 
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::middleware('menu.access:scheduling')->prefix('scheduling')->name('scheduling.')->group(function () {
