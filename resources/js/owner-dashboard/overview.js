@@ -200,31 +200,55 @@ function busiest(root, d) {
     const inRange = (r) => r.in_range !== false;
     // An empty, pale bar marks a weekday the range never reaches; its height only matches the tallest bar.
     const placeholder = Math.max(1, maxOf(rows.map((r) => r.total)));
+    const surface = document.documentElement.classList.contains('dark') ? '#111827' : '#ffffff';
+    const lower = { maxBarThickness: 72, borderSkipped: false, borderWidth: { top: 2 }, borderColor: surface };
+    const upper = { maxBarThickness: 72, borderSkipped: false, borderRadius: { topLeft: 4, topRight: 4 } };
+    const top = rows.filter(inRange).reduce((best, r) => (Number(r.total) > Number(best?.total ?? 0) ? r : best), null);
+    const key = (color, label, line = false) => h('span', { class: 'inline-flex items-center gap-1.5' },
+        h('span', { class: line ? 'inline-block h-0.5 w-4' : 'inline-block h-2.5 w-2.5 rounded-sm', style: { background: color } }), label);
+    const chips = h('div', { class: 'mt-1 grid grid-cols-7 text-center' }, rows.map((r) => h('div', {},
+        inRange(r) && r.peak
+            ? h('span', { class: 'inline-block rounded-md bg-sky-50 px-0.5 py-0.5 text-[9px] leading-tight font-medium text-sky-900 sm:rounded-full sm:px-2 sm:text-[11px] dark:bg-sky-950 dark:text-sky-200' }, r.peak)
+            : h('span', { class: 'text-[11px] text-muted' }, '—'))));
+
+    host.append(h('div', { class: 'mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between' },
+        top ? h('p', { class: 'text-sm' }, h('strong', {}, `Busiest: ${top.day}`), ` · ${num(top.total, 1)} orders on average${top.peak ? ` · ${top.peak}` : ''}`) : h('span'),
+        h('div', { class: 'flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted' },
+            key('#9cc8d4', 'Orders before 12 PM'), key('#1f6b7a', 'Orders after 12 PM'), key('#b45309', 'Kilos washed', true))));
+
     drawChart('busiest', host, {
         type: 'bar',
         data: {
             labels: rows.map((r) => (inRange(r) ? r.day : [r.day, 'not in range'])),
             datasets: [
-                { type: 'line', label: 'Kilos washed', data: rows.map((r) => (inRange(r) ? r.kg : null)), yAxisID: 'kg', borderColor: '#b45309', backgroundColor: '#ffffff', pointBorderColor: '#b45309', pointRadius: 4, borderWidth: 2, spanGaps: false, topLabelColor: '#b45309', topLabels: rows.map((r) => (inRange(r) ? `${num(r.kg, 0)} kg` : '')), order: 0 },
-                { label: 'Orders before 12 PM', data: rows.map((r) => (inRange(r) ? r.before_noon : null)), backgroundColor: '#9cc8d4', stack: 'o', labelColor: '#134e5e', labels: rows.map((r) => (inRange(r) && r.before_noon ? num(r.before_noon, 1) : '')), order: 1 },
-                { label: 'Orders after 12 PM', data: rows.map((r) => (inRange(r) ? r.after_noon : null)), backgroundColor: '#1f6b7a', stack: 'o', labels: rows.map((r) => (inRange(r) && r.after_noon ? num(r.after_noon, 1) : '')), topLabels: rows.map((r) => (inRange(r) ? num(r.total, 1) : '')), order: 1 },
-                { label: 'not in range', data: rows.map((r) => (inRange(r) ? null : placeholder)), backgroundColor: 'rgba(148,163,184,0.18)', stack: 'o', order: 2 },
+                { type: 'line', label: 'Kilos washed', data: rows.map((r) => (inRange(r) ? r.kg : null)), yAxisID: 'kg', borderColor: '#b45309', backgroundColor: '#ffffff', pointBorderColor: '#b45309', pointRadius: 4, borderWidth: 2, spanGaps: false, topLabelColor: '#b45309', topLabels: rows.map((r) => (inRange(r) ? `${num(r.kg, 0)}${window.innerWidth < 640 ? '' : ' kg'}` : '')), order: 0 },
+                { label: 'Orders before 12 PM', data: rows.map((r) => (inRange(r) ? r.before_noon : null)), ...lower, backgroundColor: '#9cc8d4', stack: 'o', labelColor: '#134e5e', labels: rows.map((r) => (inRange(r) && r.before_noon ? num(r.before_noon, 1) : '')), order: 1 },
+                { label: 'Orders after 12 PM', data: rows.map((r) => (inRange(r) ? r.after_noon : null)), ...upper, backgroundColor: '#1f6b7a', stack: 'o', labels: rows.map((r) => (inRange(r) && r.after_noon ? num(r.after_noon, 1) : '')), topLabels: rows.map((r) => (inRange(r) ? num(r.total, 1) : '')), order: 1 },
+                { label: 'not in range', data: rows.map((r) => (inRange(r) ? null : placeholder)), ...upper, backgroundColor: 'rgba(148,163,184,0.18)', stack: 'o', order: 2 },
             ],
         },
+        // Keeps each peak chip centred under its bar at any width.
+        plugins: [{ id: 'odAlignChips', afterLayout(c) { chips.style.paddingLeft = `${c.chartArea.left}px`; chips.style.paddingRight = `${c.width - c.chartArea.right}px`; } }],
         options: {
-            layout: { padding: { top: 24 } },
-            plugins: { legend: { display: false }, tooltip: { filter: (item) => item.dataset.label !== 'not in range' } },
-            scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, display: false, beginAtZero: true }, kg: { type: 'linear', axis: 'y', position: 'right', display: false, beginAtZero: true, grace: '20%' } },
+            layout: { padding: { top: 22 } },
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    filter: (item) => item.dataset.label !== 'not in range' && item.raw !== null,
+                    callbacks: { label: (c) => `${c.dataset.label}: ${c.dataset.yAxisID === 'kg' ? `${num(c.raw, 0)} kg` : num(c.raw, 1)}` },
+                },
+            },
+            // Kilos get their own band above the bars, so the line and its labels never cross the order counts.
+            scales: {
+                x: { stacked: true, grid: { display: false } },
+                y: { stacked: true, display: false, beginAtZero: true, grace: '14%', position: 'left', stack: 'busiest', stackWeight: 3 },
+                kg: { type: 'linear', axis: 'y', display: false, beginAtZero: false, bounds: 'data', grace: '15%', position: 'left', stack: 'busiest', stackWeight: 1, offset: true },
+            },
         },
-    });
-    host.append(
-        h('div', { class: 'mt-2 grid grid-cols-7 gap-1 text-center' }, rows.map((r) => h('div', {},
-            h('span', { class: 'inline-block rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] text-sky-900 dark:bg-sky-950 dark:text-sky-200' }, inRange(r) ? (r.peak ?? '—') : 'not in range')))),
-        h('div', { class: 'mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted' },
-            h('span', {}, h('span', { class: 'mr-1 inline-block h-2.5 w-2.5 rounded-sm', style: { background: '#9cc8d4' } }), 'Orders before 12 PM'),
-            h('span', {}, h('span', { class: 'mr-1 inline-block h-2.5 w-2.5 rounded-sm', style: { background: '#1f6b7a' } }), 'Orders after 12 PM'),
-            h('span', {}, h('span', { class: 'mr-1 inline-block h-0.5 w-4 align-middle', style: { background: '#b45309' } }), 'Kilos washed'),
-            h('span', {}, 'Chip = busiest 2 hours · open Mon–Sat 8 AM–7 PM, Sun 10 AM–5 PM')));
+    }, 320);
+    host.append(chips,
+        h('p', { class: 'mt-3 text-xs text-muted' }, 'Chip = busiest 2 hours · open Mon–Sat 8 AM–7 PM, Sun 10 AM–5 PM'));
 }
 
 /** "5,190 kg · ₱30/kg", "18 loads · ₱175/load"; no price part when the API has none. */
