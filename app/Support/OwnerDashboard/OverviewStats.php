@@ -121,8 +121,13 @@ final class OverviewStats
             ->whereDate('business_date', '>=', $period->from)
             ->whereDate('business_date', '<=', $period->to)
             ->when($period->branchId, fn ($q, $id) => $q->where('branch_id', $id))
-            ->get(['status', 'cash_diff', 'deposit_bag_amount', 'gcash_transfer_amount']);
-        $balanced = $closings->where('status', 'balanced')->count();
+            ->with(['branch', 'closer', 'preparer'])
+            ->get();
+        $views = $closings->map(fn ($z) => ClosingView::from($z))
+            ->sort(fn ($x, $y) => [$y['date'], $x['branch']] <=> [$x['date'], $y['branch']])
+            ->values();
+        $balanced = $views->where('status', 'balanced')->count();
+        $singleDay = $period->from === $period->to;
 
         return [
             'summary' => [
@@ -133,8 +138,9 @@ final class OverviewStats
                 'cash_deposited' => round((float) $closings->sum('deposit_bag_amount'), 2),
                 'gcash_sent_to_bank' => round((float) $closings->sum('gcash_transfer_amount'), 2),
             ],
-            'unbalanced' => [], // Task 7
-            'full' => null, // Task 7
+            'unbalanced' => $singleDay ? [] : $views->where('status', 'difference')->values()->all(),
+            'full' => $singleDay ? $views->all() : null,
+            'all' => $views->map(fn ($v) => ClosingView::row($v))->all(),
         ];
     }
 
