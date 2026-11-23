@@ -103,18 +103,34 @@ class ClosingEndpointTest extends TestCase
 
     public function test_titan_label(): void
     {
-        $this->a->update(['titan_machine_numbers' => [2]]);
-        $view = ClosingView::from($this->closing($this->a, '2026-11-20', [
-            'machine_counters' => [2 => ['wash' => $this->row('off', 3, 5, 2)]],
-        ]));
-        $this->assertSame('Titan washer #2', $view['machines'][0]['label']);
-        $this->assertSame(['Washer #2: 2 cycles more than loads booked'], $view['failed_checks']);
+        $this->a->update(['machine_count' => 5, 'titan_machine_numbers' => [5]]);
+        $five = [5 => ['wash' => $this->row('off', 3, 5, 2), 'dry' => $this->row('matched', 1, 1, 0)]];
+        $view = ClosingView::from($this->closing($this->a, '2026-11-20', ['machine_counters' => $five]));
+        $this->assertSame(['Titan washer #5', 'Titan dryer #5'], array_column($view['machines'], 'label'));
+        $this->assertSame(['Washer #5: 2 cycles more than loads booked'], $view['failed_checks']);
 
         $b = $this->seedBranch('B');
-        $view = ClosingView::from($this->closing($b, '2026-11-20', [
-            'machine_counters' => [5 => ['dry' => $this->row('matched', 1, 1, 0)], 4 => ['dry' => $this->row('matched', 1, 1, 0)]],
+        $b->update(['machine_count' => 5]);
+        $view = ClosingView::from($this->closing($b, '2026-11-20', ['machine_counters' => $five]));
+        $this->assertSame(['Washer #5', 'Dryer #5'], array_column($view['machines'], 'label'));
+    }
+
+    public function test_off_row_with_reasons_covering_cycles_needs_a_job_order_or_note(): void
+    {
+        $view = ClosingView::from($this->closing($this->a, '2026-11-20', [
+            'machine_counters' => [3 => ['wash' => $this->row('off', 4, 6, 0)]],
         ]));
-        $this->assertSame(['Dryer #4', 'Titan dryer #5'], array_column($view['machines'], 'label'));
+
+        $this->assertSame(['Washer #3: extra cycles need a job order # or note'], $view['failed_checks']);
+    }
+
+    public function test_over_explained_off_row_still_reads_more(): void
+    {
+        $view = ClosingView::from($this->closing($this->a, '2026-11-20', [
+            'machine_counters' => [3 => ['dry' => $this->row('off', 4, 5, -2)]],
+        ]));
+
+        $this->assertSame(['Dryer #3: 2 cycles more than loads booked'], $view['failed_checks']);
     }
 
     public function test_explained_extra_cycle_stays_balanced(): void

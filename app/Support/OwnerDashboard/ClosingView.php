@@ -3,6 +3,7 @@
 namespace App\Support\OwnerDashboard;
 
 use App\Models\ZReading;
+use App\Support\MachineClass;
 
 /** How one end-of-day closing (Z-Reading) is shown to the owner. Reads only; never changes the stored status. */
 final class ClosingView
@@ -26,7 +27,6 @@ final class ClosingView
             $failed[] = 'Bank deposit '.self::peso($deposit).($deposit < 0 ? ' short' : ' over').' — check the deposit slip';
         }
 
-        $titan = array_map('intval', $reading->branch?->titan_machine_numbers ?: [5]);
         $counters = $reading->machine_counters ?? [];
         ksort($counters, SORT_NUMERIC);
         $machines = [];
@@ -39,20 +39,23 @@ final class ClosingView
                 }
                 $word = $type === 'wash' ? 'Washer' : 'Dryer';
                 $difference = (int) ($row['unexplained_cycles'] ?? 0);
-                $machines[] = [
+                $machines[] = $machine = [
                     'machine_no' => (int) $no,
                     'type' => $type,
-                    'label' => in_array((int) $no, $titan, true) ? 'Titan '.strtolower($word)." #{$no}" : "{$word} #{$no}",
+                    'label' => MachineClass::forMachine($reading->branch, (int) $no) === MachineClass::TITAN ? 'Titan '.strtolower($word)." #{$no}" : "{$word} #{$no}",
                     'booked' => (int) ($row['system_cycles'] ?? 0),
                     'counted' => (int) ($row['total'] ?? 0),
                     'difference' => $difference,
                 ];
-                if (in_array($row['reconciliation_status'], self::FAILED_MACHINE, true)) {
-                    // 'off' can have 0 unexplained when the reasons add up but a JO # or note is missing.
-                    $k = $difference ?: (int) ($row['total'] ?? 0) - (int) ($row['system_cycles'] ?? 0);
-                    $failed[] = $row['reconciliation_status'] === 'end_low'
-                        ? "{$word} #{$no}: counter reads lower than at opening"
-                        : "{$word} #{$no}: ".abs($k).(abs($k) === 1 ? ' cycle ' : ' cycles ').($k > 0 ? 'more' : 'fewer').' than loads booked';
+                $status = $row['reconciliation_status'];
+                if (in_array($status, self::FAILED_MACHINE, true)) {
+                    // For 'off' the counter ran past the bookings; reasons can over- or fully cover that.
+                    $more = $status === 'off' ? $machine['counted'] - $machine['booked'] > 0 : $difference > 0;
+                    $failed[] = match (true) {
+                        $status === 'end_low' => "{$word} #{$no}: counter reads lower than at opening",
+                        $status === 'off' && $difference === 0 => "{$word} #{$no}: extra cycles need a job order # or note",
+                        default => "{$word} #{$no}: ".abs($difference).(abs($difference) === 1 ? ' cycle ' : ' cycles ').($more ? 'more' : 'fewer').' than loads booked',
+                    };
                 }
             }
         }
