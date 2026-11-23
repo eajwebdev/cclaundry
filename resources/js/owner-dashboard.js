@@ -21,20 +21,27 @@ function start() {
         error.hidden = false;
     };
 
+    const retry = root.querySelector('#od-retry');
+
+    // On a retry the widgets stay hidden (the button shows the loading state) until a render succeeds.
     const load = async () => {
-        error.hidden = true;
-        widgets.hidden = false;
+        if (retry) { retry.disabled = true; retry.textContent = 'Loading…'; }
         try {
             const response = await fetch(`${root.dataset.endpoint}?${query}`, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            render(root, await response.json());
+            const data = await response.json();
+            widgets.hidden = false; // shown before drawing so charts measure a visible box; a throw hides it again at once
+            render(root, data);
+            error.hidden = true;
         } catch (e) {
             console.error('Owner dashboard failed to load', e);
             fail();
+        } finally {
+            if (retry) { retry.disabled = false; retry.textContent = 'Retry'; }
         }
     };
 
-    root.querySelector('#od-retry')?.addEventListener('click', load);
+    retry?.addEventListener('click', load);
     setupCalendar(root);
     if (render) load();
 }

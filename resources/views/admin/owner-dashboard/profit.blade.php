@@ -58,7 +58,7 @@
             </div>
             <div data-od="other" class="mt-3"><p class="{{ $loading }}">Loading…</p></div>
             <a href="{{ $links['supplies'] }}" class="mt-3 flex items-center justify-between rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-900 hover:opacity-90 dark:bg-orange-950 dark:text-orange-200">
-                <span><strong>Supplies used</strong> · valued at cost, see the Supplies page</span>
+                <span><strong>Supplies used</strong><span data-od-sub="supplies-items"></span></span>
                 <span class="font-semibold"><span data-od-sub="supplies-used"></span> →</span>
             </a>
         </section>

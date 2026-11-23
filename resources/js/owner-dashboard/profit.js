@@ -1,4 +1,4 @@
-import { h, peso, num, pct, list, empty, card, bar, maxOf, note, fill, setSub, drawChart, pesoTooltip } from './core';
+import { h, peso, pesoCents, num, pct, list, empty, card, bar, maxOf, note, fill, setSub, drawChart, pesoTooltip } from './core';
 
 const LINES = [
     ['staff', 'Staff', '#5b3f86'],
@@ -8,6 +8,9 @@ const LINES = [
 ];
 const GREEN = '#2e7d4f';
 const BILL_COLORS = ['#8a5a35', '#1f6b7a', '#d98a2b', '#7fb8d6', '#6b8e23', '#374151', '#9ca3af'];
+
+const employees = (count) => `${num(count, 0)} ${Number(count) === 1 ? 'employee' : 'employees'}`;
+const suppliesNames = (d) => list(d.supplies_items).map((name) => String(name).toLowerCase()).join(', ');
 
 const big = (text, cls = '') => h('div', { class: `mt-1 text-3xl font-bold tracking-tight ${cls}`, style: { fontFamily: "'Playfair Display', Georgia, serif" } }, text);
 
@@ -26,7 +29,7 @@ function equation(root, d) {
         op('='),
         card(loss ? 'border-red-700 bg-red-700 text-white' : 'border-green-700 bg-green-700 text-white',
             h('div', { class: 'text-xs font-medium' }, 'Profit'), big(peso(d.profit)),
-            h('div', { class: 'text-xs' }, `${pct(d.profit_pct)} of sales stays in the shop`))));
+            h('div', { class: 'text-xs' }, loss ? `${pct(Math.abs(Number(d.profit_pct) || 0))} of sales lost` : `${pct(d.profit_pct)} of sales stays in the shop`))));
 }
 
 function moneyChart(root, d) {
@@ -76,7 +79,13 @@ function perOrder(root, d) {
     if (!Number(d.orders)) { fill(root, 'per-order', empty()); return; }
     const billNames = list(d.bills?.rows).map((r) => r.label).filter(Boolean).join(', ');
     const otherNames = list(d.other_purchases?.rows).slice(0, 5).map((r) => r.category).filter(Boolean).join(', ');
-    const subs = { staff: 'wages + SSS, PhilHealth, Pag-IBIG', bills: billNames, supplies: 'used, valued at cost', other: otherNames };
+    const staffCount = d.staff?.employees_count;
+    const subs = {
+        staff: `${staffCount ? `${employees(staffCount)} · ` : ''}wages + SSS, PhilHealth, Pag-IBIG`,
+        bills: billNames,
+        supplies: suppliesNames(d),
+        other: otherNames,
+    };
     const row = ([key, label, color]) => h('li', { class: 'flex items-center justify-between gap-3 border-b border-border py-2 dark:border-gray-800' },
         h('div', { class: 'flex items-start gap-2' }, h('span', { class: 'mt-1 h-2.5 w-2.5 shrink-0 rounded-sm', style: { background: color } }),
             h('div', {}, h('div', { class: 'text-sm font-semibold' }, label), subs[key] ? h('div', { class: 'text-xs text-muted' }, subs[key]) : null)),
@@ -95,7 +104,8 @@ function breakEven(root, d) {
     const out = d.money_out || {};
     if (!Number(d.money_in) && !Number(out.total?.amount)) { fill(root, 'break-even', empty()); return; }
     const profit = Number(d.profit);
-    const costWidth = Math.min(100, Math.max(0, Number(out.total?.pct) || 0));
+    // No sales but costs: the whole bar is costs (the API's % of zero sales is 0).
+    const costWidth = Number(d.money_in) ? Math.min(100, Math.max(0, Number(out.total?.pct) || 0)) : 100;
     const split = h('div', { class: 'flex h-9 w-full overflow-hidden rounded-lg bg-gray-100 text-xs font-semibold dark:bg-gray-800' },
         h('div', { class: 'flex items-center truncate bg-stone-300 px-3 text-stone-900', style: { width: `${costWidth}%` } }, `Paying the costs · ${peso(out.total?.amount)}`),
         profit > 0 ? h('div', { class: 'flex items-center truncate px-3 text-white', style: { width: `${Math.max(0, Number(d.profit_share) || 0)}%`, background: GREEN } }, `Profit · ${peso(d.profit)}`) : null);
@@ -124,7 +134,7 @@ function staff(root, d) {
         box('Total staff cost', peso(s.total), `${peso(s.wages)} wages + ${peso(s.employer_share)} employer share`, 'bg-violet-50 dark:bg-violet-950/40'),
         box('Attendance', pct(s.attendance_pct), `${num(s.days_present, 0)} of ${num(s.days_scheduled, 0)} scheduled days`),
         box('Staff cost per order', peso(s.per_order), `${num(d.orders, 0)} orders`),
-        box('Staff cost per kg', `₱${num(s.per_kg, 2)}`, null));
+        box('Staff cost per kg', pesoCents(s.per_kg), `${num(s.kg, 2)} kg washed`));
     if (!rows.length) { fill(root, 'staff', tiles, empty()); return; }
     const th = (t, right = true) => h('th', { class: `px-2 py-2 text-[11px] font-bold uppercase tracking-wide text-muted ${right ? 'text-right' : 'text-left'}` }, t);
     const td = (cls, ...c) => h('td', { class: `px-2 py-2 text-right ${cls}` }, ...c);
@@ -142,7 +152,7 @@ function staff(root, d) {
             td('text-muted', peso(e.employer_share)),
             td('font-semibold', peso(e.total))))),
         h('tfoot', {}, h('tr', { class: 'font-bold' },
-            h('td', { class: 'px-2 py-2' }, 'Total'), td(''),
+            h('td', { class: 'px-2 py-2' }, employees(s.employees_count)), td(''),
             td('', num(s.days_present, 0)), td('', peso(s.wages)), td('', peso(s.employer_share)), td('', peso(s.total)))))));
 }
 
@@ -165,6 +175,8 @@ function other(root, d) {
     const rows = list(o.rows);
     setSub(root, 'other', `${peso(o.total)} · ${pct(o.pct_of_sales)} of sales`);
     setSub(root, 'supplies-used', peso(d.money_out?.supplies?.amount));
+    const names = suppliesNames(d);
+    setSub(root, 'supplies-items', names ? ` · ${names}` : '');
     if (!rows.length) { fill(root, 'other', empty()); return; }
     const max = maxOf(rows.map((r) => r.amount));
     fill(root, 'other', rows.map((r) => h('div', { class: 'grid grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-3 py-1.5' },

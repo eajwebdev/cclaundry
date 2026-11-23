@@ -32,7 +32,26 @@ final class SuppliesStats
     /** Cost of the "use" class only (R2): the page-2 card and the page-3 Supplies cost line. Unrounded. */
     public static function usedCost(Period $period): float
     {
-        return (float) self::movements($period)->where('class', 'use')->sum('cost');
+        return self::usedSummary($period)['cost'];
+    }
+
+    /**
+     * The used cost (unrounded) and the names of the items it was spent on, largest first, at most five,
+     * from one read of the movements.
+     *
+     * @return array{cost: float, items: list<string>}
+     */
+    public static function usedSummary(Period $period): array
+    {
+        $used = self::movements($period)->where('class', 'use');
+
+        return [
+            'cost' => (float) $used->sum('cost'),
+            'items' => $used->groupBy('name')->map(fn ($g) => (float) $g->sum('cost'))
+                ->filter(fn ($cost) => $cost > 0)
+                ->sortKeys()->sortDesc() // largest first, ties by name
+                ->keys()->take(5)->map(fn ($name) => (string) $name)->values()->all(),
+        ];
     }
 
     /**

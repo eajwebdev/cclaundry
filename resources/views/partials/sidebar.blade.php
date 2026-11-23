@@ -41,7 +41,7 @@
             @continue(! Route::has($item['route']))
 
             @php
-                $active = request()->routeIs($item['route']) || request()->routeIs(str_replace('.index', '.*', $item['route']));
+                $active = request()->routeIs($item['active'] ?? $item['route']) || request()->routeIs(str_replace('.index', '.*', $item['route']));
                 $section = $menuSections[$key] ?? null;
             @endphp
 

@@ -1,4 +1,4 @@
-import { h, peso, signedPeso, num, signedNum, qty, pct, shortDate, list, empty, tile, bar, maxOf, note, fill, setSub, drawChart, pesoTooltip } from './core';
+import { h, peso, pesoCents, signedPeso, num, signedNum, qty, pct, shortDate, list, empty, tile, bar, maxOf, note, fill, setSub, drawChart, pesoTooltip } from './core';
 
 const REASON = {
     cancelled_order: ['Back in · cancelled order', 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200'],
@@ -12,7 +12,7 @@ const signClass = (value) => (Number(value) > 0 ? 'text-green-700 dark:text-gree
 function kpis(root, d) {
     const k = d.kpis || {};
     fill(root, 'kpis',
-        tile('Supplies used', peso(k.supplies_used), `${peso(k.per_order)} per order · ${peso(k.per_kg)} per kg washed`, 'border-orange-200 bg-orange-50 dark:border-orange-900 dark:bg-orange-950/40', 'text-orange-800 dark:text-orange-300'),
+        tile('Supplies used', peso(k.supplies_used), `${peso(k.per_order)} per order · ${pesoCents(k.per_kg)} per kg washed`, 'border-orange-200 bg-orange-50 dark:border-orange-900 dark:bg-orange-950/40', 'text-orange-800 dark:text-orange-300'),
         tile('Stock purchased', peso(k.stock_purchased), `${num(k.purchases_count, 0)} purchases`, 'border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/40', 'text-sky-900 dark:text-sky-200'),
         tile('Adjustments', peso(k.adjustments), `${num(k.adjustments_count, 0)} adjustments · count, spills, cancelled orders`, 'border-violet-200 bg-violet-50 dark:border-violet-900 dark:bg-violet-950/40', 'text-violet-800 dark:text-violet-300'),
         tile('Add-ons sold', peso(k.addons_sold), `${num(k.addons_count, 0)} add-ons · ${pct(k.addons_pct)} of sales`, undefined, 'text-green-700 dark:text-green-400'));

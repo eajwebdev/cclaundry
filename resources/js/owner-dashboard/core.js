@@ -31,6 +31,12 @@ export function peso(value) {
     return (n(value) < 0 && whole !== 0 ? '−' : '') + '₱' + whole.toLocaleString('en-US');
 }
 
+/** Pesos to the centavo (₱1.35), where whole pesos would hide the figure. */
+export function pesoCents(value) {
+    const v = n(value);
+    return (v < 0 ? '−' : '') + '₱' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 /** Peso with an explicit sign, for adjustments: +₱40 / −₱45. */
 export function signedPeso(value) {
     return (n(value) > 0 ? '+' : '') + peso(value);

@@ -9,7 +9,8 @@ class Menu
         return [
             'dashboard' => ['label' => 'Dashboard', 'route' => 'dashboard', 'icon' => 'dashboard'],
             // admin_only: shown to every admin and super admin, never assignable to other roles.
-            'owner_dashboard' => ['label' => 'Owner Dashboard', 'route' => 'owner-dashboard.overview', 'icon' => 'reports', 'admin_only' => true],
+            // active: the route pattern that highlights the entry (defaults to its route).
+            'owner_dashboard' => ['label' => 'Owner Dashboard', 'route' => 'owner-dashboard.overview', 'icon' => 'reports', 'admin_only' => true, 'active' => 'owner-dashboard.*'],
             'job_orders' => ['label' => 'Job Orders', 'route' => 'admin.job-orders.index', 'icon' => 'jobOrders'],
             'pickup_requests' => ['label' => 'Pickup Bookings', 'route' => 'admin.pickup-requests.index', 'icon' => 'truck'],
             'cycles' => ['label' => 'Cycle Monitoring', 'route' => 'admin.cycles.index', 'icon' => 'cycles'],

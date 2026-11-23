@@ -39,6 +39,7 @@ final class ClosingView
                 }
                 $word = $type === 'wash' ? 'Washer' : 'Dryer';
                 $difference = (int) ($row['unexplained_cycles'] ?? 0);
+                $status = $row['reconciliation_status'];
                 $machines[] = $machine = [
                     'machine_no' => (int) $no,
                     'type' => $type,
@@ -46,8 +47,9 @@ final class ClosingView
                     'booked' => (int) ($row['system_cycles'] ?? 0),
                     'counted' => (int) ($row['total'] ?? 0),
                     'difference' => $difference,
+                    // A failed check can have no unexplained cycles (off, end_low), so the page reads this, not the difference.
+                    'ok' => ! in_array($status, self::FAILED_MACHINE, true),
                 ];
-                $status = $row['reconciliation_status'];
                 if (in_array($status, self::FAILED_MACHINE, true)) {
                     // For 'off' the counter ran past the bookings; reasons can over- or fully cover that.
                     $more = $status === 'off' ? $machine['counted'] - $machine['booked'] > 0 : $difference > 0;

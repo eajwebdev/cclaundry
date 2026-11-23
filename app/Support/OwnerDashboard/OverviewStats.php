@@ -259,7 +259,7 @@ final class OverviewStats
         $rows = self::lines($period)
             ->where(fn ($q) => $q->whereNull('c.is_addon')->orWhere('c.is_addon', false))
             ->groupByRaw('COALESCE(s.name, job_order_items.description)')
-            ->selectRaw('COALESCE(s.name, job_order_items.description) as name, MAX(s.pricing_type) as pricing_type, SUM(job_order_items.quantity) as qty, SUM(job_order_items.total) as amount')
+            ->selectRaw('COALESCE(s.name, job_order_items.description) as name, MAX(s.pricing_type) as pricing_type, CASE WHEN COUNT(DISTINCT s.price) = 1 AND COUNT(s.id) = COUNT(*) THEN MAX(s.price) END as price, SUM(job_order_items.quantity) as qty, SUM(job_order_items.total) as amount')
             ->orderByDesc('amount')
             ->get();
         $servicesTotal = (float) $rows->sum('amount');
@@ -279,6 +279,8 @@ final class OverviewStats
                     default => $r->pricing_type,
                 },
                 'amount' => round((float) $r->amount, 2),
+                // The service's list price now; null for lines without a service or names sold at several prices.
+                'price' => $r->price === null ? null : round((float) $r->price, 2),
             ])->all(),
             'top' => [
                 'name' => $top?->name,

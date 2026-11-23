@@ -27,7 +27,8 @@ final class ProfitStats
         $staff = self::staff($period);
         $bills = self::bills($period);
         $other = self::other($period);
-        $summary = self::summarise($period, $staff, $bills, $other);
+        $supplies = SuppliesStats::usedSummary($period);
+        $summary = self::summarise($period, $staff, $bills, $other, $supplies['cost']);
         $orders = OverviewStats::orders($period);
         $pct = self::shares($summary);
 
@@ -44,6 +45,7 @@ final class ProfitStats
             'staff' => self::staffBlock($staff, $orders, OverviewStats::kg($period)),
             'bills' => self::billsBlock($bills, $summary['sales']),
             'other_purchases' => self::otherBlock($other, $summary['sales']),
+            'supplies_items' => $supplies['items'],
         ];
     }
 
@@ -53,16 +55,16 @@ final class ProfitStats
      */
     public static function summary(Period $period): array
     {
-        return self::summarise($period, self::staff($period), self::bills($period), self::other($period));
+        return self::summarise($period, self::staff($period), self::bills($period), self::other($period), SuppliesStats::usedCost($period));
     }
 
-    private static function summarise(Period $period, array $staff, Collection $bills, Collection $other): array
+    private static function summarise(Period $period, array $staff, Collection $bills, Collection $other, float $suppliesUsed): array
     {
         $sales = OverviewStats::sales($period);
         $costs = [
             'staff' => $staff['total'],
             'bills' => (float) $bills->sum(),
-            'supplies' => SuppliesStats::usedCost($period),
+            'supplies' => $suppliesUsed,
             'other' => (float) $other->sum('amount'),
         ];
         $total = array_sum($costs);
@@ -254,6 +256,8 @@ final class ProfitStats
                 'employer_share' => round($e['employer_share'], 2),
                 'total' => round($e['total'], 2),
             ]))->all(),
+            'employees_count' => $staff['employees']->count(),
+            'kg' => round($kg, 2),
         ];
     }
 

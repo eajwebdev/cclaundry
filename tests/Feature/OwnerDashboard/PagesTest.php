@@ -4,6 +4,7 @@ namespace Tests\Feature\OwnerDashboard;
 
 use App\Models\Branch;
 use App\Models\User;
+use App\Support\Menu;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -19,6 +20,21 @@ class PagesTest extends TestCase
         'overview' => ['kpis', 'payments', 'intake', 'closings', 'closing-full', 'busiest', 'hourly', 'services'],
         'supplies' => ['kpis', 'usage', 'items', 'purchases', 'adjustments', 'addons'],
         'profit' => ['equation', 'money-chart', 'per-order', 'break-even', 'staff', 'bills', 'other'],
+    ];
+
+    /** The other hooks the JS reads: sub-heading slots, cards it hides or shows, and link attributes. */
+    private const SUBS = [
+        'overview' => ['services'],
+        'supplies' => ['purchases', 'adjustments', 'addons'],
+        'profit' => ['per-order', 'bills', 'other', 'supplies-used', 'supplies-items'],
+    ];
+
+    private const CARDS = ['overview' => ['busiest', 'hourly'], 'supplies' => [], 'profit' => []];
+
+    private const LINK_ATTRS = [
+        'overview' => ['data-profit-url' => 'profit', 'data-supplies-url' => 'supplies'],
+        'supplies' => [],
+        'profit' => [],
     ];
 
     private User $owner;
@@ -116,15 +132,30 @@ class PagesTest extends TestCase
             foreach ($hooks as $hook) {
                 $response->assertSee('data-od="'.$hook.'"', false);
             }
+            foreach (self::SUBS[$page] as $sub) {
+                $response->assertSee('data-od-sub="'.$sub.'"', false);
+            }
+            foreach (self::CARDS[$page] as $card) {
+                $response->assertSee('data-card="'.$card.'"', false);
+            }
+            foreach (self::LINK_ATTRS[$page] as $attr => $target) {
+                $response->assertSee($attr.'="'.route("owner-dashboard.$target").'"', false);
+            }
         }
     }
 
     public function test_pages_carry_no_fixed_period_wording(): void
     {
         foreach (self::PAGES as $page) {
-            $response = $this->actingAs($this->owner)->get(route("owner-dashboard.$page"))->assertOk();
-            foreach (['Today', 'This week', 'This month', 'last 7 days', 'vs last', 'Next payday', 'Still to pay'] as $phrase) {
-                $response->assertDontSee($phrase);
+            $html = $this->actingAs($this->owner)->get(route("owner-dashboard.$page"))->assertOk()->getContent();
+            // The page's own markup only (the app chrome around it has its own widgets), without script bodies.
+            $doc = new \DOMDocument;
+            @$doc->loadHTML('<?xml encoding="utf-8"?>'.$html);
+            $pageHtml = $doc->saveHTML($doc->getElementById('owner-dashboard'));
+            $visible = mb_strtolower(preg_replace('#<script\b[^>]*>.*?</script>#is', '', $pageHtml));
+            $this->assertStringContainsString('dates', $visible);
+            foreach (['today', 'this week', 'this month', 'last 7 days', 'vs last', 'next payday', 'still to pay'] as $phrase) {
+                $this->assertStringNotContainsString($phrase, $visible, "$page shows \"$phrase\"");
             }
         }
     }
@@ -141,5 +172,28 @@ class PagesTest extends TestCase
         $this->actingAs($admin)->get(route('owner-dashboard.overview'))
             ->assertSee('Owner Dashboard')
             ->assertSee('href="'.route('owner-dashboard.overview').'"', false);
+    }
+
+    public function test_owner_dashboard_is_never_assignable_to_other_roles(): void
+    {
+        foreach (['branch_manager', 'cashier', 'staff', 'admin'] as $role) {
+            $this->assertNotContains('owner_dashboard', Menu::assignableKeysForRole($role), $role);
+        }
+
+        $this->actingAs($this->owner)->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSee('value="dashboard"', false)
+            ->assertDontSee('value="owner_dashboard"', false);
+    }
+
+    public function test_sidebar_highlights_owner_dashboard_on_all_three_pages_only(): void
+    {
+        $active = fn (string $url) => '#href="'.preg_quote($url, '#').'"\s+class="[^"]*app-sidebar-menu-link-active#';
+
+        foreach (self::PAGES as $page) {
+            $html = $this->actingAs($this->owner)->get(route("owner-dashboard.$page"))->assertOk()->getContent();
+            $this->assertMatchesRegularExpression($active(route('owner-dashboard.overview')), $html, $page);
+            $this->assertDoesNotMatchRegularExpression($active(route('dashboard')), $html, $page);
+        }
     }
 }

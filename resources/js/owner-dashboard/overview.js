@@ -1,11 +1,16 @@
-import { h, peso, num, qty, pct, shortDate, list, empty, card, tile, bar, maxOf, note, fill, setSub, drawChart } from './core';
+import { h, peso, pesoCents, num, qty, pct, shortDate, list, empty, card, tile, bar, maxOf, note, fill, setSub, drawChart } from './core';
 
 const METHOD = { cash: ['Cash', '#8a5a35'], gcash: ['GCash', '#2f7fc1'], bank: ['Bank', '#4b5563'] };
+
+// A difference under ₱0.50 would read "₱0 short", so it is shown to the centavo.
+const money = (value) => (Math.round(Math.abs(Number(value) || 0)) === 0 ? pesoCents(Math.abs(value)) : peso(Math.abs(value)));
 
 const okOr = (difference) => (Number(difference) === 0
     ? h('span', { class: 'text-green-700 dark:text-green-400' }, '✓ OK')
     : h('span', { class: 'rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-800 dark:bg-red-950 dark:text-red-200' },
-        `${peso(Math.abs(difference))} ${Number(difference) < 0 ? 'short' : 'over'}`));
+        `${money(difference)} ${Number(difference) < 0 ? 'short' : 'over'}`));
+
+const signed = (difference) => (Number(difference) === 0 ? '' : ` ${Number(difference) > 0 ? '+' : ''}${num(difference, 0)}`);
 
 const statusChip = (status) => (status === 'balanced'
     ? h('span', { class: 'rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800 dark:bg-green-950 dark:text-green-200' }, 'Balanced')
@@ -59,10 +64,10 @@ function intake(root, d) {
 }
 
 function machinesCell(machines) {
-    const off = list(machines).filter((m) => Number(m.difference) !== 0);
+    const off = list(machines).filter((m) => m.ok === false);
     return off.length
         ? h('span', { class: 'rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-800 dark:bg-red-950 dark:text-red-200' },
-            off.map((m) => `${m.label} ${Number(m.difference) > 0 ? '+' : ''}${num(m.difference, 0)}`).join(', '))
+            off.map((m) => `${m.label}${signed(m.difference)}`).join(', '))
         : h('span', { class: 'text-green-700 dark:text-green-400' }, '✓ OK');
 }
 
@@ -126,7 +131,8 @@ function closings(root, d) {
             small('Closings', num(s.count, 0), 'one per day open', 'bg-smoke dark:bg-gray-950'),
             small('Balanced', num(s.balanced, 0), 'everything matched', 'bg-green-50 dark:bg-green-950/40'),
             small('With a difference', num(s.with_difference, 0), 'listed below', 'bg-red-50 dark:bg-red-950/40'),
-            small('Cash over / short', peso(s.cash_over_short), 'total of all closings', 'bg-red-50 dark:bg-red-950/40'),
+            small('Cash over / short', peso(s.cash_over_short), 'total of all closings',
+                Number(s.cash_over_short) < 0 ? 'bg-red-50 dark:bg-red-950/40' : Number(s.cash_over_short) > 0 ? 'bg-green-50 dark:bg-green-950/40' : 'bg-smoke dark:bg-gray-950'),
             small('Cash deposited', peso(s.cash_deposited), 'sealed envelopes to bank', 'bg-sky-50 dark:bg-sky-950/40'),
             small('GCash sent to bank', peso(s.gcash_sent_to_bank), null, 'bg-sky-50 dark:bg-sky-950/40')),
         h('div', { class: 'mt-3' }, body),
@@ -159,8 +165,8 @@ function fullClosing(v, showBranch) {
                     ? machines.map((m) => h('div', { class: 'flex justify-between gap-2 text-sm' },
                         h('span', { class: 'text-muted' }, m.label),
                         h('span', {}, `${num(m.booked, 0)} booked · ${num(m.counted, 0)} counted `,
-                            Number(m.difference) === 0 ? h('span', { class: 'text-green-700 dark:text-green-400' }, '✓')
-                                : h('strong', { class: 'text-red-700 dark:text-red-300' }, `${Number(m.difference) > 0 ? '+' : ''}${num(m.difference, 0)}`))))
+                            m.ok !== false ? h('span', { class: 'text-green-700 dark:text-green-400' }, '✓')
+                                : h('strong', { class: 'text-red-700 dark:text-red-300' }, signed(m.difference).trim() || 'check'))))
                     : h('p', { class: 'text-sm text-muted' }, 'No machine counters recorded'))),
         v.what_to_check ? h('p', { class: 'mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800 dark:bg-red-950 dark:text-red-200' }, v.what_to_check) : null);
 }
@@ -199,7 +205,7 @@ function busiest(root, d) {
         data: {
             labels: rows.map((r) => (inRange(r) ? r.day : [r.day, 'not in range'])),
             datasets: [
-                { type: 'line', label: 'Kilos washed', data: rows.map((r) => (inRange(r) ? r.kg : null)), yAxisID: 'kg', borderColor: '#b45309', backgroundColor: '#ffffff', pointBorderColor: '#b45309', pointRadius: 4, borderWidth: 2, spanGaps: true, topLabelColor: '#b45309', topLabels: rows.map((r) => (inRange(r) ? `${num(r.kg, 0)} kg` : '')), order: 0 },
+                { type: 'line', label: 'Kilos washed', data: rows.map((r) => (inRange(r) ? r.kg : null)), yAxisID: 'kg', borderColor: '#b45309', backgroundColor: '#ffffff', pointBorderColor: '#b45309', pointRadius: 4, borderWidth: 2, spanGaps: false, topLabelColor: '#b45309', topLabels: rows.map((r) => (inRange(r) ? `${num(r.kg, 0)} kg` : '')), order: 0 },
                 { label: 'Orders before 12 PM', data: rows.map((r) => (inRange(r) ? r.before_noon : null)), backgroundColor: '#9cc8d4', stack: 'o', labelColor: '#134e5e', labels: rows.map((r) => (inRange(r) && r.before_noon ? num(r.before_noon, 1) : '')), order: 1 },
                 { label: 'Orders after 12 PM', data: rows.map((r) => (inRange(r) ? r.after_noon : null)), backgroundColor: '#1f6b7a', stack: 'o', labels: rows.map((r) => (inRange(r) && r.after_noon ? num(r.after_noon, 1) : '')), topLabels: rows.map((r) => (inRange(r) ? num(r.total, 1) : '')), order: 1 },
                 { label: 'not in range', data: rows.map((r) => (inRange(r) ? null : placeholder)), backgroundColor: 'rgba(148,163,184,0.18)', stack: 'o', order: 2 },
@@ -221,6 +227,13 @@ function busiest(root, d) {
             h('span', {}, 'Chip = busiest 2 hours · open Mon–Sat 8 AM–7 PM, Sun 10 AM–5 PM')));
 }
 
+/** "5,190 kg · ₱30/kg", "18 loads · ₱175"; no price part when the API has none. */
+function priceLine(r) {
+    if (r.price === null || r.price === undefined) return qty(r.qty, r.unit);
+    const price = Number.isInteger(Number(r.price)) ? peso(r.price) : pesoCents(r.price);
+    return `${qty(r.qty, r.unit)} · ${price}${r.unit === 'kg' ? '/kg' : ''}`;
+}
+
 function services(root, d) {
     const s = d.services || {};
     const rows = list(s.rows);
@@ -230,7 +243,7 @@ function services(root, d) {
 
     const max = maxOf(rows.map((r) => r.amount));
     const row = (r) => h('div', { class: 'grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3 py-1.5' },
-        h('div', {}, h('div', { class: 'text-sm font-semibold' }, r.name ?? '—'), h('div', { class: 'text-xs text-muted' }, qty(r.qty, r.unit))),
+        h('div', {}, h('div', { class: 'text-sm font-semibold' }, r.name ?? '—'), h('div', { class: 'text-xs text-muted' }, priceLine(r))),
         bar(r.amount, max, '#8a5a35'),
         h('strong', { class: 'text-sm' }, peso(r.amount)));
     const half = Math.ceil(rows.length / 2);

@@ -156,6 +156,28 @@ class ProfitEndpointTest extends TestCase
         $this->assertSame(100, $shares + $res->json('profit_share'));
     }
 
+    public function test_staff_count_and_kilos_and_the_supplies_used_most(): void
+    {
+        $this->seedWeek(); // Detergent used: ₱500
+        foreach (['Bleach' => 900, 'Fabcon' => 300, 'Bags' => 200, 'Spray' => 100, 'Vinegar' => 50] as $name => $cost) {
+            $this->movement($this->stockItem($this->a, $name, 'mL', 1), '2026-09-23 12:00:00', 'out', -$cost);
+        }
+        $this->movement($this->stockItem($this->a, 'Gloves box', 'pcs', 5), '2026-09-23 12:00:00', 'in', 100); // bought, not used
+        $this->movement($this->stockItem($this->a, 'Free sample', 'pcs', 0), '2026-09-23 12:00:00', 'out', -10); // used, costs nothing
+
+        $queries = 0;
+        \Illuminate\Support\Facades\DB::listen(function ($q) use (&$queries) {
+            $queries += str_contains($q->sql, 'from "inventory_movements"') ? 1 : 0;
+        });
+
+        $this->profit('2026-09-19', '2026-09-25')
+            ->assertJsonPath('staff.employees_count', 1)
+            ->assertJsonPath('staff.kg', 300)
+            ->assertJsonPath('supplies_items', ['Bleach', 'Detergent', 'Fabcon', 'Bags', 'Spray'])
+            ->assertJsonPath('money_out.supplies.amount', 2050);
+        $this->assertSame(1, $queries, 'the profit request reads stock movements once');
+    }
+
     public function test_break_even_covered_on_day(): void
     {
         $this->seedWeek();
@@ -252,8 +274,9 @@ class ProfitEndpointTest extends TestCase
             ->assertJsonPath('break_even', ['per_day' => 0, 'actual_per_day' => 0, 'difference' => 0, 'covered_on' => null])
             ->assertJsonPath('staff', [
                 'total' => 0, 'wages' => 0, 'employer_share' => 0, 'attendance_pct' => 0, 'days_present' => 0, 'days_scheduled' => 0,
-                'per_order' => 0, 'per_kg' => 0, 'employees' => [],
+                'per_order' => 0, 'per_kg' => 0, 'employees' => [], 'employees_count' => 0, 'kg' => 0,
             ])
+            ->assertJsonPath('supplies_items', [])
             ->assertJsonPath('bills', ['total' => 0, 'pct_of_sales' => 0, 'rows' => []])
             ->assertJsonPath('other_purchases', ['total' => 0, 'pct_of_sales' => 0, 'rows' => []]);
     }

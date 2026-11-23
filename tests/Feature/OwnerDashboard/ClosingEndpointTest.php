@@ -57,9 +57,21 @@ class ClosingEndpointTest extends TestCase
         $this->assertSame(['Dryer #3: 1 cycle more than loads booked'], $view['failed_checks']);
         $this->assertSame('Dryer #3: 1 cycle more than loads booked', $view['what_to_check']);
         $this->assertSame([
-            ['machine_no' => 3, 'type' => 'wash', 'label' => 'Washer #3', 'booked' => 4, 'counted' => 4, 'difference' => 0],
-            ['machine_no' => 3, 'type' => 'dry', 'label' => 'Dryer #3', 'booked' => 4, 'counted' => 5, 'difference' => 1],
+            ['machine_no' => 3, 'type' => 'wash', 'label' => 'Washer #3', 'booked' => 4, 'counted' => 4, 'difference' => 0, 'ok' => true],
+            ['machine_no' => 3, 'type' => 'dry', 'label' => 'Dryer #3', 'booked' => 4, 'counted' => 5, 'difference' => 1, 'ok' => false],
         ], $view['machines']);
+    }
+
+    public function test_machine_ok_follows_the_status_not_the_difference(): void
+    {
+        $view = ClosingView::from($this->closing($this->a, '2026-11-20', ['machine_counters' => [
+            1 => ['wash' => $this->row('off', 4, 5, 0), 'dry' => $this->row('end_low', 4, 4, 0)],
+            2 => ['wash' => $this->row('matched', 4, 4, 0), 'dry' => $this->row('explained', 4, 5, 0)],
+        ]]));
+
+        $this->assertSame([false, false, true, true], array_column($view['machines'], 'ok'));
+        $this->assertSame([0, 0, 0, 0], array_column($view['machines'], 'difference'));
+        $this->assertSame('difference', $view['status']);
     }
 
     public function test_cash_short_message(): void

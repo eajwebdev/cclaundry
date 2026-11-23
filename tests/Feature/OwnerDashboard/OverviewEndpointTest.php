@@ -124,10 +124,26 @@ class OverviewEndpointTest extends TestCase
     public function test_services_sorted_by_amount_with_addons_total_and_top_service(): void
     {
         $this->overview()
-            ->assertJsonPath('services.rows', [['name' => 'Regular Laundry', 'qty' => 15, 'unit' => 'kg', 'amount' => 450]])
+            ->assertJsonPath('services.rows', [['name' => 'Regular Laundry', 'qty' => 15, 'unit' => 'kg', 'amount' => 450, 'price' => 30]])
             ->assertJsonPath('services.services_total', 450)
             ->assertJsonPath('services.addons_total', 20)
             ->assertJsonPath('services.top', ['name' => 'Regular Laundry', 'pct' => 96]);
+    }
+
+    public function test_service_rows_carry_the_current_list_price_or_null(): void
+    {
+        $regular = \App\Models\LaundryService::query()->where('name', 'Regular Laundry')->first();
+        $regular->update(['price' => 32]); // the list price now, not the price on old lines
+        $this->order($this->a, '2026-09-29 11:00:00', [[$this->service('Comforter', 'kilo', 55), 2]]);
+        $this->order($this->a, '2026-09-29 12:00:00', [[$this->service('Comforter', 'kilo', 60), 1]]); // same name, other price
+        $custom = $this->order($this->a, '2026-09-29 13:00:00', []);
+        $custom->items()->create(['laundry_service_id' => null, 'description' => 'Custom job', 'quantity' => 1, 'unit_price' => 50, 'total' => 50]);
+
+        $rows = collect($this->overview()->json('services.rows'))->keyBy('name');
+        $this->assertSame(32, $rows['Regular Laundry']['price']);
+        $this->assertSame(450, $rows['Regular Laundry']['amount']);
+        $this->assertNull($rows['Comforter']['price']);
+        $this->assertNull($rows['Custom job']['price']);
     }
 
     public function test_single_day_switches_busiest_to_hourly(): void
