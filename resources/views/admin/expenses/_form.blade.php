@@ -12,6 +12,8 @@
     $formBranchId = (string) ($formBranchId ?? request('branch_id', auth()->user()->branch_id ?: ($branches->first()?->id ?? '')));
     $formDate = $formDate ?? today()->toDateString();
     $sources = collect(\App\Models\BranchExpense::SOURCES)->when(! $isAdmin, fn ($sources) => $sources->except('bank'));
+    $billTypeOptions = collect(\App\Models\BranchExpense::BILL_TYPES_BY_EXPENSE_TYPE)
+        ->map(fn ($keys) => collect($keys)->mapWithKeys(fn ($key) => [$key => \App\Models\BranchExpense::BILL_TYPES[$key]]));
     $expenseDefaults = [
         'branch_id' => $formBranchId,
         'expense_date' => $formDate,
@@ -22,6 +24,9 @@
         'attendance_employee_id' => '',
         'salary_period_start' => $salaryPeriodStart,
         'salary_period_end' => $salaryPeriodEnd,
+        'bill_type' => '',
+        'period_start' => '',
+        'period_end' => '',
         'title' => '',
         'reference_no' => '',
         'remarks' => '',
@@ -49,6 +54,10 @@
         expenseDate: @js(old('expense_date', $formDate)),
         salaryPeriodStart: @js(old('salary_period_start', $salaryPeriodStart)),
         salaryPeriodEnd: @js(old('salary_period_end', $salaryPeriodEnd)),
+        billTypeOptions: @js($billTypeOptions),
+        billType: @js(old('bill_type', '')),
+        periodStart: @js(old('period_start', '')),
+        periodEnd: @js(old('period_end', '')),
         referenceNo: @js(old('reference_no', '')),
         remarks: @js(old('remarks', '')),
         receiptUrl: null,
@@ -57,6 +66,18 @@
         receiptBusy: false,
         removeReceipt: false,
         get isPayroll() { return this.expenseCategory === 'payroll'; },
+        get isBill() { return this.expenseCategory in this.billTypeOptions; },
+        get billChoices() { return this.billTypeOptions[this.expenseCategory] || {}; },
+        // Rent and government fees have one bill type, so it is not asked.
+        get askBillType() { return Object.keys(this.billChoices).length > 1; },
+        // A bill covers the calendar month of the expense date unless the period is changed.
+        defaultPeriod() {
+            const [year, month] = String(this.expenseDate).split('-').map(Number);
+            if (!year || !month) return;
+            const pad = value => String(value).padStart(2, '0');
+            this.periodStart = `${year}-${pad(month)}-01`;
+            this.periodEnd = `${year}-${pad(month)}-${pad(new Date(year, month, 0).getDate())}`;
+        },
         get drawerPart() {
             return this.isPayroll ? Number(this.split.drawer || 0) : (this.paidWith === 'drawer' ? Number(this.expenseAmount || 0) : 0);
         },
@@ -139,6 +160,10 @@
             this.salaryEmployeeId = String(values.attendance_employee_id ?? '');
             this.salaryPeriodStart = values.salary_period_start || this.defaults.salary_period_start;
             this.salaryPeriodEnd = values.salary_period_end || this.defaults.salary_period_end;
+            this.billType = values.bill_type || '';
+            this.periodStart = values.period_start || '';
+            this.periodEnd = values.period_end || '';
+            if (!this.periodStart) this.defaultPeriod();
             this.expenseTitle = values.title ?? '';
             this.referenceNo = values.reference_no ?? '';
             this.remarks = values.remarks ?? '';
@@ -214,14 +239,31 @@
                     @else
                         <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id }}">
                     @endif
-                    <label class="text-sm font-medium">Expense Date<input type="date" name="expense_date" x-model="expenseDate" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
+                    <label class="text-sm font-medium">Expense Date<input type="date" name="expense_date" x-model="expenseDate" @change="defaultPeriod()" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"></label>
                     <label class="text-sm font-medium">What did you buy / pay?
-                        <select name="category" x-model="expenseCategory" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
+                        <select name="category" x-model="expenseCategory" @change="billType = ''; if (!periodStart) defaultPeriod()" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">
                             @foreach($categories as $category)
                                 <option value="{{ $category }}">{{ \App\Support\StatusBadge::label($category) }}</option>
                             @endforeach
                         </select>
                     </label>
+
+                    <template x-if="isBill">
+                        <div class="grid grid-cols-1 gap-4 rounded-md bg-smoke p-3 md:col-span-2 md:grid-cols-3 dark:bg-gray-950">
+                            <template x-if="askBillType">
+                                <label class="text-sm font-medium">Bill for
+                                    <select name="bill_type" x-model="billType" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900">
+                                        <option value="">Select bill</option>
+                                        <template x-for="(label, key) in billChoices" :key="key">
+                                            <option :value="key" x-text="label"></option>
+                                        </template>
+                                    </select>
+                                </label>
+                            </template>
+                            <label class="text-sm font-medium">Bill period start<input type="date" name="period_start" x-model="periodStart" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900"></label>
+                            <label class="text-sm font-medium">Bill period end<input type="date" name="period_end" x-model="periodEnd" required class="mt-1.5 h-9 w-full rounded-md border border-border bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900"></label>
+                        </div>
+                    </template>
 
                     <template x-if="!isPayroll">
                         <div class="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-2">

@@ -190,7 +190,7 @@ class ExpenseController extends Controller
             $expense->loadMissing('accountsPayable.payments');
             $payable = $expense->accountsPayable;
             $paidBack = round((float) ($payable?->paid_amount ?? 0), 2);
-            $tracked = ['title', 'amount', 'category', 'paid_from', 'drawer_amount', 'gcash_amount', 'bank_amount', 'owner_amount', 'drawer_status', 'branch_id', 'expense_date', 'attendance_employee_id', 'salary_period_start', 'salary_period_end'];
+            $tracked = ['title', 'amount', 'category', 'paid_from', 'drawer_amount', 'gcash_amount', 'bank_amount', 'owner_amount', 'drawer_status', 'branch_id', 'expense_date', 'attendance_employee_id', 'salary_period_start', 'salary_period_end', 'bill_type', 'period_start', 'period_end'];
             $before = $expense->only($tracked);
 
             if ($payable && $payable->payments->isNotEmpty()) {
@@ -259,6 +259,13 @@ class ExpenseController extends Controller
             : (int) $user->branch_id;
         $salaryExpense = $normalizedCategory === 'payroll';
         $currentEmployeeId = $existing?->attendance_employee_id;
+        $billTypes = BranchExpense::BILL_TYPES_BY_EXPENSE_TYPE[$normalizedCategory] ?? null;
+        // Rent and government fees have one possible bill type, so the form does not ask for it.
+        if ($billTypes && count($billTypes) === 1) {
+            $request->merge(['bill_type' => $billTypes[0]]);
+        } elseif (! $billTypes) {
+            $request->merge(['bill_type' => null, 'period_start' => null, 'period_end' => null]);
+        }
         $sources = $user->isAdmin() ? array_keys(BranchExpense::SOURCES) : ['drawer', 'gcash', 'owner'];
 
         $validated = $request->validate([
@@ -286,6 +293,9 @@ class ExpenseController extends Controller
             ],
             'salary_period_start' => [Rule::requiredIf($salaryExpense), 'nullable', 'date'],
             'salary_period_end' => [Rule::requiredIf($salaryExpense), 'nullable', 'date', 'after_or_equal:salary_period_start'],
+            'bill_type' => [Rule::requiredIf($billTypes !== null), 'nullable', Rule::in($billTypes ?? [])],
+            'period_start' => [Rule::requiredIf($billTypes !== null), 'nullable', 'date'],
+            'period_end' => [Rule::requiredIf($billTypes !== null), 'nullable', 'date', 'after_or_equal:period_start'],
             'expense_type' => ['nullable', Rule::in(self::CATEGORIES)],
             'reference_no' => ['nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],

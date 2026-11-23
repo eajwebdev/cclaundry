@@ -185,6 +185,9 @@ class ExpenseReceiptTest extends TestCase
         return array_merge([
             'branch_id' => $this->branch->id,
             'category' => 'utilities',
+            'bill_type' => 'electricity',
+            'period_start' => '2026-10-01',
+            'period_end' => '2026-10-31',
             'title' => 'Electric bill',
             'amount' => 3200,
             'expense_date' => today()->toDateString(),

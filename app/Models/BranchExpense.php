@@ -14,11 +14,32 @@ class BranchExpense extends Model
         'bank' => 'Shop bank account',
     ];
 
+    /** What a bill is for; each bill is spread evenly over its period (period_start to period_end). */
+    public const BILL_TYPES = [
+        'rent' => 'Rent',
+        'electricity' => 'Electricity',
+        'lpg' => 'LPG (dryers)',
+        'water' => 'Water',
+        'wifi' => 'WiFi',
+        'taxes' => 'Taxes (BIR)',
+        'cell_phone' => 'Cell phone',
+    ];
+
+    /** Bill types allowed per expense type. An expense type not listed here is not a bill. */
+    public const BILL_TYPES_BY_EXPENSE_TYPE = [
+        'rent' => ['rent'],
+        'government_fees' => ['taxes'],
+        'utilities' => ['electricity', 'lpg', 'water', 'wifi', 'cell_phone'],
+    ];
+
     protected $fillable = [
         'branch_id',
         'attendance_employee_id',
         'category',
         'expense_type',
+        'bill_type',
+        'period_start',
+        'period_end',
         'title',
         'amount',
         'expense_date',
@@ -48,6 +69,8 @@ class BranchExpense extends Model
         'expense_date' => 'date',
         'salary_period_start' => 'date',
         'salary_period_end' => 'date',
+        'period_start' => 'date',
+        'period_end' => 'date',
         'drawer_amount' => 'decimal:2',
         'gcash_amount' => 'decimal:2',
         'bank_amount' => 'decimal:2',
@@ -79,6 +102,12 @@ class BranchExpense extends Model
             }
             $expense->drawer_status = $source === 'drawer' ? 'confirmed' : 'none';
         });
+    }
+
+    /** Money that counts in reports: pending and disputed drawer expenses do not. */
+    public function scopeCounted($query)
+    {
+        return $query->whereIn('drawer_status', ['none', 'confirmed']);
     }
 
     /** Non-zero parts, e.g. ['drawer' => 1000.0, 'gcash' => 2000.0]. */
