@@ -348,8 +348,11 @@ class CycleController extends Controller
             abort_unless((int) $processingBranchId === (int) $request->user()->branch_id || $request->user()->canManageAllBranches(), 403);
             abort_unless((int) $processingBranchId !== (int) $jobOrder->branch_id, 422);
 
+            $readyStatus = $jobOrder->transaction_type === 'delivery' ? 'ready_for_delivery' : 'ready_for_pickup';
+
             $jobOrder->update([
-                'status' => $jobOrder->transaction_type === 'delivery' ? 'ready_for_delivery' : 'ready_for_pickup',
+                'status' => $readyStatus,
+                'return_type' => JobOrder::returnTypeForStatus($readyStatus),
                 'current_branch_id' => $jobOrder->branch_id,
                 'release_branch_id' => $jobOrder->branch_id,
                 'production_completed_at' => $jobOrder->production_completed_at ?: now(),

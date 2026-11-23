@@ -558,7 +558,7 @@ class JobOrderController extends Controller
                 'is_rush' => (bool) ($validated['is_rush'] ?? false),
                 'kg_weighed' => $this->kgWeighed($validated['items'], $selectedServices),
                 'intake_type' => $pickupRequest ? 'house_pickup' : 'walk_in',
-                'return_type' => $pickupRequest?->delivery_preference === 'deliver' ? 'delivery' : 'shop_pickup',
+                'return_type' => $pickupRequest?->wantsDelivery() ? 'delivery' : 'shop_pickup',
                 'subtotal' => $subtotal,
                 'discount' => $discount,
                 'tax' => $tax,

@@ -9,6 +9,7 @@ use App\Models\LaundryService;
 use App\Models\PickupRequest;
 use App\Models\SystemSetting;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -160,5 +161,67 @@ class OrderDashboardFieldsTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $this->assertSame('delivery', $order->fresh()->return_type);
+    }
+
+    public function test_return_to_dropoff_sets_return_type_from_the_new_ready_status(): void
+    {
+        $order = $this->walkInOrder();
+        $other = Branch::query()->create(['name' => 'Branch 2', 'code' => 'B002', 'branch_type' => 'full_service', 'is_active' => true]);
+        // Wants delivery per return_type, but transaction_type walk_in re-readies it for pickup.
+        $order->update(['status' => 'ready_for_delivery', 'return_type' => 'delivery', 'processing_branch_id' => $other->id]);
+
+        $this->actingAs($this->admin)->patch(route('admin.cycles.release', $order), ['action' => 'return_to_dropoff'])->assertSessionHasNoErrors();
+
+        $order = $order->fresh();
+        $this->assertSame('ready_for_pickup', $order->status);
+        $this->assertSame('shop_pickup', $order->return_type);
+    }
+
+    public function test_backfill_fills_old_orders(): void
+    {
+        $kilo = $this->service('Regular', 'kilo', 30);
+        $load = $this->service('Sheets', 'load', 100, 8);
+        $noKpl = $this->service('Loads', 'load', 100);
+        $piece = $this->service('Pillow', 'piece', 50);
+
+        $order = fn (string $no, array $extra = []) => DB::table('job_orders')->insertGetId($extra + [
+            'branch_id' => $this->branch->id, 'customer_id' => $this->customer->id, 'job_order_number' => $no,
+            'status' => 'pending', 'transaction_type' => 'walk_in', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $item = fn (int $orderId, LaundryService $service, float $qty) => DB::table('job_order_items')->insert([
+            'job_order_id' => $orderId, 'laundry_service_id' => $service->id, 'description' => $service->name,
+            'quantity' => $qty, 'unit_price' => 1, 'total' => $qty, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $a = $order('A');
+        DB::table('pickup_requests')->insert([
+            'reference_no' => 'PU-A', 'customer_id' => $this->customer->id, 'branch_id' => $this->branch->id,
+            'contact_name' => 'C', 'contact_phone' => '0917', 'pickup_address' => 'x', 'pickup_date' => now()->toDateString(),
+            'status' => 'picked_up', 'job_order_id' => $a, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $b = $order('B', ['transaction_type' => 'delivery']);
+        $c = $order('C', ['deleted_at' => now()]);
+        $item($c, $kilo, 6.5);
+        $item($c, $load, 2);
+        $item($c, $piece, 3);
+        $d = $order('D');
+        $item($d, $noKpl, 3);
+        $e = $order('E');
+
+        $migration = require database_path('migrations/2026_11_23_000002_add_dashboard_fields_to_job_orders.php');
+        $migration->backfill();
+        $snapshot = DB::table('job_orders')->orderBy('id')->get(['id', 'kg_weighed', 'intake_type', 'return_type'])->toArray();
+
+        $row = fn (int $id) => DB::table('job_orders')->find($id);
+        $this->assertSame('house_pickup', $row($a)->intake_type);
+        $this->assertSame('delivery', $row($b)->return_type);
+        $this->assertEquals(22.5, $row($c)->kg_weighed);
+        $this->assertEquals(0, $row($d)->kg_weighed);
+        $this->assertEquals(0, $row($e)->kg_weighed);
+        $this->assertSame('walk_in', $row($e)->intake_type);
+        $this->assertSame('shop_pickup', $row($e)->return_type);
+
+        $migration->backfill();
+        $this->assertEquals($snapshot, DB::table('job_orders')->orderBy('id')->get(['id', 'kg_weighed', 'intake_type', 'return_type'])->toArray());
     }
 }

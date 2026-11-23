@@ -15,6 +15,11 @@ return new class extends Migration
             $table->string('return_type', 20)->default('shop_pickup')->after('intake_type');
         });
 
+        $this->backfill();
+    }
+
+    public function backfill(): void
+    {
         // DB::table (not the model) so soft-deleted orders are backfilled too.
         DB::table('job_orders')
             ->whereIn('id', DB::table('pickup_requests')->whereNotNull('job_order_id')->select('job_order_id'))
