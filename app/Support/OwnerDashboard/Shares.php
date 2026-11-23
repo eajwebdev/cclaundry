@@ -5,14 +5,15 @@ namespace App\Support\OwnerDashboard;
 final class Shares
 {
     /**
-     * Whole-number percentages that add to 100 (all zeros when the total is 0).
-     * The largest part takes the rounding remainder.
+     * Whole-number percentages that add to 100 (all zeros when no part is positive).
+     * A negative part counts as 0. The largest part takes the rounding remainder.
      *
      * @param  array<array-key, int|float>  $amounts
      * @return array<array-key, int>
      */
     public static function percentages(array $amounts): array
     {
+        $amounts = array_map(fn ($v) => max($v, 0), $amounts);
         $total = array_sum($amounts);
         if ($total <= 0) {
             return array_map(fn () => 0, $amounts);

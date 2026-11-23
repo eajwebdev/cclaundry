@@ -293,6 +293,33 @@ class ProfitEndpointTest extends TestCase
             ]);
     }
 
+    public function test_other_purchase_without_title_or_type_is_other(): void
+    {
+        $this->expense($this->a, '2026-09-23', 'other', '  ', 50, ['expense_type' => '']);
+
+        $this->profit('2026-09-21', '2026-09-26')
+            ->assertJsonPath('other_purchases.rows', [
+                ['category' => 'Gloves', 'amount' => 320],
+                ['category' => 'Other', 'amount' => 50],
+            ]);
+    }
+
+    public function test_legacy_operating_rows_are_excluded_by_their_category(): void
+    {
+        // Rows from before the `operating` remap keep their real type only in `category`.
+        $this->expense($this->a, '2026-09-23', 'operating', 'Salaries', 1000, ['category' => 'Payroll']);
+        $this->expense($this->a, '2026-09-23', 'regular', 'Detergent stock', 500, ['category' => 'inventory purchase']);
+        $this->expense($this->a, '2026-09-23', 'operating', 'Soap', 200, ['category' => ' Supplies ']);
+        $this->expense($this->a, '2026-09-23', 'operating', 'Fix pump', 150, ['category' => 'repairs']);
+
+        $this->profit('2026-09-21', '2026-09-26')
+            ->assertJsonPath('money_out.other.amount', 470)
+            ->assertJsonPath('other_purchases.rows', [
+                ['category' => 'Gloves', 'amount' => 320],
+                ['category' => 'Fix pump', 'amount' => 150],
+            ]);
+    }
+
     public function test_overview_profit_card_matches_profit_endpoint(): void
     {
         $this->seedWeek();

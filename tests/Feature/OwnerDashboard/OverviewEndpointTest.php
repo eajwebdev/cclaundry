@@ -227,7 +227,12 @@ class OverviewEndpointTest extends TestCase
         $shares = Shares::percentages(['a' => 1, 'b' => 1, 'c' => 1]);
 
         $this->assertSame(['a', 'b', 'c'], array_keys($shares));
-        $this->assertSame(100, array_sum($shares));
+        $this->assertSame(['a' => 34, 'b' => 33, 'c' => 33], $shares);
         $this->assertSame(['a' => 0, 'b' => 0], Shares::percentages(['a' => 0, 'b' => 0]));
+        // Floats with a tie for largest: the first largest is rounded last (17 + 42 + 42 would be 101).
+        $this->assertSame(['x' => 17, 'y' => 41, 'z' => 42], Shares::percentages(['x' => 0.5, 'y' => 1.25, 'z' => 1.25]));
+        // A negative part counts as 0; the rest still adds to 100.
+        $this->assertSame(['sales' => 0, 'staff' => 75, 'bills' => 25], Shares::percentages(['sales' => -50, 'staff' => 300, 'bills' => 100]));
+        $this->assertSame(['a' => 0, 'b' => 0], Shares::percentages(['a' => -5, 'b' => 0]));
     }
 }

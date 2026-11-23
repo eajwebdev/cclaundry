@@ -22,6 +22,9 @@ final class ProfitStats
     /** Expense types costed elsewhere: payroll via attendance, supplies via stock use. */
     private const NOT_OTHER = ['payroll', 'supplies', 'inventory_purchase'];
 
+    /** Types of rows saved before the 2026-06-14 remap, whose real type is only in `category`. */
+    private const LEGACY_TYPES = ['operating', 'regular'];
+
     public static function for(Period $period): array
     {
         $staff = self::staff($period);
@@ -156,7 +159,9 @@ final class ProfitStats
     /** @return Collection<int, array{category: string, amount: float}> one row per title (case-insensitive), largest first, unrounded */
     private static function other(Period $period): Collection
     {
-        $label = fn ($e) => trim((string) $e->title) ?: ucfirst(str_replace('_', ' ', (string) $e->expense_type));
+        $label = fn ($e) => trim((string) $e->title) ?: (ucfirst(str_replace('_', ' ', (string) $e->expense_type)) ?: 'Other');
+        $legacyNotOther = fn ($e) => in_array($e->expense_type, self::LEGACY_TYPES, true)
+            && in_array(str_replace(' ', '_', strtolower(trim((string) $e->category))), self::NOT_OTHER, true);
 
         return BranchExpense::query()->counted()
             ->whereNull('bill_type')
@@ -165,7 +170,8 @@ final class ProfitStats
             ->whereDate('expense_date', '<=', $period->to)
             ->when($period->branchId, fn ($q, $id) => $q->where('branch_id', $id))
             ->orderBy('expense_date')->orderBy('id')
-            ->get(['title', 'expense_type', 'amount'])
+            ->get(['title', 'expense_type', 'category', 'amount'])
+            ->reject($legacyNotOther)
             ->groupBy(fn ($e) => mb_strtolower($label($e)))
             ->map(fn ($group) => ['category' => $label($group->first()), 'amount' => (float) $group->sum('amount')])
             ->sort(fn ($x, $y) => [$y['amount'], $x['category']] <=> [$x['amount'], $y['category']])

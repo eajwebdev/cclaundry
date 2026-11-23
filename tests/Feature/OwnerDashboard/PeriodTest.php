@@ -54,7 +54,12 @@ class PeriodTest extends TestCase
         $this->assertSame(['2026-09-21', '2026-09-25'], [$b[0]['start'], $b[0]['end']]);
         $this->assertSame(['2026-09-26', '2026-10-02'], [$b[1]['start'], $b[1]['end']]);
         $this->assertSame('Sep 21–25', $b[0]['label']);
+        $this->assertSame('Sep 26 – Oct 2', $b[1]['label']);
         $this->assertSame('2026-10-30', end($b)['end']);
+
+        // The last week stops at the range end, not at its Friday.
+        $clipped = Period::make('2026-09-21', '2026-10-28', null)->buckets();
+        $this->assertSame(['label' => 'Oct 24–28', 'start' => '2026-10-24', 'end' => '2026-10-28'], end($clipped));
     }
 
     public function test_day_and_month_buckets(): void

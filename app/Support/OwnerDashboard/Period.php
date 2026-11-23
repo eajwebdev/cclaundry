@@ -88,7 +88,7 @@ final class Period
             $out[] = [
                 'label' => match ($this->bucket) {
                     'day' => $start->format('j'),
-                    'week' => $start->format('M j').'–'.$end->format('j'),
+                    'week' => $start->month === $end->month ? $start->format('M j').'–'.$end->format('j') : $start->format('M j').' – '.$end->format('M j'),
                     'month' => $start->format('M Y'),
                 },
                 'start' => $start->toDateString(),
