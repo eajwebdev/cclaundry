@@ -41,7 +41,8 @@ class ProfitEndpointTest extends TestCase
         $this->bill($this->a, 'rent', 15500, '2026-10-01', '2026-10-31');
         $this->expense($this->a, '2026-09-22', 'other', 'Gloves', 320);
         $this->expense($this->a, '2026-09-22', 'other', 'Mop', 999, ['drawer_status' => 'pending']);
-        $this->expense($this->a, '2026-09-26', 'payroll', 'Maria salary', 3900);
+        // One week's pay for Mon Sep 21 – Sat Sep 26: ₱744.25 a day over the six days it covers.
+        $this->payroll($this->maria, 4465.50, '2026-09-21', '2026-09-26');
     }
 
     private function profit(string $from, string $to, string $branch = 'all'): TestResponse
@@ -62,20 +63,54 @@ class ProfitEndpointTest extends TestCase
         $this->movement($detergent, '2026-09-22 11:00:00', 'out', -1000);
     }
 
-    public function test_staff_cost_follows_work_days(): void
+    public function test_staff_cost_is_recorded_payroll_spread_over_its_salary_period(): void
     {
+        // Five of the six paid days fall in the range: 5 × 744.25.
         $this->profit('2026-09-19', '2026-09-25')
-            ->assertJsonPath('staff.wages', 3250)
-            ->assertJsonPath('staff.employer_share', 471.25)
             ->assertJsonPath('staff.total', 3721.25)
             ->assertJsonPath('money_out.staff.amount', 3721.25)
             ->assertJsonPath('staff.days_present', 5)
             ->assertJsonPath('staff.days_scheduled', 6)
             ->assertJsonPath('staff.attendance_pct', 83)
             ->assertJsonPath('staff.employees', [[
-                'name' => 'Maria Staff', 'role' => 'attendant', 'daily_rate' => 650, 'days_worked' => 5, 'days_scheduled' => 6,
-                'wages' => 3250, 'employer_share' => 471.25, 'total' => 3721.25,
+                'name' => 'Maria Staff', 'role' => 'attendant', 'days_worked' => 5, 'days_scheduled' => 6, 'total' => 3721.25,
             ]]);
+    }
+
+    public function test_daily_rates_and_attendance_alone_cost_nothing(): void
+    {
+        // Juan has a daily rate and clocked in, but no payroll is recorded for him.
+        $juan = $this->employee($this->a, 'Juan', 500);
+        $this->attend($juan, '2026-09-22');
+
+        $this->profit('2026-09-19', '2026-09-25')->assertJsonPath('staff.total', 3721.25);
+    }
+
+    public function test_payroll_without_a_salary_period_counts_on_its_expense_date(): void
+    {
+        $this->payroll($this->maria, 500, null, null, [], '2026-09-23');
+
+        $this->profit('2026-09-23', '2026-09-23')->assertJsonPath('staff.total', 1244.25); // 744.25 + 500
+        $this->profit('2026-09-24', '2026-09-24')->assertJsonPath('staff.total', 744.25);
+    }
+
+    public function test_unconfirmed_payroll_is_not_counted(): void
+    {
+        $this->payroll($this->maria, 900, '2026-09-21', '2026-09-26', ['drawer_status' => 'pending']);
+        $this->payroll($this->maria, 900, '2026-09-21', '2026-09-26', ['drawer_status' => 'disputed']);
+
+        $this->profit('2026-09-21', '2026-09-26')->assertJsonPath('staff.total', 4465.5);
+    }
+
+    public function test_payroll_without_an_employee_counts_on_its_own_row(): void
+    {
+        $this->expense($this->a, '2026-09-23', 'payroll', 'Helper', 300);
+
+        $res = $this->profit('2026-09-21', '2026-09-26')->assertJsonPath('staff.total', 4765.5)->assertJsonPath('staff.employees_count', 2);
+        $this->assertSame(
+            ['name' => 'Not assigned to an employee', 'role' => null, 'days_worked' => 0, 'days_scheduled' => 0, 'total' => 300],
+            $res->json('staff.employees.1'),
+        );
     }
 
     public function test_single_day_bill_is_the_daily_share(): void
@@ -108,7 +143,7 @@ class ProfitEndpointTest extends TestCase
 
     public function test_payroll_expense_is_not_an_other_purchase(): void
     {
-        // Range covers the ₱3,900 payroll expense on Sep 26; staff = 6 days × 650 × 1.145 from attendance.
+        // The payroll expense is the staff line, never also an other purchase.
         $this->profit('2026-09-21', '2026-09-26')
             ->assertJsonPath('money_out.other.amount', 320)
             ->assertJsonPath('other_purchases.total', 320)
@@ -211,15 +246,14 @@ class ProfitEndpointTest extends TestCase
             ->assertJsonPath('break_even.difference', -3841.25);
     }
 
-    public function test_employee_without_daily_rate_costs_zero_and_is_listed(): void
+    public function test_employee_with_attendance_and_no_payroll_costs_zero_and_is_listed(): void
     {
         $pedro = $this->employee($this->a, 'Pedro', null, ['schedule_role' => 'rider']);
         $this->attend($pedro, '2026-09-22');
 
         $res = $this->profit('2026-09-19', '2026-09-25')->assertJsonPath('staff.total', 3721.25);
         $this->assertSame([
-            'name' => 'Pedro Staff', 'role' => 'rider', 'daily_rate' => null, 'days_worked' => 1, 'days_scheduled' => 0,
-            'wages' => 0, 'employer_share' => 0, 'total' => 0,
+            'name' => 'Pedro Staff', 'role' => 'rider', 'days_worked' => 1, 'days_scheduled' => 0, 'total' => 0,
         ], $res->json('staff.employees.1'));
     }
 
@@ -255,6 +289,7 @@ class ProfitEndpointTest extends TestCase
         $juan = $this->employee($this->a, 'Juan', 500);
         $this->attend($juan, '2026-10-05', $this->a);
         $this->attend($juan, '2026-10-05', $b);
+        $this->payroll($juan, 572.5, '2026-10-05', '2026-10-05');
 
         $all = $this->profit('2026-10-05', '2026-10-05')->assertJsonPath('staff.total', 572.5)->assertJsonPath('staff.days_present', 1);
         $ja = $this->profit('2026-10-05', '2026-10-05', (string) $this->a->id)->assertJsonPath('staff.total', 572.5);
@@ -277,7 +312,7 @@ class ProfitEndpointTest extends TestCase
             ->assertJsonPath('per_order', ['sales' => 0, 'staff' => 0, 'bills' => 0, 'supplies' => 0, 'other' => 0, 'profit' => 0])
             ->assertJsonPath('break_even', ['per_day' => 0, 'actual_per_day' => 0, 'difference' => 0, 'covered_on' => null])
             ->assertJsonPath('staff', [
-                'total' => 0, 'wages' => 0, 'employer_share' => 0, 'attendance_pct' => 0, 'days_present' => 0, 'days_scheduled' => 0,
+                'total' => 0, 'attendance_pct' => 0, 'days_present' => 0, 'days_scheduled' => 0,
                 'per_order' => 0, 'per_kg' => 0, 'employees' => [], 'employees_count' => 0, 'kg' => 0,
             ])
             ->assertJsonPath('supplies_items', [])
@@ -316,7 +351,9 @@ class ProfitEndpointTest extends TestCase
         $this->expense($this->a, '2026-09-23', 'operating', 'Soap', 200, ['category' => ' Supplies ']);
         $this->expense($this->a, '2026-09-23', 'operating', 'Fix pump', 150, ['category' => 'repairs']);
 
+        // The legacy payroll row is staff cost (4465.5 + 1000); legacy supplies and stock purchases count nowhere.
         $this->profit('2026-09-21', '2026-09-26')
+            ->assertJsonPath('money_out.staff.amount', 5465.5)
             ->assertJsonPath('money_out.other.amount', 470)
             ->assertJsonPath('other_purchases.rows', [
                 ['category' => 'Gloves', 'amount' => 320],

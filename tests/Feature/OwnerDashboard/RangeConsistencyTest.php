@@ -100,6 +100,12 @@ class RangeConsistencyTest extends TestCase
                     $this->attend($emp, $date);
                 }
             }
+            // Weekly pay, Saturday to Friday; the first and last weeks straddle the month's ends.
+            foreach ([['2026-08-29', '2026-09-04'], ['2026-09-05', '2026-09-11'], ['2026-09-12', '2026-09-18'], ['2026-09-19', '2026-09-25'], ['2026-09-26', '2026-10-02']] as [$start, $end]) {
+                $this->payroll($emp, 3000 + 250 * $i, $start, $end);
+            }
+            $this->payroll($emp, 400, null, null, [], '2026-09-10'); // an advance saved without a salary period
+            $this->payroll($emp, 999, '2026-09-05', '2026-09-11', ['drawer_status' => 'pending']);
         }
 
         $this->bill($br, 'rent', 12000, '2026-09-01', '2026-09-30');

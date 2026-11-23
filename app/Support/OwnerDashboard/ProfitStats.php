@@ -11,7 +11,8 @@ use Illuminate\Support\Collection;
 
 /**
  * Page 3 of the owner dashboard: money in − money out = profit. Each cost counts for the days it belongs to:
- * staff by work_date, bills by their period, supplies by use (R2), other purchases by expense_date.
+ * staff by the payroll recorded in Expenses (over its salary period), bills by their period, supplies by use (R2),
+ * other purchases by expense_date.
  * Sums run at full precision and are rounded once, at output.
  */
 final class ProfitStats
@@ -19,7 +20,7 @@ final class ProfitStats
     /** Shift templates that are not a working day ('unscheduled' is what the planner's Clear button saves). */
     private const OFF_TEMPLATES = ['rest', 'leave', 'unscheduled'];
 
-    /** Expense types costed elsewhere: payroll via attendance, supplies via stock use. */
+    /** Expense types costed elsewhere: payroll on the staff line, supplies via stock use. */
     private const NOT_OTHER = ['payroll', 'supplies', 'inventory_purchase'];
 
     /** Types of rows saved before the 2026-06-14 remap, whose real type is only in `category`. */
@@ -83,9 +84,10 @@ final class ProfitStats
     }
 
     /**
-     * Paid days (a clock-in) and published working shifts in range, per employee. Unrounded.
+     * Staff cost is the payroll recorded in Expenses (the owner's rule, replacing the spec's daily rate × days worked).
+     * Attendance and published shifts only feed the days columns. Unrounded.
      *
-     * @return array{wages: float, employer_share: float, total: float, days_present: int, days_scheduled: int, employees: Collection}
+     * @return array{total: float, days_present: int, days_scheduled: int, employees: Collection}
      */
     private static function staff(Period $period): array
     {
@@ -111,39 +113,74 @@ final class ProfitStats
             ->selectRaw('attendance_employee_id, COUNT(*) as n')
             ->pluck('n', 'attendance_employee_id');
 
-        $employees = AttendanceEmployee::withTrashed()
-            ->whereIn('id', $paid->keys()->merge($scheduled->keys())->unique()->all())
-            ->get()
-            ->map(function (AttendanceEmployee $e) use ($paid, $scheduled) {
-                $days = (int) ($paid[$e->id] ?? 0);
-                $rate = $e->getAttribute('daily_rate');
-                $wages = $days * (float) $rate;
-                $share = $wages * (float) $e->getAttribute('employer_share_rate') / 100;
+        $payroll = self::payroll($period);
 
-                return [
-                    'name' => $e->name, 'role' => $e->schedule_role, 'daily_rate' => $rate === null ? null : (float) $rate,
-                    'days_worked' => $days, 'days_scheduled' => (int) ($scheduled[$e->id] ?? 0),
-                    'wages' => $wages, 'employer_share' => $share, 'total' => $wages + $share,
-                ];
-            })
-            ->sort(fn ($x, $y) => [$y['total'], $x['name']] <=> [$x['total'], $y['name']])
-            ->values();
+        $employees = AttendanceEmployee::withTrashed()
+            ->whereIn('id', $paid->keys()->merge($scheduled->keys())->merge($payroll->keys())->unique()->all())
+            ->get()
+            ->map(fn (AttendanceEmployee $e) => [
+                'name' => $e->name, 'role' => $e->schedule_role,
+                'days_worked' => (int) ($paid[$e->id] ?? 0), 'days_scheduled' => (int) ($scheduled[$e->id] ?? 0),
+                'total' => (float) ($payroll[$e->id] ?? 0),
+            ]);
+
+        // Payroll saved without an employee (or for one since removed) still counts, on its own row.
+        $unassigned = (float) $payroll->sum() - (float) $employees->sum('total');
+        if (round($unassigned, 2) > 0) {
+            $employees->push(['name' => 'Not assigned to an employee', 'role' => null, 'days_worked' => 0, 'days_scheduled' => 0, 'total' => $unassigned]);
+        }
+
+        $employees = $employees->sort(fn ($x, $y) => [$y['total'], $x['name']] <=> [$x['total'], $y['name']])->values();
 
         return [
-            'wages' => (float) $employees->sum('wages'),
-            'employer_share' => (float) $employees->sum('employer_share'),
-            'total' => (float) $employees->sum('total'),
+            'total' => (float) $payroll->sum(),
             'days_present' => (int) $employees->sum('days_worked'),
             'days_scheduled' => (int) $employees->sum('days_scheduled'),
             'employees' => $employees,
         ];
     }
 
+    /**
+     * Payroll expenses per employee id (0 = none): spread over the salary period when one is saved, so a week's pay
+     * counts for the days it covers; otherwise counted on the expense date.
+     *
+     * @return Collection<int, float> unrounded
+     */
+    private static function payroll(Period $period): Collection
+    {
+        $isPayroll = fn ($e) => $e->expense_type === 'payroll'
+            || (in_array($e->expense_type, self::LEGACY_TYPES, true) && str_replace(' ', '_', strtolower(trim((string) $e->category))) === 'payroll');
+
+        return BranchExpense::query()->counted()
+            ->whereIn('expense_type', ['payroll', ...self::LEGACY_TYPES])
+            ->where(fn ($q) => $q
+                ->where(fn ($p) => $p->whereDate('salary_period_start', '<=', $period->to)->whereDate('salary_period_end', '>=', $period->from))
+                ->orWhere(fn ($p) => $p->whereDate('expense_date', '>=', $period->from)->whereDate('expense_date', '<=', $period->to)))
+            ->when($period->branchId, fn ($q, $id) => $q->where('branch_id', $id))
+            ->get(['attendance_employee_id', 'expense_type', 'category', 'amount', 'expense_date', 'salary_period_start', 'salary_period_end'])
+            ->filter($isPayroll)
+            ->groupBy(fn ($e) => (int) $e->attendance_employee_id)
+            ->map(fn ($rows) => (float) $rows->sum(function ($e) use ($period) {
+                [$start, $end, $on] = [$e->salary_period_start?->toDateString(), $e->salary_period_end?->toDateString(), $e->expense_date->toDateString()];
+
+                return $start && $end && $start <= $end
+                    ? self::spread((float) $e->amount, $start, $end, $period)
+                    : ($on >= $period->from && $on <= $period->to ? (float) $e->amount : 0.0);
+            }));
+    }
+
+    /** The part of an amount covering $start..$end (inclusive, valid) that falls inside the range; 0 when they do not overlap. */
+    private static function spread(float $amount, string $start, string $end, Period $period): float
+    {
+        $days = fn (string $a, string $b) => (int) CarbonImmutable::parse($a)->diffInDays(CarbonImmutable::parse($b)) + 1;
+        [$from, $to] = [max($start, $period->from), min($end, $period->to)];
+
+        return $from > $to ? 0.0 : $amount / $days($start, $end) * $days($from, $to);
+    }
+
     /** @return Collection<string, float> bill_type => share of the bills' periods that falls in range, unrounded */
     private static function bills(Period $period): Collection
     {
-        $days = fn (string $a, string $b) => (int) CarbonImmutable::parse($a)->diffInDays(CarbonImmutable::parse($b)) + 1;
-
         return BranchExpense::query()->counted()
             ->whereNotNull('bill_type')
             ->whereDate('period_start', '<=', $period->to)
@@ -153,7 +190,7 @@ final class ProfitStats
             ->map(fn ($b) => [$b->bill_type, $b->period_start->toDateString(), $b->period_end->toDateString(), (float) $b->amount])
             ->filter(fn ($b) => $b[1] <= $b[2]) // an inverted period cannot be spread
             ->groupBy(0)
-            ->map(fn ($bills) => (float) $bills->sum(fn ($b) => $b[3] / $days($b[1], $b[2]) * $days(max($b[1], $period->from), min($b[2], $period->to))));
+            ->map(fn ($bills) => (float) $bills->sum(fn ($b) => self::spread($b[3], $b[1], $b[2], $period)));
     }
 
     /** @return Collection<int, array{category: string, amount: float}> one row per title (case-insensitive), largest first, unrounded */
@@ -249,19 +286,12 @@ final class ProfitStats
     {
         return [
             'total' => round($staff['total'], 2),
-            'wages' => round($staff['wages'], 2),
-            'employer_share' => round($staff['employer_share'], 2),
             'attendance_pct' => $staff['days_scheduled'] ? min(100, (int) round($staff['days_present'] / $staff['days_scheduled'] * 100)) : 0,
             'days_present' => $staff['days_present'],
             'days_scheduled' => $staff['days_scheduled'],
             'per_order' => round($orders ? $staff['total'] / $orders : 0.0, 2),
             'per_kg' => round($kg > 0 ? $staff['total'] / $kg : 0.0, 2),
-            'employees' => $staff['employees']->map(fn ($e) => array_merge($e, [
-                'daily_rate' => $e['daily_rate'] === null ? null : round($e['daily_rate'], 2),
-                'wages' => round($e['wages'], 2),
-                'employer_share' => round($e['employer_share'], 2),
-                'total' => round($e['total'], 2),
-            ]))->all(),
+            'employees' => $staff['employees']->map(fn ($e) => array_merge($e, ['total' => round($e['total'], 2)]))->all(),
             'employees_count' => $staff['employees']->count(),
             'kg' => round($kg, 2),
         ];

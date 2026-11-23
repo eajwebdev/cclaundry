@@ -19,14 +19,14 @@ class PagesTest extends TestCase
     private const HOOKS = [
         'overview' => ['kpis', 'payments', 'intake', 'closings', 'closing-full', 'busiest', 'hourly', 'services'],
         'supplies' => ['kpis', 'usage', 'items', 'purchases', 'adjustments', 'addons'],
-        'profit' => ['equation', 'money-chart', 'per-order', 'break-even', 'staff', 'bills', 'other'],
+        'profit' => ['equation', 'money-went', 'break-even', 'staff', 'bills', 'other'],
     ];
 
     /** The other hooks the JS reads: sub-heading slots, cards it hides or shows, and link attributes. */
     private const SUBS = [
         'overview' => ['services'],
         'supplies' => ['purchases', 'adjustments', 'addons'],
-        'profit' => ['per-order', 'bills', 'other', 'supplies-used', 'supplies-items'],
+        'profit' => ['money-went', 'bills', 'other', 'supplies-used', 'supplies-items'],
     ];
 
     private const CARDS = ['overview' => ['busiest', 'hourly'], 'supplies' => [], 'profit' => []];

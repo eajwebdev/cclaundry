@@ -1,4 +1,4 @@
-import { h, peso, pesoCents, num, pct, list, empty, card, bar, maxOf, note, fill, setSub, drawChart, pesoTooltip } from './core';
+import { h, peso, pesoCents, num, pct, list, empty, card, bar, maxOf, note, fill, setSub } from './core';
 
 const LINES = [
     ['staff', 'Staff', '#5b3f86'],
@@ -12,91 +12,87 @@ const BILL_COLORS = ['#8a5a35', '#1f6b7a', '#d98a2b', '#7fb8d6', '#6b8e23', '#37
 const employees = (count) => `${num(count, 0)} ${Number(count) === 1 ? 'employee' : 'employees'}`;
 const suppliesNames = (d) => list(d.supplies_items).map((name) => String(name).toLowerCase()).join(', ');
 
-const big = (text, cls = '') => h('div', { class: `mt-1 text-3xl font-bold tracking-tight ${cls}`, style: { fontFamily: "'Playfair Display', Georgia, serif" } }, text);
 
+/** Money in − Money out = Profit as one card; the line under each figure shows its size against Sales. */
 function equation(root, d) {
     const out = d.money_out || {};
     const loss = Number(d.profit) < 0;
-    const op = (sign) => h('div', { class: 'hidden items-center justify-center text-3xl font-bold text-muted md:flex' }, sign);
-    fill(root, 'equation', h('div', { class: 'grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto_1fr_auto_1fr]' },
-        card('border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/40',
-            h('div', { class: 'text-xs font-medium' }, 'Money in'), big(peso(d.money_in), 'text-sky-900 dark:text-sky-200'),
-            h('div', { class: 'text-xs text-muted' }, `sales from ${num(d.orders, 0)} orders`)),
+    const hasSales = Number(d.money_in) > 0;
+    const width = (share) => `${hasSales ? Math.min(100, Math.max(0, Number(share) || 0)) : 0}%`;
+    const part = (label, value, sub, color, share, cls = '', valueCls = '') => h('div', { class: `flex flex-col justify-between gap-3 p-4 sm:p-5 ${cls}` },
+        h('div', {},
+            h('div', { class: 'flex items-center gap-2 text-sm font-semibold' }, h('span', { class: 'h-2.5 w-2.5 rounded-sm', style: { background: color } }), label),
+            h('div', { class: `mt-1 text-4xl font-bold tracking-tight tabular-nums sm:text-[2.75rem] sm:leading-none ${valueCls}`, style: { fontFamily: "'Playfair Display', Georgia, serif" } }, value),
+            h('div', { class: 'mt-1.5 text-sm text-muted' }, sub)),
+        h('div', { class: 'h-1.5 w-full overflow-hidden rounded-full bg-black/5 dark:bg-white/10' }, h('div', { class: 'h-full rounded-full', style: { width: width(share), background: color } })));
+    const op = (sign) => h('div', { class: 'hidden w-0 items-center justify-center md:flex' },
+        h('span', { class: 'z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-white text-lg font-bold text-muted dark:border-gray-700 dark:bg-gray-900' }, sign));
+    const kept = loss ? '#b91c1c' : GREEN;
+
+    fill(root, 'equation', h('div', { class: 'grid grid-cols-1 divide-y divide-border overflow-hidden rounded-xl border border-border bg-white shadow-sm md:grid-cols-[1fr_auto_1fr_auto_1.15fr] md:divide-x md:divide-y-0 dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900' },
+        part('Money in', peso(d.money_in), `sales from ${num(d.orders, 0)} orders`, '#1f6b7a', 100),
         op('−'),
-        card('border-orange-200 bg-orange-50 dark:border-orange-900 dark:bg-orange-950/40',
-            h('div', { class: 'text-xs font-medium' }, 'Money out'), big(peso(out.total?.amount), 'text-orange-800 dark:text-orange-300'),
-            h('div', { class: 'text-xs text-muted' }, 'staff, bills, supplies, other')),
+        part('Money out', peso(out.total?.amount), hasSales ? `₱${num(out.total?.pct, 0)} of every ₱100 earned` : 'staff, bills, supplies, other', '#b45309', out.total?.pct),
         op('='),
-        card(loss ? 'border-red-700 bg-red-700 text-white' : 'border-green-700 bg-green-700 text-white',
-            h('div', { class: 'text-xs font-medium' }, 'Profit'), big(peso(d.profit)),
-            h('div', { class: 'text-xs' }, loss ? `${pct(Math.abs(Number(d.profit_pct) || 0))} of sales lost` : `${pct(d.profit_pct)} of sales stays in the shop`))));
+        part(loss ? 'Loss' : 'Profit', peso(d.profit),
+            loss ? `${pct(Math.abs(Number(d.profit_pct) || 0))} of sales lost` : `${pct(d.profit_pct)} of sales stays in the shop`,
+            kept, loss ? 0 : d.profit_share,
+            loss ? 'bg-red-50 dark:bg-red-950/30' : 'bg-green-50 dark:bg-green-950/30',
+            loss ? 'text-red-700 dark:text-red-300' : 'text-green-800 dark:text-green-300')));
 }
 
-function moneyChart(root, d) {
-    const host = fill(root, 'money-chart');
-    if (!host) return;
+/** "Water ₱1,998 · Electricity ₱587": the biggest few things inside a cost line. */
+const inside = (rows, nameKey) => list(rows).slice(0, 3).filter((r) => r[nameKey]).map((r) => `${r[nameKey]} ${peso(r.amount)}`).join(' · ');
+
+/** One card that answers "where did the money go": a sentence, one bar of the sales split, and a row per cost. */
+function moneyWent(root, d) {
     const out = d.money_out || {};
-    if (!Number(d.money_in) && !Number(out.total?.amount)) { host.append(empty()); return; }
-    const profit = Number(d.profit);
-    const lines = profit >= 0 ? [...LINES, ['profit', 'Profit', GREEN]] : LINES;
-    const last = lines[lines.length - 1][0];
-    // Top of the right bar: Sales when there is a profit (costs + profit), total costs when there is a loss.
-    const rightTop = profit >= 0 ? peso(d.money_in) : peso(out.total?.amount);
-    const datasets = [
-        { label: 'Money in', data: [d.money_in, null], backgroundColor: '#1f6b7a', stack: 's', topLabels: [peso(d.money_in), ''] },
-        ...lines.map(([key, label, color]) => ({
-            label,
-            data: [null, key === 'profit' ? d.profit : out[key]?.amount],
-            backgroundColor: color,
-            stack: 's',
-            topLabels: key === last ? ['', rightTop] : undefined,
-        })),
-    ];
-    const wrap = h('div', { class: 'grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center' });
-    host.append(wrap);
-    const chartBox = h('div');
-    wrap.append(chartBox);
-    drawChart('money', chartBox, {
-        type: 'bar',
-        data: { labels: ['Money in', 'Where it went'], datasets },
-        options: {
-            layout: { padding: { top: 20 } },
-            plugins: { legend: { display: false }, tooltip: pesoTooltip },
-            scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, display: false, beginAtZero: true } },
-        },
-    }, 280);
-    const legendRow = (label, color, amount, share) => h('li', { class: 'flex items-center gap-2' },
-        h('span', { class: 'inline-block h-0.5 w-4', style: { background: color } }),
-        h('strong', {}, label), h('span', { class: 'text-muted' }, `${peso(amount)} · ${pct(share)}`));
-    wrap.append(h('ul', { class: 'space-y-2 text-xs' },
-        legendRow('Profit', profit >= 0 ? GREEN : '#b91c1c', d.profit, d.profit_share),
-        [...LINES].reverse().map(([key, label, color]) => legendRow(label, color, out[key]?.amount, out[key]?.pct))));
-}
+    const per = d.per_order || {};
+    setSub(root, 'money-went', Number(d.orders) ? `Out of ${peso(d.money_in)} in sales · ${peso(per.sales)} per order` : '');
+    if (!Number(d.money_in) && !Number(out.total?.amount)) { fill(root, 'money-went', empty()); return; }
 
-function perOrder(root, d) {
-    const p = d.per_order || {};
-    setSub(root, 'per-order', `${peso(p.sales)} per order`);
-    if (!Number(d.orders)) { fill(root, 'per-order', empty()); return; }
-    const billNames = list(d.bills?.rows).map((r) => r.label).filter(Boolean).join(', ');
-    const otherNames = list(d.other_purchases?.rows).slice(0, 5).map((r) => r.category).filter(Boolean).join(', ');
+    const profit = Number(d.profit);
+    const loss = profit < 0;
     const staffCount = d.staff?.employees_count;
     const subs = {
-        staff: `${staffCount ? `${employees(staffCount)} · ` : ''}wages + SSS, PhilHealth, Pag-IBIG`,
-        bills: billNames,
+        staff: `${staffCount ? `${employees(staffCount)} · ` : ''}payroll recorded in Expenses`,
+        bills: inside(d.bills?.rows, 'label'),
         supplies: suppliesNames(d),
-        other: otherNames,
+        other: inside(d.other_purchases?.rows, 'category'),
     };
-    const row = ([key, label, color]) => h('li', { class: 'flex items-center justify-between gap-3 border-b border-border py-2 dark:border-gray-800' },
-        h('div', { class: 'flex items-start gap-2' }, h('span', { class: 'mt-1 h-2.5 w-2.5 shrink-0 rounded-sm', style: { background: color } }),
-            h('div', {}, h('div', { class: 'text-sm font-semibold' }, label), subs[key] ? h('div', { class: 'text-xs text-muted' }, subs[key]) : null)),
-        h('strong', { class: 'text-lg' }, peso(p[key])));
-    const loss = Number(p.profit) < 0;
-    fill(root, 'per-order',
-        h('div', { class: 'flex items-baseline gap-2' }, big(peso(p.sales)), h('span', { class: 'text-sm text-muted' }, 'paid by the customer, split like this:')),
-        h('ul', { class: 'mt-2' }, LINES.map(row)),
-        h('div', { class: `mt-3 flex items-center justify-between rounded-lg px-3 py-2 ${loss ? 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200' : 'bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-300'}` },
-            h('span', { class: 'flex items-center gap-2 text-sm font-semibold' }, h('span', { class: 'h-2.5 w-2.5 rounded-sm', style: { background: loss ? '#b91c1c' : GREEN } }), 'Profit'),
-            h('strong', { class: 'text-2xl' }, peso(p.profit))));
+    // Biggest cost first, so the answer reads top to bottom.
+    const costs = LINES.map(([key, label, color]) => ({ key, label, color, amount: Number(out[key]?.amount) || 0, share: out[key]?.pct, each: per[key], sub: subs[key] }))
+        .sort((x, y) => y.amount - x.amount);
+    const kept = { key: 'profit', label: loss ? 'Short' : 'Stayed in the shop', color: loss ? '#b91c1c' : GREEN, amount: profit, share: d.profit_share, each: per.profit };
+    const of100 = (share) => `₱${num(Math.abs(Number(share) || 0), 0)} of every ₱100`;
+    const lightText = { staff: true, bills: true, profit: true };
+
+    const headline = !Number(d.money_in)
+        ? h('p', { class: 'text-lg font-semibold' }, `${peso(out.total?.amount)} was spent and nothing was sold in these dates.`)
+        : h('p', { class: 'text-lg leading-snug sm:text-xl' }, 'Out of every ', h('strong', {}, '₱100'), ' the shop earned, ',
+            h('strong', {}, `₱${num(out.total?.pct, 0)}`), ' was spent',
+            loss ? h('span', {}, ' — ', h('strong', { class: 'text-red-700 dark:text-red-300' }, `₱${num(Math.abs(Number(d.profit_share) || 0), 0)} more than it earned`), '.')
+                : h('span', {}, ' and ', h('strong', { class: 'text-green-700 dark:text-green-400' }, `₱${num(d.profit_share, 0)} stayed`), '.'));
+
+    // One bar = all the sales (or all the spending, on a loss). Segment widths follow the amounts.
+    const segments = [...costs, ...(loss ? [] : [kept])].filter((c) => c.amount > 0);
+    const strip = h('div', { class: 'mt-4 flex h-11 w-full gap-0.5 overflow-hidden rounded-lg', role: 'img', 'aria-label': segments.map((c) => `${c.label} ${of100(c.share)}`).join(', ') },
+        segments.map((c) => h('div', { class: `flex min-w-0 items-center justify-center px-1 text-xs font-semibold ${lightText[c.key] ? 'text-white' : 'text-stone-900'}`, style: { flex: `${c.amount} 1 0%`, background: c.color }, title: `${c.label} · ${peso(c.amount)}` },
+            Number(c.share) >= 9 ? h('span', { class: 'truncate' }, `${c.label} ${pct(c.share)}`) : null)));
+
+    const max = maxOf(costs.map((c) => c.amount));
+    const row = (c, cls = '') => h('li', { class: `grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-3 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] ${cls}` },
+        h('div', { class: 'flex min-w-0 items-start gap-2.5' },
+            h('span', { class: 'mt-1.5 h-3 w-3 shrink-0 rounded-sm', style: { background: c.color } }),
+            h('div', { class: 'min-w-0' }, h('div', { class: 'font-semibold' }, c.label), c.sub ? h('div', { class: 'text-xs text-muted sm:truncate', title: c.sub }, c.sub) : null)),
+        h('div', { class: 'hidden sm:block' }, c.key === 'profit' ? null : bar(c.amount, max, c.color)),
+        h('div', { class: 'text-right' },
+            h('div', { class: 'text-xl font-bold tabular-nums' }, peso(c.amount)),
+            h('div', { class: 'text-xs text-muted' }, of100(c.share), Number(d.orders) ? h('span', { class: 'hidden sm:inline' }, ` · ${peso(c.each)} per order`) : null)));
+
+    fill(root, 'money-went', headline, strip,
+        h('ul', { class: 'mt-3 divide-y divide-border dark:divide-gray-800' }, costs.map((c) => row(c))),
+        h('ul', {}, row(kept, `mt-1 rounded-lg px-3 ${loss ? 'bg-red-50 dark:bg-red-950/40' : 'bg-green-50 dark:bg-green-950/40'}`)));
 }
 
 function breakEven(root, d) {
@@ -131,7 +127,7 @@ function staff(root, d) {
     const box = (label, value, sub, cls = 'bg-smoke dark:bg-gray-950') => card(`border-transparent ${cls}`,
         h('div', { class: 'text-xs font-medium' }, label), h('div', { class: 'mt-1 text-2xl font-bold' }, value), sub ? h('div', { class: 'text-xs text-muted' }, sub) : null);
     const tiles = h('div', { class: 'grid grid-cols-2 gap-2 xl:grid-cols-4' },
-        box('Total staff cost', peso(s.total), `${peso(s.wages)} wages + ${peso(s.employer_share)} employer share`, 'bg-violet-50 dark:bg-violet-950/40'),
+        box('Total staff cost', peso(s.total), 'payroll recorded in Expenses', 'bg-violet-50 dark:bg-violet-950/40'),
         box('Attendance', pct(s.attendance_pct), `${num(s.days_present, 0)} of ${num(s.days_scheduled, 0)} scheduled days`),
         box('Staff cost per order', peso(s.per_order), `${num(d.orders, 0)} orders`),
         box('Staff cost per kg', pesoCents(s.per_kg), `${num(s.kg, 2)} kg washed`));
@@ -139,21 +135,18 @@ function staff(root, d) {
     const th = (t, right = true) => h('th', { class: `px-2 py-2 text-[11px] font-bold uppercase tracking-wide text-muted ${right ? 'text-right' : 'text-left'}` }, t);
     const td = (cls, ...c) => h('td', { class: `px-2 py-2 text-right ${cls}` }, ...c);
     const initials = (name) => String(name ?? '').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
-    fill(root, 'staff', tiles, h('div', { class: 'mt-3 overflow-x-auto' }, h('table', { class: 'w-full min-w-[720px] text-sm' },
+    fill(root, 'staff', tiles, h('div', { class: 'mt-3 overflow-x-auto' }, h('table', { class: 'w-full min-w-[420px] text-sm' },
         h('thead', {}, h('tr', { class: 'border-b border-border dark:border-gray-800' },
-            th('Employee', false), th('Daily rate'), th('Days worked'), th('Wages'), th('Employer share'), th('Total cost'))),
+            th('Employee', false), th('Days worked'), th('Payroll paid'))),
         h('tbody', {}, rows.map((e) => h('tr', { class: 'border-b border-border dark:border-gray-800' },
             h('td', { class: 'px-2 py-2' }, h('div', { class: 'flex items-center gap-2' },
                 h('span', { class: 'flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[10px] font-bold text-violet-800 dark:bg-violet-950 dark:text-violet-200' }, initials(e.name)),
                 h('div', {}, h('div', { class: 'font-semibold' }, e.name ?? '—'), e.role ? h('div', { class: 'text-xs text-muted' }, e.role) : null))),
-            td('', e.daily_rate === null || e.daily_rate === undefined ? '—' : peso(e.daily_rate)),
             td(Number(e.days_worked) < Number(e.days_scheduled) ? 'font-semibold text-orange-600 dark:text-orange-400' : '', num(e.days_worked, 0)),
-            td('', peso(e.wages)),
-            td('text-muted', peso(e.employer_share)),
             td('font-semibold', peso(e.total))))),
         h('tfoot', {}, h('tr', { class: 'font-bold' },
-            h('td', { class: 'px-2 py-2' }, employees(s.employees_count)), td(''),
-            td('', num(s.days_present, 0)), td('', peso(s.wages)), td('', peso(s.employer_share)), td('', peso(s.total)))))));
+            h('td', { class: 'px-2 py-2' }, employees(s.employees_count)),
+            td('', num(s.days_present, 0)), td('', peso(s.total)))))));
 }
 
 function bills(root, d) {
@@ -187,8 +180,7 @@ function other(root, d) {
 
 export default function renderProfit(root, d) {
     equation(root, d);
-    moneyChart(root, d);
-    perOrder(root, d);
+    moneyWent(root, d);
     breakEven(root, d);
     staff(root, d);
     bills(root, d);

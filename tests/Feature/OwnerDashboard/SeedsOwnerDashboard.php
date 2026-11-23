@@ -149,6 +149,14 @@ trait SeedsOwnerDashboard
         ]);
     }
 
+    /** Payroll paid to $e for the salary period $start..$end (null = no period saved), entered on $date (default $end). */
+    protected function payroll(AttendanceEmployee $e, float $amount, ?string $start, ?string $end, array $attrs = [], ?string $date = null): BranchExpense
+    {
+        return $this->expense($e->branch, $date ?? $end, 'payroll', 'Salary', $amount, $attrs + [
+            'attendance_employee_id' => $e->id, 'salary_period_start' => $start, 'salary_period_end' => $end,
+        ]);
+    }
+
     /** A bill (bill_type set) covering $start..$end, entered on $start. */
     protected function bill(Branch $b, string $billType, float $amount, ?string $start, ?string $end, array $attrs = []): BranchExpense
     {

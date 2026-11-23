@@ -9,22 +9,13 @@
 @section('widgets')
     <div data-od="equation"><p class="{{ $loading }}">Loading…</p></div>
 
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section class="{{ $card }}">
-            <div class="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-                <h2 class="text-lg font-bold">Money in vs money out</h2>
-                <p class="text-xs text-muted">Same scale — the green part is what you keep</p>
-            </div>
-            <div data-od="money-chart" class="mt-3"><p class="{{ $loading }}">Loading…</p></div>
-        </section>
-        <section class="{{ $card }}">
-            <div class="flex items-baseline justify-between gap-2">
-                <h2 class="text-lg font-bold">On one average order</h2>
-                <p class="text-xs text-muted" data-od-sub="per-order"></p>
-            </div>
-            <div data-od="per-order" class="mt-3"><p class="{{ $loading }}">Loading…</p></div>
-        </section>
-    </div>
+    <section class="{{ $card }}">
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+            <h2 class="text-lg font-bold">Where the money went</h2>
+            <p class="text-xs text-muted" data-od-sub="money-went"></p>
+        </div>
+        <div data-od="money-went" class="mt-3"><p class="{{ $loading }}">Loading…</p></div>
+    </section>
 
     <section class="{{ $card }}">
         <div class="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
@@ -40,7 +31,7 @@
             <p class="text-xs text-muted">Paid weekly · pay week Saturday to Friday, paid Saturday · cash, bank or GCash</p>
         </div>
         <div data-od="staff" class="mt-3"><p class="{{ $loading }}">Loading…</p></div>
-        <p class="mt-3 text-xs text-muted">Employer share = SSS, PhilHealth, Pag-IBIG. Days in orange = fewer days than scheduled.</p>
+        <p class="mt-3 text-xs text-muted">Staff cost is the payroll recorded in Expenses, counted over each salary period. Days in orange = fewer days than scheduled.</p>
     </section>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
