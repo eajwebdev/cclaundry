@@ -10,7 +10,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
- * Page 3 of the owner dashboard: money in − money out = profit. Each cost counts for the days it belongs to:
+ * Page 3 of the owner dashboard: money in − operational cost = profit, plus money out (expenses as paid). Each cost counts for the days it belongs to:
  * staff by the payroll recorded in Expenses (over its salary period), bills by their period, supplies by use (R2),
  * other purchases by expense_date.
  * Sums run at full precision and are rounded once, at output.
@@ -50,6 +50,39 @@ final class ProfitStats
             'bills' => self::billsBlock($bills, $summary['sales']),
             'other_purchases' => self::otherBlock($other, $summary['sales']),
             'supplies_items' => $supplies['items'],
+            'money_spent' => self::spent($period),
+        ];
+    }
+
+    /**
+     * "Money out": every counted expense dated in range, in full on its expense date (what was actually paid),
+     * split into the same four lines, with supplies as bought rather than used.
+     *
+     * @return array{total: float, count: int, lines: array{staff: float, bills: float, supplies: float, other: float}}
+     */
+    private static function spent(Period $period): array
+    {
+        $rows = BranchExpense::query()->counted()
+            ->whereDate('expense_date', '>=', $period->from)
+            ->whereDate('expense_date', '<=', $period->to)
+            ->when($period->branchId, fn ($q, $id) => $q->where('branch_id', $id))
+            ->get(['expense_type', 'category', 'bill_type', 'amount']);
+        $line = function ($e) {
+            $type = in_array($e->expense_type, self::LEGACY_TYPES, true) ? str_replace(' ', '_', strtolower(trim((string) $e->category))) : $e->expense_type;
+
+            return match (true) {
+                $e->bill_type !== null => 'bills',
+                $type === 'payroll' => 'staff',
+                in_array($type, ['supplies', 'inventory_purchase'], true) => 'supplies',
+                default => 'other',
+            };
+        };
+        $by = $rows->groupBy($line)->map(fn ($g) => round((float) $g->sum('amount'), 2));
+
+        return [
+            'total' => round((float) $rows->sum('amount'), 2),
+            'count' => $rows->count(),
+            'lines' => array_map(fn ($key) => $by[$key] ?? 0.0, ['staff' => 'staff', 'bills' => 'bills', 'supplies' => 'supplies', 'other' => 'other']),
         ];
     }
 

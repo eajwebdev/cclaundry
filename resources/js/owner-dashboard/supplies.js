@@ -82,8 +82,8 @@ function purchases(root, d) {
         h('span', { class: 'w-14 shrink-0 text-xs text-muted' }, shortDate(p.date, false)),
         h('div', { class: 'min-w-0 flex-1' },
             h('div', { class: 'text-sm' }, h('span', { class: 'mr-1 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] text-sky-900 dark:bg-sky-950 dark:text-sky-200' }, 'Purchase'), h('strong', {}, p.item ?? '—')),
-            h('div', { class: 'text-xs text-muted' }, [`${signedNum(p.qty)} ${p.unit ?? ''}`.trim(), p.source].filter(Boolean).join(' · '))),
-        h('strong', { class: 'text-sm text-sky-800 dark:text-sky-300' }, signedPeso(p.cost)));
+            h('div', { class: 'text-xs text-muted' }, [p.qty == null ? null : `${signedNum(p.qty)} ${p.unit ?? ''}`.trim(), p.source].filter(Boolean).join(' · '))),
+        h('strong', { class: 'text-sm text-sky-800 dark:text-sky-300' }, peso(p.cost)));
     const ul = h('ul', { class: 'divide-y divide-border dark:divide-gray-800' }, rows.slice(0, 5).map(item));
     const more = rows.length > 5 ? h('button', { type: 'button', class: 'mt-2 text-xs font-semibold text-amber-800 underline dark:text-amber-400' }, `Show all ${num(k.purchases_count, 0)} purchases →`) : null;
     more?.addEventListener('click', () => { ul.replaceChildren(...rows.map(item)); more.remove(); });

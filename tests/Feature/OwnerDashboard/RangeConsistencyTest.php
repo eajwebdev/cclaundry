@@ -21,7 +21,7 @@ class RangeConsistencyTest extends TestCase
     private const KEYS = [
         'sales', 'orders', 'kg_washed', 'payments', 'profit',
         'supplies_used', 'stock_purchased', 'adjustments', 'addons_sold',
-        'money_in', 'staff', 'bills', 'supplies_cost', 'other', 'money_out', 'profit_total',
+        'money_in', 'staff', 'bills', 'supplies_cost', 'other', 'money_out', 'profit_total', 'money_spent',
     ];
 
     private const CLOSED_DAY = 16;
@@ -117,6 +117,9 @@ class RangeConsistencyTest extends TestCase
         foreach ([3, 8, 14, 19, 24, 28] as $k => $d) {
             $this->expense($br, sprintf('2026-09-%02d', $d), 'other', 'Supplies run '.$k, 100 + 37 * $k);
         }
+        foreach ([5, 12, 21, 27] as $k => $d) {
+            $this->expense($br, sprintf('2026-09-%02d', $d), $k % 2 ? 'supplies' : 'inventory_purchase', 'Detergent drum '.$k, 1500 + 11 * $k);
+        }
         $this->expense($br, '2026-09-15', 'other', 'Disputed', 888, ['drawer_status' => 'disputed']);
     }
 
@@ -138,6 +141,7 @@ class RangeConsistencyTest extends TestCase
             'money_in' => $amount($p['money_in']), 'staff' => $amount($p['money_out']['staff']), 'bills' => $amount($p['money_out']['bills']),
             'supplies_cost' => $amount($p['money_out']['supplies']), 'other' => $amount($p['money_out']['other']),
             'money_out' => $amount($p['money_out']['total']), 'profit_total' => $amount($p['profit']),
+            'money_spent' => $p['money_spent']['total'],
             'open_days' => $o['period']['open_days'],
         ];
     }

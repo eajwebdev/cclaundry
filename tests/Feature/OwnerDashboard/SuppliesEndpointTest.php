@@ -45,6 +45,8 @@ class SuppliesEndpointTest extends TestCase
         // quantity on an adjustment is the new stock level, never the change.
         $this->movement($this->detergent, '2026-09-24 18:00:00', 'adjustment', -1000, ['quantity' => 19000, 'reason' => 'count', 'remarks' => 'Monthly count']);
         $this->movement($this->detergent, '2026-09-27 12:00:00', 'in', 500, ['reason' => 'cancelled_order', 'remarks' => 'Auto restored for JO-9']);
+        // Stock purchased is the money, from Expenses (the stock-in above only adds quantity).
+        $this->expense($this->a, '2026-09-18', 'inventory_purchase', 'Detergent', 1200);
     }
 
     private function supplies(string $from = '2026-09-01', string $to = '2026-09-30', string $branch = 'all'): TestResponse
@@ -86,18 +88,26 @@ class SuppliesEndpointTest extends TestCase
     {
         $this->supplies()
             ->assertJsonCount(1, 'purchases')
-            ->assertJsonPath('purchases.0', ['date' => '2026-09-18', 'item' => 'Detergent', 'qty' => 20000, 'unit' => 'mL', 'source' => 'Bought at Puregold', 'cost' => 1200])
+            ->assertJsonPath('purchases.0', ['date' => '2026-09-18', 'item' => 'Detergent', 'qty' => null, 'unit' => null, 'source' => 'Stock purchase', 'cost' => 1200])
             ->assertJsonCount(2, 'adjustments')
             ->assertJsonPath('adjustments.0', ['date' => '2026-09-27', 'reason' => 'cancelled_order', 'item' => 'Detergent', 'qty' => 500, 'unit' => 'mL', 'note' => 'Auto restored for JO-9', 'cost' => 30])
             ->assertJsonPath('adjustments.1', ['date' => '2026-09-24', 'reason' => 'count', 'item' => 'Detergent', 'qty' => -1000, 'unit' => 'mL', 'note' => 'Monthly count', 'cost' => -60]);
     }
 
-    public function test_purchase_source_prefers_the_supplier(): void
+    public function test_stock_purchased_is_the_purchase_expenses_in_range(): void
     {
-        $supplier = Supplier::query()->create(['name' => 'Unilever Depot', 'is_active' => true]);
-        $this->detergent->update(['supplier_id' => $supplier->id]);
+        $this->expense($this->a, '2026-09-20', 'supplies', 'Bleach', 52.25);
+        $this->expense($this->a, '2026-09-21', 'supplies', 'Sponge', 30, ['drawer_status' => 'disputed']); // not counted
+        $this->expense($this->a, '2026-09-22', 'other', 'Mop', 75); // not a purchase
+        $this->expense($this->a, '2026-09-23', 'operating', 'Fabcon', 400, ['category' => 'Inventory Purchase']); // legacy row
+        $this->expense($this->a, '2026-10-01', 'supplies', 'Next month', 99);
 
-        $this->supplies()->assertJsonPath('purchases.0.source', 'Unilever Depot');
+        $this->supplies()
+            ->assertJsonPath('kpis.stock_purchased', 1652.25)
+            ->assertJsonPath('kpis.purchases_count', 3)
+            ->assertJsonPath('items_total.purchased_cost', 1652.25)
+            ->assertJsonPath('purchases.*.item', ['Fabcon', 'Bleach', 'Detergent'])
+            ->assertJsonPath('purchases.1.source', 'Supplies');
     }
 
     public function test_order_edit_restore_reduces_use_and_is_not_a_purchase_or_adjustment(): void
@@ -200,9 +210,9 @@ class SuppliesEndpointTest extends TestCase
         }
 
         // Straight from the rows, R1 by hand: out is use, an order_edit restore is negative use.
-        $used = $bought = $adjusted = 0.0;
+        $used = $adjusted = 0.0;
         $usedBy = [];
-        $purchases = $adjustments = 0;
+        $adjustments = 0;
         $rows = DB::table('inventory_movements as m')->join('inventories as i', 'i.id', '=', 'm.inventory_id')
             ->whereBetween('m.created_at', ['2026-01-01 00:00:00', '2026-10-31 23:59:59'])
             ->get(['m.movement_type', 'm.reason', 'm.change_qty', 'm.unit_cost', 'i.unit_cost as item_cost', 'i.name']);
@@ -215,8 +225,7 @@ class SuppliesEndpointTest extends TestCase
                 $used += $signed;
                 $usedBy[$r->name] = ($usedBy[$r->name] ?? 0) + $signed;
             } elseif ($r->movement_type === 'in' && $r->reason === null) {
-                $bought += $value;
-                $purchases++;
+                continue; // stock-in: quantity only, the money is in Expenses
             } else {
                 $adjusted += (float) $r->change_qty < 0 ? -$value : $value;
                 $adjustments++;
@@ -225,11 +234,11 @@ class SuppliesEndpointTest extends TestCase
 
         $res = $this->supplies('2026-01-01', '2026-10-31')->assertJsonPath('period.bucket', 'month');
         $this->assertEqualsWithDelta(round($used, 2), $res->json('kpis.supplies_used'), 0.011);
-        $this->assertEqualsWithDelta(round($bought, 2), $res->json('kpis.stock_purchased'), 0.011);
+        $this->assertSame(1200, $res->json('kpis.stock_purchased')); // the one purchase expense from setUp
         $this->assertEqualsWithDelta(round($adjusted, 2), $res->json('kpis.adjustments'), 0.011);
-        $this->assertSame($purchases, $res->json('kpis.purchases_count'));
+        $this->assertSame(1, $res->json('kpis.purchases_count'));
         $this->assertSame($adjustments, $res->json('kpis.adjustments_count'));
-        $this->assertCount($purchases, $res->json('purchases'));
+        $this->assertCount(1, $res->json('purchases'));
         $this->assertCount($adjustments, $res->json('adjustments'));
         $this->assertSame($res->json('kpis.supplies_used'), $res->json('items_total.cost_used'));
         foreach ($res->json('items') as $row) {
@@ -330,6 +339,7 @@ class SuppliesEndpointTest extends TestCase
         $detergentB = $this->stockItem($b, 'Detergent', 'mL', 0.06);
         $this->movement($detergentB, '2026-09-10 09:00:00', 'out', -500);
         $this->movement($detergentB, '2026-09-11 09:00:00', 'in', 1000);
+        $this->expense($b, '2026-09-11', 'supplies', 'Detergent', 60);
 
         $all = $this->supplies()->assertJsonCount(1, 'items')->json();
         $one = $this->supplies(branch: (string) $this->a->id)->json();

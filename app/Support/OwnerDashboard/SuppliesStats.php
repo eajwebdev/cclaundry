@@ -2,6 +2,7 @@
 
 namespace App\Support\OwnerDashboard;
 
+use App\Models\BranchExpense;
 use App\Models\InventoryMovement;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
@@ -19,13 +20,14 @@ final class SuppliesStats
     {
         $moves = self::used($period)->concat(self::listed($period));
         $orders = OverviewStats::orders($period);
+        $bought = self::bought($period);
 
         return [
             'period' => $period->toArray(),
-            'kpis' => self::kpis($period, $moves, $orders),
+            'kpis' => self::kpis($period, $moves, $orders, $bought),
             ...self::usage($period, $moves),
-            ...self::items($period, $moves, $orders),
-            'purchases' => self::purchases($moves),
+            ...self::items($period, $moves, $orders, $bought),
+            'purchases' => $bought,
             'adjustments' => self::adjustments($moves),
             'addons' => self::addons($period),
         ];
@@ -123,7 +125,33 @@ final class SuppliesStats
             });
     }
 
-    private static function kpis(Period $period, Collection $moves, int $orders): array
+    /**
+     * Stock and supplies bought = the supplies / inventory_purchase expenses dated in range, newest first.
+     * The shop records purchases in Expenses; inventory stock-in rows carry no money and are not counted here.
+     *
+     * @return list<array{date: string, item: string, qty: null, unit: null, source: string, cost: float}>
+     */
+    private static function bought(Period $period): array
+    {
+        $types = ['supplies', 'inventory_purchase'];
+
+        return BranchExpense::query()->counted()
+            ->whereNull('bill_type')
+            ->whereIn('expense_type', [...$types, 'operating', 'regular'])
+            ->whereDate('expense_date', '>=', $period->from)
+            ->whereDate('expense_date', '<=', $period->to)
+            ->when($period->branchId, fn ($q, $id) => $q->where('branch_id', $id))
+            ->orderByDesc('expense_date')->orderByDesc('id')
+            ->get(['expense_date', 'title', 'expense_type', 'category', 'amount'])
+            // Legacy rows ('operating', 'regular') keep their real type in category.
+            ->filter(fn ($e) => in_array($e->expense_type, $types, true) || in_array(str_replace(' ', '_', strtolower(trim((string) $e->category))), $types, true))
+            ->map(fn ($e) => [
+                'date' => $e->expense_date->toDateString(), 'item' => trim((string) $e->title) ?: 'Purchase', 'qty' => null, 'unit' => null,
+                'source' => $e->expense_type === 'supplies' ? 'Supplies' : 'Stock purchase', 'cost' => round((float) $e->amount, 2),
+            ])->values()->all();
+    }
+
+    private static function kpis(Period $period, Collection $moves, int $orders, array $bought): array
     {
         $used = (float) $moves->where('class', 'use')->sum('cost');
         $kg = OverviewStats::kg($period);
@@ -136,8 +164,8 @@ final class SuppliesStats
             'supplies_used' => round($used, 2),
             'per_order' => round($orders ? $used / $orders : 0.0, 2),
             'per_kg' => round($kg > 0 ? $used / $kg : 0.0, 2),
-            'stock_purchased' => round((float) $moves->where('class', 'purchase')->sum('cost'), 2),
-            'purchases_count' => $moves->where('class', 'purchase')->count(),
+            'stock_purchased' => round(array_sum(array_column($bought, 'cost')), 2),
+            'purchases_count' => count($bought),
             'adjustments' => round((float) $moves->where('class', 'adjust')->sum('cost'), 2),
             'adjustments_count' => $moves->where('class', 'adjust')->count(),
             'addons_sold' => round($addonsSold, 2),
@@ -161,7 +189,7 @@ final class SuppliesStats
     }
 
     /** One row per (name, unit), so the same item on several branches is one row under "all". */
-    private static function items(Period $period, Collection $moves, int $orders): array
+    private static function items(Period $period, Collection $moves, int $orders, array $bought): array
     {
         $sum = fn (Collection $g, string $class, string $field) => (float) $g->where('class', $class)->sum($field);
         $rows = $moves->groupBy(fn ($m) => $m->name."\0".$m->unit)->map(function (Collection $g) use ($sum, $period, $orders) {
@@ -184,19 +212,11 @@ final class SuppliesStats
             'items' => $rows->map(fn ($r) => array_replace($r, ['cost_used' => round($r['cost_used'], 2)]))->all(),
             'items_total' => [
                 'per_order_cost' => round($orders ? $used / $orders : 0.0, 2),
-                'purchased_cost' => round($sum($moves, 'purchase', 'cost'), 2),
+                'purchased_cost' => round(array_sum(array_column($bought, 'cost')), 2),
                 'adjusted_cost' => round($sum($moves, 'adjust', 'cost'), 2),
                 'cost_used' => round($used, 2),
             ],
         ];
-    }
-
-    private static function purchases(Collection $moves): array
-    {
-        return $moves->where('class', 'purchase')->map(fn ($m) => [
-            'date' => $m->date, 'item' => $m->name, 'qty' => round($m->qty, 2), 'unit' => $m->unit,
-            'source' => $m->source, 'cost' => round($m->cost, 2),
-        ])->values()->all();
     }
 
     private static function adjustments(Collection $moves): array

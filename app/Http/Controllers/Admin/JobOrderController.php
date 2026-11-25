@@ -728,6 +728,23 @@ class JobOrderController extends Controller
             $tax = round($settings->vat_enabled ? ($taxable * ((float) $settings->vat_rate / 100)) : 0, 2);
             $total = (float) ceil(round($taxable + $tax, 2));
             $paid = (float) $jobOrder->payments()->sum('amount');
+            // Edited below what was already paid: the excess goes back as change, newest payment first.
+            $refund = round(max($paid - $total, 0), 2);
+            $excess = $refund;
+            foreach ($excess > 0 ? $jobOrder->payments()->latest('paid_at')->latest('id')->get() : [] as $payment) {
+                $cut = min($excess, (float) $payment->amount);
+                $payment->update([
+                    'amount' => round((float) $payment->amount - $cut, 2),
+                    'change_amount' => round((float) $payment->change_amount + $cut, 2),
+                    'tendered_amount' => $payment->tendered_amount ?? $payment->getOriginal('amount'),
+                ]);
+                CustomerLedger::where('payment_id', $payment->id)->where('entry_type', 'credit')->update(['amount' => $payment->amount]);
+                $excess = round($excess - $cut, 2);
+                if ($excess <= 0) {
+                    break;
+                }
+            }
+            $paid -= $refund;
 
             if ($inventoryWasDeducted) {
                 $this->restoreInventoryForOrder($jobOrder, $request->user()?->id, $validated['status'] === 'cancelled' ? 'cancelled_order' : 'order_edit');
@@ -817,6 +834,7 @@ class JobOrderController extends Controller
                     'branch_id' => $jobOrder->branch_id,
                     'customer_id' => $jobOrder->customer_id,
                 ]);
+            $this->recalculateCustomerLedger((int) $jobOrder->customer_id);
 
             $jobOrder->load('customer');
 
@@ -824,11 +842,14 @@ class JobOrderController extends Controller
                 'job_order_number' => $jobOrder->job_order_number,
                 'status' => $jobOrder->status,
                 'total' => $jobOrder->total,
+                'refunded' => $refund ?: null,
             ], $jobOrder->branch_id);
 
             return redirect()
                 ->route('admin.job-orders.show', $jobOrder)
-                ->with('success', 'Job order updated successfully.');
+                ->with('success', $refund > 0
+                    ? 'Job order updated. The new total is lower than what was paid: give back ₱'.number_format($refund, 2).' to the customer.'
+                    : 'Job order updated successfully.');
         });
     }
 

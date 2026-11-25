@@ -13,7 +13,7 @@ const employees = (count) => `${num(count, 0)} ${Number(count) === 1 ? 'employee
 const suppliesNames = (d) => list(d.supplies_items).map((name) => String(name).toLowerCase()).join(', ');
 
 
-/** Money in − Money out = Profit as one card; the line under each figure shows its size against Sales. */
+/** Money in − Operational cost = Profit as one card, then Money out (expenses as paid) under it; the line under each figure shows its size against Sales. */
 function equation(root, d) {
     const out = d.money_out || {};
     const loss = Number(d.profit) < 0;
@@ -32,13 +32,30 @@ function equation(root, d) {
     fill(root, 'equation', h('div', { class: 'grid grid-cols-1 divide-y divide-border overflow-hidden rounded-xl border border-border bg-white shadow-sm md:grid-cols-[1fr_auto_1fr_auto_1.15fr] md:divide-x md:divide-y-0 dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900' },
         part('Money in', peso(d.money_in), `sales from ${num(d.orders, 0)} orders`, '#1f6b7a', 100),
         op('−'),
-        part('Money out', peso(out.total?.amount), hasSales ? `₱${num(out.total?.pct, 0)} of every ₱100 earned` : 'staff, bills, supplies, other', '#b45309', out.total?.pct),
+        part('Operational cost', peso(out.total?.amount), hasSales ? `₱${num(out.total?.pct, 0)} of every ₱100 earned` : 'staff, bills, supplies, other', '#b45309', out.total?.pct),
         op('='),
         part(loss ? 'Loss' : 'Profit', peso(d.profit),
             loss ? `${pct(Math.abs(Number(d.profit_pct) || 0))} of sales lost` : `${pct(d.profit_pct)} of sales stays in the shop`,
             kept, loss ? 0 : d.profit_share,
             loss ? 'bg-red-50 dark:bg-red-950/30' : 'bg-green-50 dark:bg-green-950/30',
-            loss ? 'text-red-700 dark:text-red-300' : 'text-green-800 dark:text-green-300')));
+            loss ? 'text-red-700 dark:text-red-300' : 'text-green-800 dark:text-green-300')),
+        moneySpent(d.money_spent || {}));
+}
+
+/** Every expense dated in the range, in full, as the Expenses page records it. Not part of the profit sum. */
+function moneySpent(m) {
+    const lines = m.lines || {};
+    const names = { staff: 'Staff', bills: 'Bills', supplies: 'Supplies bought', other: 'Other' };
+    const count = Number(m.count) || 0;
+    return h('div', { class: 'mt-3 flex flex-col gap-3 rounded-xl border border-border bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5 dark:border-gray-800 dark:bg-gray-900' },
+        h('div', {},
+            h('div', { class: 'flex items-center gap-2 text-sm font-semibold' }, h('span', { class: 'h-2.5 w-2.5 rounded-sm bg-red-700' }), 'Money out'),
+            h('div', { class: 'mt-1 text-3xl font-bold tracking-tight tabular-nums', style: { fontFamily: "'Playfair Display', Georgia, serif" } }, peso(m.total)),
+            h('div', { class: 'mt-1 text-sm text-muted' }, `all ${num(count, 0)} ${count === 1 ? 'expense' : 'expenses'} paid in these dates`)),
+        h('dl', { class: 'grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4' },
+            Object.entries(names).map(([key, label]) => h('div', {},
+                h('dt', { class: 'text-xs text-muted' }, label),
+                h('dd', { class: 'font-semibold tabular-nums' }, peso(lines[key]))))));
 }
 
 /** "Water ₱1,998 · Electricity ₱587": the biggest few things inside a cost line. */

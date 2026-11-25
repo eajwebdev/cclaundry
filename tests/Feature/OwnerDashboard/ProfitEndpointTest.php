@@ -361,6 +361,25 @@ class ProfitEndpointTest extends TestCase
             ]);
     }
 
+    public function test_money_spent_is_every_counted_expense_paid_in_range(): void
+    {
+        $this->expense($this->a, '2026-09-22', 'supplies', 'Bleach', 1000);
+        $this->expense($this->a, '2026-09-22', 'inventory_purchase', 'Detergent drum', 2500);
+        $this->expense($this->a, '2026-09-22', 'other', 'Mop head', 75, ['drawer_status' => 'disputed']);
+        $this->bill($this->a, 'water', 600, '2026-09-24', '2026-10-23');
+
+        $res = $this->profit('2026-09-21', '2026-09-26');
+        $expenses = \App\Models\BranchExpense::query()->counted()->whereDate('expense_date', '>=', '2026-09-21')->whereDate('expense_date', '<=', '2026-09-26');
+        $this->assertEquals((float) (clone $expenses)->sum('amount'), $res->json('money_spent.total'));
+        $this->assertSame((clone $expenses)->count(), $res->json('money_spent.count'));
+        $res->assertJsonPath('money_spent.lines.supplies', 3500)   // bought, in full
+            ->assertJsonPath('money_spent.lines.bills', 600)       // in full on its date, not spread
+            ->assertJsonPath('money_spent.lines.staff', 4465.5);   // the whole payroll dated Sep 26
+        $this->assertEqualsWithDelta($res->json('money_spent.total'), array_sum($res->json('money_spent.lines')), 0.001);
+        // Operational cost still counts supplies as used, not bought.
+        $this->assertNotEquals(3500, $res->json('money_out.supplies.amount'));
+    }
+
     public function test_overview_profit_card_matches_profit_endpoint(): void
     {
         $this->seedWeek();
